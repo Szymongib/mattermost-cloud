@@ -5,10 +5,10 @@
 package model
 
 import (
-	"testing"
-
+	"bytes"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"testing"
 )
 
 func TestAnnotationsFromStringSlice(t *testing.T) {
@@ -71,7 +71,6 @@ func TestAnnotationsFromStringSlice(t *testing.T) {
 			})
 		}
 	})
-
 }
 
 func TestSortAnnotations(t *testing.T) {
@@ -96,5 +95,31 @@ func TestSortAnnotations(t *testing.T) {
 			assert.Equal(t, testCase.expected, testCase.annotations)
 		})
 	}
+}
 
+
+func TestNewAddAnnotationsRequestFromReader(t *testing.T) {
+	t.Run("empty request", func(t *testing.T) {
+		annotationsRequest, err := NewAddAnnotationsRequestFromReader(bytes.NewReader([]byte(
+			``,
+		)))
+		require.NoError(t, err)
+		require.Equal(t, &AddAnnotationsRequest{}, annotationsRequest)
+	})
+
+	t.Run("invalid request", func(t *testing.T) {
+		annotationsRequest, err := NewAddAnnotationsRequestFromReader(bytes.NewReader([]byte(
+			`{test`,
+		)))
+		require.Error(t, err)
+		require.Nil(t, annotationsRequest)
+	})
+
+	t.Run("request", func(t *testing.T) {
+		annotationsRequest, err := NewAddAnnotationsRequestFromReader(bytes.NewReader([]byte(
+			`{"annotations":["abcd", "super-awesome"]}`,
+		)))
+		require.NoError(t, err)
+		require.Equal(t, &AddAnnotationsRequest{Annotations: []string{"abcd", "super-awesome"}}, annotationsRequest)
+	})
 }
