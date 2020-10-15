@@ -33,6 +33,12 @@ func initInstallation(apiRouter *mux.Router, context *Context) {
 	installationRouter.Handle("/hibernate", addContext(handleHibernateInstallation)).Methods("POST")
 	installationRouter.Handle("/wakeup", addContext(handleWakeupInstallation)).Methods("POST")
 	installationRouter.Handle("", addContext(handleDeleteInstallation)).Methods("DELETE")
+	installationRouter.Handle("/annotations", addContext(handleAddInstallationAnnotations)).Methods("POST")
+	// TODO: check if that regex works
+	installationRouter.Handle(
+		"/annotation/{annotation-name: ^[a-z].[a-z0-9_-]*$}",
+		addContext(handleDeleteInstallationAnnotation),
+	).Methods("DELETE")
 }
 
 // handleGetInstallation responds to GET /api/installation/{installation}, returning the installation in question.
@@ -631,4 +637,51 @@ func handleDeleteInstallation(c *Context, w http.ResponseWriter, r *http.Request
 	c.Supervisor.Do()
 
 	w.WriteHeader(http.StatusAccepted)
+}
+
+
+// handleAddInstallationAnnotations responds to POST /api/installation/{installation}/annotations,
+// adds the set of annotations to the Installation.
+func handleAddInstallationAnnotations(c *Context, w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	installationID := vars["installation"]
+	c.Logger = c.Logger.WithField("installation", installationID).WithField("action", "add-annotations")
+
+	annotations, err := annotationsFromRequest(r)
+	if err != nil {
+		c.Logger.WithError(err).Error("failed to get annotations from request")
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	annotations, err = c.Store.CreateInstallationAnnotations(installationID, annotations)
+	if err != nil {
+		c.Logger.WithError(err).Error("failed to create installation annotations")
+		w.WriteHeader(http.StatusInternalServerError)  // TODO: or 400
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	outputJSON(c, w, annotations)
+}
+
+// handleDeleteInstallationAnnotation responds to DELETE /api/installation/{installation}/annotation/{annotation-name},
+// removes annotation from the Installation.
+func handleDeleteInstallationAnnotation(c *Context, w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	installationID := vars["installation"]
+	annotationName := vars["annotation-name"]
+	c.Logger = c.Logger.
+		WithField("installation", installationID).
+		WithField("action", "delete-annotation").
+		WithField("annotation-name", annotationName)
+
+	err := c.Store.DeleteInstallationAnnotation(installationID, annotationName)
+	if err != nil {
+		c.Logger.WithError(err).Error("failed delete cluster annotation")
+		w.WriteHeader(http.StatusInternalServerError)
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusNoContent)
 }
