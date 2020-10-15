@@ -5,6 +5,7 @@
 package api
 
 import (
+	"github.com/pkg/errors"
 	"net/http"
 	"time"
 
@@ -31,6 +32,13 @@ func initCluster(apiRouter *mux.Router, context *Context) {
 	clusterRouter.Handle("/kubernetes", addContext(handleUpgradeKubernetes)).Methods("PUT")
 	clusterRouter.Handle("/size", addContext(handleResizeCluster)).Methods("PUT")
 	clusterRouter.Handle("/utilities", addContext(handleGetAllUtilityMetadata)).Methods("GET")
+	clusterRouter.Handle("/annotations", addContext(handleAddClusterAnnotations)).Methods("POST")
+	// TODO: check if that regex works
+	clusterRouter.Handle(
+		"/annotation/{annotation-name: ^[a-z].[a-z0-9_-]*$}",
+		addContext(handleDeleteClusterAnnotation),
+	).Methods("DELETE")
+
 	clusterRouter.Handle("", addContext(handleDeleteCluster)).Methods("DELETE")
 }
 
@@ -575,4 +583,69 @@ func handleGetAllUtilityMetadata(c *Context, w http.ResponseWriter, r *http.Requ
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	outputJSON(c, w, cluster.UtilityMetadata)
+}
+
+// TODO: handlers tests
+
+// handleAddClusterAnnotations responds to POST /api/cluster/{cluster}/annotations,
+// adds the set of annotations to the Cluster.
+func handleAddClusterAnnotations(c *Context, w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	clusterID := vars["cluster"]
+	c.Logger = c.Logger.WithField("cluster", clusterID).WithField("action", "add-annotations")
+
+	annotations, err := annotationsFromRequest(r)
+	if err != nil {
+		c.Logger.WithError(err).Error("failed to get annotations from request")
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	annotations, err = c.Store.CreateClusterAnnotations(clusterID, annotations)
+	if err != nil {
+		c.Logger.WithError(err).Error("failed to create cluster annotations")
+		w.WriteHeader(http.StatusInternalServerError)
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	outputJSON(c, w, annotations)
+}
+
+// TODO: consider how the name should be passed to delete
+// handleDeleteClusterAnnotation responds to DELETE /api/cluster/{cluster}/annotation/{annotation-name},
+// removes annotation from the Cluster.
+func handleDeleteClusterAnnotation(c *Context, w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	clusterID := vars["cluster"]
+	annotationName := vars["annotation-name"]
+	c.Logger = c.Logger.
+		WithField("cluster", clusterID).
+		WithField("action", "delete-annotation").
+		WithField("annotation-name", annotationName)
+
+	err := c.Store.DeleteClusterAnnotation(clusterID, annotationName)
+	if err != nil {
+		// TODO: how do I differentiate between errors here?
+		c.Logger.WithError(err).Error("failed delete cluster annotation")
+		w.WriteHeader(http.StatusInternalServerError) // TODO: or 400
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func annotationsFromRequest(req *http.Request) ([]*model.Annotation, error) {
+	annotationsRequest, err := model.NewAddAnnotationsRequestFromReader(req.Body)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to decode request")
+	}
+	defer req.Body.Close()
+
+	annotations, err := model.AnnotationsFromStringSlice(annotationsRequest.Annotations)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to validate annotations")
+	}
+
+	return annotations, nil
 }
