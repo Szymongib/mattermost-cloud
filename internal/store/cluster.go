@@ -7,7 +7,7 @@ package store
 import (
 	"database/sql"
 	"encoding/json"
-
+	"fmt"
 	sq "github.com/Masterminds/squirrel"
 	"github.com/mattermost/mattermost-cloud/model"
 	"github.com/pkg/errors"
@@ -17,7 +17,7 @@ var clusterSelect sq.SelectBuilder
 
 func init() {
 	clusterSelect = sq.
-		Select("ID", "Provider", "Provisioner", "ProviderMetadataRaw", "ProvisionerMetadataRaw",
+		Select("Cluster.ID", "Provider", "Provisioner", "ProviderMetadataRaw", "ProvisionerMetadataRaw",
 			"UtilityMetadataRaw", "State", "AllowInstallations", "CreateAt", "DeleteAt",
 			"APISecurityLock", "LockAcquiredBy", "LockAcquiredAt").
 		From("Cluster")
@@ -126,6 +126,13 @@ func (sqlStore *SQLStore) applyClustersFilter(builder sq.SelectBuilder, filter *
 
 	if !filter.IncludeDeleted {
 		builder = builder.Where("DeleteAt = 0")
+	}
+
+	if filter.Annotations != nil {
+		builder = builder.Join(fmt.Sprintf("%s ON Cluster.ID=%s.ClusterID", clusterAnnotationTable, clusterAnnotationTable)).
+			Where(sq.Eq{fmt.Sprintf("%s.AnnotationID", clusterAnnotationTable): filter.Annotations.MatchAllIDs}).
+			GroupBy("Cluster.ID").
+			Having(fmt.Sprintf("count(DISTINCT %s.AnnotationID) = ?", clusterAnnotationTable), len(filter.Annotations.MatchAllIDs))
 	}
 
 	return builder

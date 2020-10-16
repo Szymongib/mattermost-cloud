@@ -213,7 +213,7 @@ func TestAnnotations_Installation(t *testing.T) {
 		cluster := model.Cluster{}
 		err = sqlStore.CreateCluster(&cluster, []*model.Annotation{&annotation1})
 		require.NoError(t, err)
-		installation := model.Installation{}
+		installation := model.Installation{DNS: "dns3.com"}
 		err = sqlStore.CreateInstallation(&installation, nil)
 		require.NoError(t, err)
 
