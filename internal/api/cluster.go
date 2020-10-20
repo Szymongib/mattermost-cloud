@@ -33,9 +33,8 @@ func initCluster(apiRouter *mux.Router, context *Context) {
 	clusterRouter.Handle("/size", addContext(handleResizeCluster)).Methods("PUT")
 	clusterRouter.Handle("/utilities", addContext(handleGetAllUtilityMetadata)).Methods("GET")
 	clusterRouter.Handle("/annotations", addContext(handleAddClusterAnnotations)).Methods("POST")
-	// TODO: check if that regex works
 	clusterRouter.Handle(
-		"/annotation/{annotation-name: ^[a-z].[a-z0-9_-]*$}",
+		"/annotation/{annotation-name:[a-z]+[a-z0-9_-]*}",
 		addContext(handleDeleteClusterAnnotation),
 	).Methods("DELETE")
 
@@ -594,6 +593,13 @@ func handleAddClusterAnnotations(c *Context, w http.ResponseWriter, r *http.Requ
 	clusterID := vars["cluster"]
 	c.Logger = c.Logger.WithField("cluster", clusterID).WithField("action", "add-annotations")
 
+	clusterDTO, status, unlockOnce := lockCluster(c, clusterID)
+	if status != 0 {
+		w.WriteHeader(status)
+		return
+	}
+	defer unlockOnce()
+
 	annotations, err := annotationsFromRequest(r)
 	if err != nil {
 		c.Logger.WithError(err).Error("failed to get annotations from request")
@@ -607,9 +613,11 @@ func handleAddClusterAnnotations(c *Context, w http.ResponseWriter, r *http.Requ
 		w.WriteHeader(http.StatusInternalServerError)
 	}
 
+	clusterDTO.Annotations = append(clusterDTO.Annotations, annotations...)
+
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	outputJSON(c, w, annotations)
+	outputJSON(c, w, clusterDTO)
 }
 
 // TODO: consider how the name should be passed to delete
@@ -623,6 +631,13 @@ func handleDeleteClusterAnnotation(c *Context, w http.ResponseWriter, r *http.Re
 		WithField("cluster", clusterID).
 		WithField("action", "delete-annotation").
 		WithField("annotation-name", annotationName)
+
+	_, status, unlockOnce := lockCluster(c, clusterID)
+	if status != 0 {
+		w.WriteHeader(status)
+		return
+	}
+	defer unlockOnce()
 
 	err := c.Store.DeleteClusterAnnotation(clusterID, annotationName)
 	if err != nil {
