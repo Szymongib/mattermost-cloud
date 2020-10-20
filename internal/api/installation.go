@@ -34,9 +34,8 @@ func initInstallation(apiRouter *mux.Router, context *Context) {
 	installationRouter.Handle("/wakeup", addContext(handleWakeupInstallation)).Methods("POST")
 	installationRouter.Handle("", addContext(handleDeleteInstallation)).Methods("DELETE")
 	installationRouter.Handle("/annotations", addContext(handleAddInstallationAnnotations)).Methods("POST")
-	// TODO: check if that regex works
 	installationRouter.Handle(
-		"/annotation/{annotation-name: ^[a-z].[a-z0-9_-]*$}",
+		"/annotation/{annotation-name:[a-z]+[a-z0-9_-]*}",
 		addContext(handleDeleteInstallationAnnotation),
 	).Methods("DELETE")
 }
@@ -647,6 +646,13 @@ func handleAddInstallationAnnotations(c *Context, w http.ResponseWriter, r *http
 	installationID := vars["installation"]
 	c.Logger = c.Logger.WithField("installation", installationID).WithField("action", "add-annotations")
 
+	installationDTO, status, unlockOnce := lockInstallation(c, installationID)
+	if status != 0 {
+		w.WriteHeader(status)
+		return
+	}
+	defer unlockOnce()
+
 	annotations, err := annotationsFromRequest(r)
 	if err != nil {
 		c.Logger.WithError(err).Error("failed to get annotations from request")
@@ -660,10 +666,14 @@ func handleAddInstallationAnnotations(c *Context, w http.ResponseWriter, r *http
 		w.WriteHeader(http.StatusInternalServerError)  // TODO: or 400
 	}
 
+	installationDTO.Annotations = append(installationDTO.Annotations, annotations...)
+
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	outputJSON(c, w, annotations)
+	outputJSON(c, w, installationDTO)
 }
+
+// TODO: still not sure if that should take annotation name or id
 
 // handleDeleteInstallationAnnotation responds to DELETE /api/installation/{installation}/annotation/{annotation-name},
 // removes annotation from the Installation.
@@ -675,6 +685,13 @@ func handleDeleteInstallationAnnotation(c *Context, w http.ResponseWriter, r *ht
 		WithField("installation", installationID).
 		WithField("action", "delete-annotation").
 		WithField("annotation-name", annotationName)
+
+	_, status, unlockOnce := lockInstallation(c, installationID)
+	if status != 0 {
+		w.WriteHeader(status)
+		return
+	}
+	defer unlockOnce()
 
 	err := c.Store.DeleteInstallationAnnotation(installationID, annotationName)
 	if err != nil {
