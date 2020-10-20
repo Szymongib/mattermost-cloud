@@ -1163,6 +1163,88 @@ func TestGetAllUtilityMetadata(t *testing.T) {
 	assert.Equal(t, model.FluentbitDefaultVersion, utilityMetadata.DesiredVersions.Fluentbit)
 }
 
+func TestClusterAnnotations(t *testing.T) {
+	logger := testlib.MakeLogger(t)
+	sqlStore := store.MakeTestSQLStore(t, logger)
+	defer store.CloseConnection(t, sqlStore)
+
+	router := mux.NewRouter()
+	api.Register(router, &api.Context{
+		Store:      sqlStore,
+		Supervisor: &mockSupervisor{},
+		Logger:     logger,
+	})
+
+	ts := httptest.NewServer(router)
+	client := model.NewClient(ts.URL)
+	cluster, err := client.CreateCluster(
+		&model.CreateClusterRequest{
+			Provider: model.ProviderAWS,
+			Zones:    []string{"zone"},
+		})
+	require.NoError(t, err)
+
+	annotationsRequest := &model.AddAnnotationsRequest{
+		Annotations: []string{"my-annotation", "super-awesome123"},
+	}
+
+	cluster, err = client.AddClusterAnnotations(cluster.ID, annotationsRequest)
+	require.NoError(t, err)
+	assert.Equal(t, 2, len(cluster.Annotations))
+	assert.True(t, containsAnnotation("my-annotation", cluster.Annotations))
+	assert.True(t, containsAnnotation("super-awesome123", cluster.Annotations))
+
+	annotationsRequest = &model.AddAnnotationsRequest{
+		Annotations: []string{"my-annotation2"},
+	}
+	cluster, err = client.AddClusterAnnotations(cluster.ID, annotationsRequest)
+	require.NoError(t, err)
+	assert.Equal(t, 3, len(cluster.Annotations))
+
+	cluster, err = client.GetCluster(cluster.ID)
+	require.NoError(t, err)
+	assert.Equal(t, 3, len(cluster.Annotations))
+	assert.True(t, containsAnnotation("my-annotation", cluster.Annotations))
+	assert.True(t, containsAnnotation("my-annotation2", cluster.Annotations))
+	assert.True(t, containsAnnotation("super-awesome123", cluster.Annotations))
+
+	t.Run("fail to add duplicated annotation", func(t *testing.T) {
+		annotationsRequest = &model.AddAnnotationsRequest{
+			Annotations: []string{"my-annotation"},
+		}
+		_, err = client.AddClusterAnnotations(cluster.ID, annotationsRequest)
+		require.Error(t, err)
+	})
+
+	t.Run("fail to add invalid annotation", func(t *testing.T) {
+		annotationsRequest = &model.AddAnnotationsRequest{
+			Annotations: []string{"_my-annotation"},
+		}
+		_, err = client.AddClusterAnnotations(cluster.ID, annotationsRequest)
+		require.Error(t, err)
+	})
+
+	err = client.DeleteClusterAnnotation(cluster.ID, "my-annotation2")
+	require.NoError(t, err)
+
+	cluster, err = client.GetCluster(cluster.ID)
+	require.NoError(t, err)
+	assert.Equal(t, 2, len(cluster.Annotations))
+
+	t.Run("delete unknown annotation", func(t *testing.T) {
+		err = client.DeleteClusterAnnotation(cluster.ID, "unknown")
+		require.NoError(t, err)
+
+		cluster, err = client.GetCluster(cluster.ID)
+		require.NoError(t, err)
+		assert.Equal(t, 2, len(cluster.Annotations))
+	})
+
+	// TODO: test delete with Instllation?
+	// TODO: test when handling different errors -
+}
+
+
 func containsAnnotation(name string, annotations []*model.Annotation) bool {
 	for _, a := range annotations {
 		if a.Name == name {
