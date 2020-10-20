@@ -51,3 +51,12 @@ func SortAnnotations(annotations []*Annotation) []*Annotation {
 	})
 	return annotations
 }
+
+func ContainsAnnotation(annotations []*Annotation, annotation *Annotation) bool {
+	for _, ann := range annotations {
+		if ann.ID == annotation.ID {
+			return true
+		}
+	}
+	return false
+}

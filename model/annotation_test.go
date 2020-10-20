@@ -71,7 +71,6 @@ func TestAnnotationsFromStringSlice(t *testing.T) {
 			})
 		}
 	})
-
 }
 
 func TestSortAnnotations(t *testing.T) {
@@ -95,6 +94,54 @@ func TestSortAnnotations(t *testing.T) {
 			SortAnnotations(testCase.annotations)
 			assert.Equal(t, testCase.expected, testCase.annotations)
 		})
+	}
+}
+
+func TestContainsAnnotation(t *testing.T) {
+
+	annotations := []*Annotation{
+		{ID:   "1", Name: "annotation1"},
+		{ID:   "2", Name: "my-annotation"},
+		{ID:   "3", Name: "super-awesome"},
+		{ID:   "4", Name: "fourth"},
+		{ID:   "5", Name: "multi_tenant"},
+	}
+
+	for _, testCase := range []struct{
+	    description string
+	    slice []*Annotation
+	    annotation *Annotation
+	    isPresent bool
+	}{
+	    {
+	    	  description: "should find annotation",
+	    	  slice: annotations,
+	    	  annotation: &Annotation{ID:   "3", Name: "super-awesome"},
+	    	  isPresent: true,
+	    },
+	    {
+	    	  description: "should find with ID only",
+	    	  slice: annotations,
+	    	  annotation: &Annotation{ID:   "5"},
+	    	  isPresent: true,
+	    },
+	    {
+	    	  description: "should not find annotation",
+	    	  slice: annotations,
+	    	  annotation: &Annotation{ID: "10", Name: "fourth"},
+	    	  isPresent: false,
+	    },
+	    {
+	    	  description: "should not find in empty slice",
+	    	  slice: []*Annotation{},
+	    	  annotation: &Annotation{ID: "1"},
+	    	  isPresent: false,
+	    },
+	} {
+	    t.Run(testCase.description, func(t *testing.T) {
+	    	found := ContainsAnnotation(testCase.slice, testCase.annotation)
+	    	assert.Equal(t, testCase.isPresent, found)
+	    })
 	}
 
 }
