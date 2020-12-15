@@ -12,8 +12,6 @@ import (
 	"github.com/mattermost/mattermost-cloud/internal/tools/aws"
 	"github.com/mattermost/mattermost-cloud/internal/webhook"
 	"github.com/mattermost/mattermost-cloud/model"
-
-	mmv1alpha1 "github.com/mattermost/mattermost-operator/apis/mattermost/v1alpha1"
 )
 
 // clusterInstallationStore abstracts the database operations required to query installations.
@@ -37,7 +35,7 @@ type clusterInstallationProvisioner interface {
 	CreateClusterInstallation(cluster *model.Cluster, installation *model.Installation, clusterInstallation *model.ClusterInstallation, awsClient aws.AWS) error
 	DeleteClusterInstallation(cluster *model.Cluster, installation *model.Installation, clusterInstallation *model.ClusterInstallation) error
 	UpdateClusterInstallation(cluster *model.Cluster, installation *model.Installation, clusterInstallation *model.ClusterInstallation) error
-	GetClusterInstallationResource(cluster *model.Cluster, installation *model.Installation, clusterInstallation *model.ClusterInstallation) (*mmv1alpha1.ClusterInstallation, error)
+	IsResourceReady(cluster *model.Cluster, clusterInstallation *model.ClusterInstallation) (bool, error)
 }
 
 // ClusterInstallationSupervisor finds cluster installations pending work and effects the required changes.
@@ -236,15 +234,13 @@ func (s *ClusterInstallationSupervisor) deleteClusterInstallation(clusterInstall
 }
 
 func (s *ClusterInstallationSupervisor) checkReconcilingClusterInstallation(clusterInstallation *model.ClusterInstallation, logger log.FieldLogger, installation *model.Installation, cluster *model.Cluster) string {
-	cr, err := s.provisioner.GetClusterInstallationResource(cluster, installation, clusterInstallation)
+	isReady, err := s.provisioner.IsResourceReady(cluster, clusterInstallation)
 	if err != nil {
 		logger.WithError(err).Error("Failed to get cluster installation resource")
 		return model.ClusterInstallationStateReconciling
 	}
 
-	if cr.Status.State != mmv1alpha1.Stable ||
-		cr.Spec.Replicas != cr.Status.Replicas ||
-		cr.Spec.Version != cr.Status.Version {
+	if !isReady {
 		logger.Info("Cluster installation is still reconciling")
 		return model.ClusterInstallationStateReconciling
 	}

@@ -59,6 +59,8 @@ func (provisioner *KopsProvisioner) CreateClusterInstallation(cluster *model.Clu
 
 	mattermostEnv := getMattermostEnvWithOverrides(installation)
 
+	// TODO: mod from here
+
 	mattermostInstallation := &mmv1alpha1.ClusterInstallation{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "ClusterInstallation",
@@ -173,6 +175,8 @@ func (provisioner *KopsProvisioner) HibernateClusterInstallation(cluster *model.
 
 	ctx := context.TODO()
 	name := makeClusterInstallationName(clusterInstallation)
+
+	// TODO: here to refactor
 	cr, err := k8sClient.MattermostClientset.MattermostV1alpha1().ClusterInstallations(clusterInstallation.Namespace).Get(ctx, name, metav1.GetOptions{})
 	if err != nil {
 		return errors.Wrapf(err, "failed to get cluster installation %s", clusterInstallation.ID)
@@ -226,6 +230,8 @@ func (provisioner *KopsProvisioner) UpdateClusterInstallation(cluster *model.Clu
 	}
 
 	ctx := context.TODO()
+
+	// TODO: change from here
 	cr, err := k8sClient.MattermostClientset.MattermostV1alpha1().ClusterInstallations(clusterInstallation.Namespace).Get(ctx, name, metav1.GetOptions{})
 	if err != nil {
 		return errors.Wrapf(err, "failed to get cluster installation %s", clusterInstallation.ID)
@@ -357,7 +363,7 @@ func (provisioner *KopsProvisioner) VerifyClusterInstallationMatchesConfig(clust
 
 	logger.Info("Verifying cluster installation resource configuration")
 
-	cr, err := provisioner.GetClusterInstallationResource(cluster, installation, clusterInstallation)
+	cr, err := provisioner.getClusterInstallationResource(cluster, clusterInstallation, logger)
 	if err != nil {
 		return false, errors.Wrapf(err, "failed to get cluster installation %s", clusterInstallation.ID)
 	}
@@ -417,6 +423,9 @@ func (provisioner *KopsProvisioner) DeleteClusterInstallation(cluster *model.Clu
 	name := makeClusterInstallationName(clusterInstallation)
 
 	ctx := context.TODO()
+
+	// TODO: change from here
+
 	err = k8sClient.MattermostClientset.MattermostV1alpha1().ClusterInstallations(clusterInstallation.Namespace).Delete(ctx, name, metav1.DeleteOptions{})
 	if k8sErrors.IsNotFound(err) {
 		logger.Warnf("Cluster installation %s not found, assuming already deleted", name)
@@ -446,36 +455,25 @@ func (provisioner *KopsProvisioner) DeleteClusterInstallation(cluster *model.Clu
 	return nil
 }
 
-// GetClusterInstallationResource gets the cluster installation resource from
-// the kubernetes API.
-func (provisioner *KopsProvisioner) GetClusterInstallationResource(cluster *model.Cluster, installation *model.Installation, clusterInstallation *model.ClusterInstallation) (*mmv1alpha1.ClusterInstallation, error) {
+// IsResourceReady checks if the ClusterInstallation Custom Resource is ready on the cluster.
+func (provisioner *KopsProvisioner) IsResourceReady(cluster *model.Cluster, clusterInstallation *model.ClusterInstallation) (bool, error) {
 	logger := provisioner.logger.WithFields(log.Fields{
 		"cluster":      clusterInstallation.ClusterID,
 		"installation": clusterInstallation.InstallationID,
 	})
 
-	configLocation, err := provisioner.getCachedKopsClusterKubecfg(cluster.ProvisionerMetadataKops.Name, logger)
+	cr, err := provisioner.getClusterInstallationResource(cluster, clusterInstallation, logger)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to get kops config from cache")
-	}
-	defer provisioner.invalidateCachedKopsClientOnError(err, cluster.ProvisionerMetadataKops.Name, logger)
-
-	k8sClient, err := k8s.NewFromFile(configLocation, logger)
-	if err != nil {
-		return nil, errors.Wrap(err, "failed to create k8s client from file")
+		return false, errors.Wrap(err, "failed to get ClusterInstallation Custom Resource")
 	}
 
-	name := makeClusterInstallationName(clusterInstallation)
-
-	ctx := context.TODO()
-	cr, err := k8sClient.MattermostClientset.MattermostV1alpha1().ClusterInstallations(clusterInstallation.Namespace).Get(ctx, name, metav1.GetOptions{})
-	if err != nil {
-		return cr, errors.Wrapf(err, "failed to get cluster installation %s", clusterInstallation.ID)
+	if cr.Status.State != mmv1alpha1.Stable ||
+		cr.Spec.Replicas != cr.Status.Replicas ||
+		cr.Spec.Version != cr.Status.Version {
+		return false, nil
 	}
 
-	logger.WithField("status", fmt.Sprintf("%+v", cr.Status)).Debug("Got cluster installation")
-
-	return cr, nil
+	return true, nil
 }
 
 // ExecMattermostCLI invokes the Mattermost CLI for the given cluster installation with the given args.
@@ -545,6 +543,33 @@ func (provisioner *KopsProvisioner) ExecClusterInstallationCLI(cluster *model.Cl
 	logger.Debugf("Command `%s` on pod %s finished in %.0f seconds", strings.Join(args, " "), pod.Name, time.Since(now).Seconds())
 
 	return output, err
+}
+
+// getClusterInstallationResource gets the cluster installation resource from
+// the kubernetes API.
+func (provisioner *KopsProvisioner) getClusterInstallationResource(cluster *model.Cluster, clusterInstallation *model.ClusterInstallation, logger log.FieldLogger) (*mmv1alpha1.ClusterInstallation, error) {
+	configLocation, err := provisioner.getCachedKopsClusterKubecfg(cluster.ProvisionerMetadataKops.Name, logger)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to get kops config from cache")
+	}
+	defer provisioner.invalidateCachedKopsClientOnError(err, cluster.ProvisionerMetadataKops.Name, logger)
+
+	k8sClient, err := k8s.NewFromFile(configLocation, logger)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to create k8s client from file")
+	}
+
+	name := makeClusterInstallationName(clusterInstallation)
+
+	ctx := context.TODO()
+	cr, err := k8sClient.MattermostClientset.MattermostV1alpha1().ClusterInstallations(clusterInstallation.Namespace).Get(ctx, name, metav1.GetOptions{})
+	if err != nil {
+		return cr, errors.Wrapf(err, "failed to get cluster installation %s", clusterInstallation.ID)
+	}
+
+	logger.WithField("status", fmt.Sprintf("%+v", cr.Status)).Debug("Got cluster installation")
+
+	return cr, nil
 }
 
 // generateClusterInstallationResourceLabels generates standard resource labels

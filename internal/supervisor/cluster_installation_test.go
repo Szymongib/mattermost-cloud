@@ -13,8 +13,6 @@ import (
 	"github.com/mattermost/mattermost-cloud/internal/tools/aws"
 	"github.com/mattermost/mattermost-cloud/model"
 	"github.com/stretchr/testify/require"
-
-	mmv1alpha1 "github.com/mattermost/mattermost-operator/apis/mattermost/v1alpha1"
 )
 
 type mockClusterInstallationStore struct {
@@ -75,15 +73,8 @@ func (p *mockClusterInstallationProvisioner) UpdateClusterInstallation(cluster *
 	return nil
 }
 
-func (p *mockClusterInstallationProvisioner) GetClusterInstallationResource(cluster *model.Cluster, installation *model.Installation, clusterIntallation *model.ClusterInstallation) (*mmv1alpha1.ClusterInstallation, error) {
-	return &mmv1alpha1.ClusterInstallation{
-			Spec: mmv1alpha1.ClusterInstallationSpec{},
-			Status: mmv1alpha1.ClusterInstallationStatus{
-				State:    mmv1alpha1.Stable,
-				Endpoint: "example-dns.mattermost.cloud",
-			},
-		},
-		nil
+func (p *mockClusterInstallationProvisioner) IsResourceReady(cluster *model.Cluster, clusterInstallation *model.ClusterInstallation) (bool, error) {
+	return true, nil
 }
 
 func TestClusterInstallationSupervisorDo(t *testing.T) {

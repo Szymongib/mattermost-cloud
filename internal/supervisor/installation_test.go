@@ -198,17 +198,6 @@ func (p *mockInstallationProvisioner) VerifyClusterInstallationMatchesConfig(clu
 	return true, nil
 }
 
-func (p *mockInstallationProvisioner) GetClusterInstallationResource(cluster *model.Cluster, installation *model.Installation, clusterIntallation *model.ClusterInstallation) (*mmv1alpha1.ClusterInstallation, error) {
-	return &mmv1alpha1.ClusterInstallation{
-			Spec: mmv1alpha1.ClusterInstallationSpec{},
-			Status: mmv1alpha1.ClusterInstallationStatus{
-				State:    mmv1alpha1.Stable,
-				Endpoint: "example-dns.mattermost.cloud",
-			},
-		},
-		nil
-}
-
 func (p *mockInstallationProvisioner) GetClusterResources(cluster *model.Cluster, onlySchedulable bool) (*k8s.ClusterResources, error) {
 	if p.UseCustomClusterResources {
 		return p.CustomClusterResources, nil
