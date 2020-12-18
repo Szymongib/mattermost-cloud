@@ -6,6 +6,7 @@ package supervisor_test
 
 import (
 	"fmt"
+	"github.com/mattermost/mattermost-cloud/internal/provisioner"
 	"testing"
 
 	"github.com/aws/aws-sdk-go/service/acm"
@@ -178,7 +179,15 @@ type mockInstallationProvisioner struct {
 	CustomClusterResources    *k8s.ClusterResources
 }
 
-func (p *mockInstallationProvisioner) CreateClusterInstallation(cluster *model.Cluster, installation *model.Installation, clusterInstallation *model.ClusterInstallation, awsClient aws.AWS) error {
+func (p *mockInstallationProvisioner) 	ClusterInstallationProvisioner(version string) provisioner.ClusterInstallationProvisioner {
+	return p
+}
+
+func (p *mockInstallationProvisioner) IsResourceReady(cluster *model.Cluster, clusterInstallation *model.ClusterInstallation) (bool, error) {
+	return true, nil
+}
+
+func (p *mockInstallationProvisioner) CreateClusterInstallation(cluster *model.Cluster, installation *model.Installation, clusterInstallation *model.ClusterInstallation) error {
 	return nil
 }
 

@@ -5,6 +5,7 @@
 package supervisor
 
 import (
+	"github.com/mattermost/mattermost-cloud/internal/provisioner"
 	"time"
 
 	"github.com/pkg/errors"
@@ -63,11 +64,7 @@ type installationStore interface {
 
 // provisioner abstracts the provisioning operations required by the installation supervisor.
 type installationProvisioner interface {
-	CreateClusterInstallation(cluster *model.Cluster, installation *model.Installation, clusterInstallation *model.ClusterInstallation, awsClient aws.AWS) error
-	UpdateClusterInstallation(cluster *model.Cluster, installation *model.Installation, clusterInstallation *model.ClusterInstallation) error
-	HibernateClusterInstallation(cluster *model.Cluster, installation *model.Installation, clusterInstallation *model.ClusterInstallation) error
-	DeleteClusterInstallation(cluster *model.Cluster, installation *model.Installation, clusterInstallation *model.ClusterInstallation) error
-	VerifyClusterInstallationMatchesConfig(cluster *model.Cluster, installation *model.Installation, clusterInstallation *model.ClusterInstallation) (bool, error)
+	ClusterInstallationProvisioner(version string) provisioner.ClusterInstallationProvisioner
 	GetClusterResources(cluster *model.Cluster, onlySchedulable bool) (*k8s.ClusterResources, error)
 	GetPublicLoadBalancerEndpoint(cluster *model.Cluster, namespace string) (string, error)
 }
@@ -739,7 +736,8 @@ func (s *InstallationSupervisor) updateInstallation(installation *model.Installa
 			return failedClusterInstallationState(clusterInstallation.State)
 		}
 
-		err = s.provisioner.UpdateClusterInstallation(cluster, installation, clusterInstallation)
+		err = s.provisioner.ClusterInstallationProvisioner(installation.CRVersion).
+			UpdateClusterInstallation(cluster, installation, clusterInstallation)
 		if err != nil {
 			logger.WithError(err).Error("Failed to update cluster installation")
 			return installation.State
@@ -827,7 +825,8 @@ func (s *InstallationSupervisor) verifyClusterInstallationResourcesMatchInstalla
 			return false, errors.Wrapf(err, "failed to find cluster %s", clusterInstallation.ClusterID)
 		}
 
-		match, err := s.provisioner.VerifyClusterInstallationMatchesConfig(cluster, installation, clusterInstallation)
+		match, err := s.provisioner.ClusterInstallationProvisioner(installation.CRVersion).
+			VerifyClusterInstallationMatchesConfig(cluster, installation, clusterInstallation)
 		if err != nil {
 			return false, errors.Wrapf(err, "failed to verify cluster installation matches")
 		}
@@ -891,7 +890,8 @@ func (s *InstallationSupervisor) hibernateInstallation(installation *model.Insta
 			return failedClusterInstallationState(clusterInstallation.State)
 		}
 
-		err = s.provisioner.HibernateClusterInstallation(cluster, installation, clusterInstallation)
+		err = s.provisioner.ClusterInstallationProvisioner(installation.CRVersion).
+			HibernateClusterInstallation(cluster, installation, clusterInstallation)
 		if err != nil {
 			logger.WithError(err).Error("Failed to update cluster installation")
 			return installation.State

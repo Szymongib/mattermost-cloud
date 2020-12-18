@@ -28,6 +28,23 @@ import (
 // version value.
 const DefaultKubernetesVersion = "0.0.0"
 
+type ClusterInstallationProvisioner interface {
+	CreateClusterInstallation(cluster *model.Cluster, installation *model.Installation, clusterInstallation *model.ClusterInstallation) error
+	HibernateClusterInstallation(cluster *model.Cluster, installation *model.Installation, clusterInstallation *model.ClusterInstallation) error
+	UpdateClusterInstallation(cluster *model.Cluster, installation *model.Installation, clusterInstallation *model.ClusterInstallation) error
+	VerifyClusterInstallationMatchesConfig(cluster *model.Cluster, installation *model.Installation, clusterInstallation *model.ClusterInstallation) (bool, error)
+	DeleteClusterInstallation(cluster *model.Cluster, installation *model.Installation, clusterInstallation *model.ClusterInstallation) error
+	IsResourceReady(cluster *model.Cluster, clusterInstallation *model.ClusterInstallation) (bool, error)
+}
+
+func (provisioner *KopsProvisioner) ClusterInstallationProvisioner(version string) ClusterInstallationProvisioner {
+	if version == model.V1betaCRVersion {
+		return &KopsCIBeta{KopsProvisioner: provisioner}
+	}
+
+	return &KopsCIAlpha{KopsProvisioner: provisioner}
+}
+
 // PrepareCluster ensures a cluster object is ready for provisioning.
 func (provisioner *KopsProvisioner) PrepareCluster(cluster *model.Cluster) bool {
 	// Don't regenerate the name if already set.

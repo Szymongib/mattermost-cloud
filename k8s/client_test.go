@@ -16,11 +16,11 @@ import (
 
 func newTestKubeClient() *KubeClient {
 	return &KubeClient{
-		config:              &rest.Config{},
-		Clientset:           fake.NewSimpleClientset(),
-		ApixClientset:       apixfake.NewSimpleClientset(),
-		MattermostClientset: mmfake.NewSimpleClientset(),
-		KubeagClientSet:     kubeagfake.NewSimpleClientset(),
-		logger:              logrus.New(),
+		config:                     &rest.Config{},
+		Clientset:                  fake.NewSimpleClientset(),
+		ApixClientset:              apixfake.NewSimpleClientset(),
+		MattermostClientsetV1Alpha: mmfake.NewSimpleClientset(),
+		KubeagClientSet:            kubeagfake.NewSimpleClientset(),
+		logger:                     logrus.New(),
 	}
 }

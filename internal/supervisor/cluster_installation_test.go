@@ -5,12 +5,12 @@
 package supervisor_test
 
 import (
+	"github.com/mattermost/mattermost-cloud/internal/provisioner"
 	"testing"
 
 	"github.com/mattermost/mattermost-cloud/internal/store"
 	"github.com/mattermost/mattermost-cloud/internal/supervisor"
 	"github.com/mattermost/mattermost-cloud/internal/testlib"
-	"github.com/mattermost/mattermost-cloud/internal/tools/aws"
 	"github.com/mattermost/mattermost-cloud/model"
 	"github.com/stretchr/testify/require"
 )
@@ -61,7 +61,11 @@ func (s *mockClusterInstallationStore) GetWebhooks(filter *model.WebhookFilter) 
 
 type mockClusterInstallationProvisioner struct{}
 
-func (p *mockClusterInstallationProvisioner) CreateClusterInstallation(cluster *model.Cluster, installation *model.Installation, clusterInstallation *model.ClusterInstallation, awsClient aws.AWS) error {
+func (p *mockClusterInstallationProvisioner) ClusterInstallationProvisioner(version string) provisioner.ClusterInstallationProvisioner {
+	return p
+}
+
+func (p *mockClusterInstallationProvisioner) CreateClusterInstallation(cluster *model.Cluster, installation *model.Installation, clusterInstallation *model.ClusterInstallation) error {
 	return nil
 }
 
@@ -75,6 +79,14 @@ func (p *mockClusterInstallationProvisioner) UpdateClusterInstallation(cluster *
 
 func (p *mockClusterInstallationProvisioner) IsResourceReady(cluster *model.Cluster, clusterInstallation *model.ClusterInstallation) (bool, error) {
 	return true, nil
+}
+
+func (p *mockClusterInstallationProvisioner) HibernateClusterInstallation(cluster *model.Cluster, installation *model.Installation, clusterInstallation *model.ClusterInstallation) error {
+	return nil
+}
+
+func (p *mockClusterInstallationProvisioner) VerifyClusterInstallationMatchesConfig(cluster *model.Cluster, installation *model.Installation, clusterInstallation *model.ClusterInstallation) (bool, error) {
+	return false, nil
 }
 
 func TestClusterInstallationSupervisorDo(t *testing.T) {
