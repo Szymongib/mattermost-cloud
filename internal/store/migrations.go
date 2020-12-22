@@ -1186,7 +1186,7 @@ var migrations = []migration{
 		// Add CRVersion column for installations.
 		_, err := e.Exec(`
 				ALTER TABLE Installation
-				ADD COLUMN CRVersion TEXT NOT NULL DEFAULT "mattermost.com/v1alpha1";
+				ADD COLUMN CRVersion TEXT NOT NULL DEFAULT 'mattermost.com/v1alpha1';
 				`)
 		if err != nil {
 			return err

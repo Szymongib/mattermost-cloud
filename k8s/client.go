@@ -53,7 +53,12 @@ func createKubeClient(config *rest.Config, logger log.FieldLogger) (*KubeClient,
 		return nil, err
 	}
 
-	mattermostClientset, err := mmclientv1alpha1.NewForConfig(config)
+	mattermostV1AlphaClientset, err := mmclientv1alpha1.NewForConfig(config)
+	if err != nil {
+		return nil, err
+	}
+
+	mattermostV1BetaClientset, err := mmclientv1beta1.NewForConfig(config)
 	if err != nil {
 		return nil, err
 	}
@@ -66,7 +71,8 @@ func createKubeClient(config *rest.Config, logger log.FieldLogger) (*KubeClient,
 	return &KubeClient{
 			config:                     config,
 			Clientset:                  clientset,
-			MattermostClientsetV1Alpha: mattermostClientset,
+			MattermostClientsetV1Alpha: mattermostV1AlphaClientset,
+			MattermostClientsetV1Beta:  mattermostV1BetaClientset,
 			ApixClientset:              apixClientset,
 			KubeagClientSet:            kubeagClientset,
 			logger:                     logger,
