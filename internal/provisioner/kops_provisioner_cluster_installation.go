@@ -125,7 +125,6 @@ func (provisioner *KopsCIAlpha) HibernateClusterInstallation(cluster *model.Clus
 	ctx := context.TODO()
 	name := makeClusterInstallationName(clusterInstallation)
 
-	// TODO: here to refactor
 	cr, err := k8sClient.MattermostClientsetV1Alpha.MattermostV1alpha1().ClusterInstallations(clusterInstallation.Namespace).Get(ctx, name, metav1.GetOptions{})
 	if err != nil {
 		return errors.Wrapf(err, "failed to get cluster installation %s", clusterInstallation.ID)
@@ -174,7 +173,6 @@ func (provisioner *KopsCIAlpha) UpdateClusterInstallation(cluster *model.Cluster
 
 	ctx := context.TODO()
 
-	// TODO: change from here
 	cr, err := k8sClient.MattermostClientsetV1Alpha.MattermostV1alpha1().ClusterInstallations(clusterInstallation.Namespace).Get(ctx, name, metav1.GetOptions{})
 	if err != nil {
 		return errors.Wrapf(err, "failed to get cluster installation %s", clusterInstallation.ID)

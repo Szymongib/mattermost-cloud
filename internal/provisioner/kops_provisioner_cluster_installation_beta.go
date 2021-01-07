@@ -222,7 +222,6 @@ func (provisioner *KopsCIBeta) UpdateClusterInstallation(cluster *model.Cluster,
 
 		mattermost.Spec.LicenseSecret = secretName
 	} else {
-		// TODO: shouldn't return error if != NotFound?
 		err = k8sClient.Clientset.CoreV1().Secrets(clusterInstallation.Namespace).Delete(ctx, secretName, metav1.DeleteOptions{})
 		if k8sErrors.IsNotFound(err) {
 			logger.Infof("Secret %s/%s not found. Maybe the license was not set for this installation or was already deleted", clusterInstallation.Namespace, secretName)
