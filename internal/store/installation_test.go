@@ -618,11 +618,11 @@ func TestUpdateInstallation(t *testing.T) {
 				},
 			},
 		},
-		Size:     mmv1alpha1.Size100String,
-		Affinity: model.InstallationAffinityIsolated,
-		GroupID:  &groupID1,
+		Size:      mmv1alpha1.Size100String,
+		Affinity:  model.InstallationAffinityIsolated,
+		GroupID:   &groupID1,
 		CRVersion: model.V1alphaCRVersion,
-		State:    model.InstallationStateCreationRequested,
+		State:     model.InstallationStateCreationRequested,
 	}
 
 	err = sqlStore.CreateInstallation(installation1, nil)

@@ -11,8 +11,11 @@ import (
 )
 
 const (
+	// V1alphaCRVersion is a ClusterInstallation CR alpha version.
 	V1alphaCRVersion = "mattermost.com/v1alpha1"
-	V1betaCRVersion = "installation.mattermost.com/v1beta1"
+	// V1betaCRVersion is a Mattermost CR beta version.
+	V1betaCRVersion  = "installation.mattermost.com/v1beta1"
+	// DefaultCRVersion is a default CR version used for new installations.
 	DefaultCRVersion = V1alphaCRVersion
 )
 
@@ -40,7 +43,7 @@ type Installation struct {
 	GroupOverrides             map[string]string           `json:"GroupOverrides,omitempty"`
 	SingleTenantDatabaseConfig *SingleTenantDatabaseConfig `json:"SingleTenantDatabaseConfig,omitempty"`
 	// CRVersion is a Custom Resource version that should represent Installation on the cluster.
-	CRVersion                  string                      `json:"CRVersion,omitempty"`
+	CRVersion string `json:"CRVersion,omitempty"`
 
 	// configconfigMergedWithGroup is set when the installation configuration
 	// has been overridden with group configuration. This value can then be

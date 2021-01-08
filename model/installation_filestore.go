@@ -31,6 +31,7 @@ type Filestore interface {
 	GenerateFilestoreSpecAndSecret(store InstallationDatabaseStoreInterface, logger log.FieldLogger) (*FilestoreConfig, *corev1.Secret, error)
 }
 
+// FilestoreConfig represent universal configuration of the File store.
 type FilestoreConfig struct {
 	URL    string
 	Bucket string

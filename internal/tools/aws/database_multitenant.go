@@ -188,7 +188,7 @@ func (d *RDSMultitenantDatabase) GenerateDatabaseSecret(store model.Installation
 
 	rdsCluster, err := d.describeRDSCluster(multitenantDatabase.ID)
 	if err != nil {
-		return  nil, errors.Wrap(err, "failed to describe RDS cluster")
+		return nil, errors.Wrap(err, "failed to describe RDS cluster")
 	}
 
 	logger = logger.WithField("rds-cluster-id", *rdsCluster.DBClusterIdentifier)

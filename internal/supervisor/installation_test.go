@@ -179,7 +179,7 @@ type mockInstallationProvisioner struct {
 	CustomClusterResources    *k8s.ClusterResources
 }
 
-func (p *mockInstallationProvisioner) 	ClusterInstallationProvisioner(version string) provisioner.ClusterInstallationProvisioner {
+func (p *mockInstallationProvisioner) ClusterInstallationProvisioner(version string) provisioner.ClusterInstallationProvisioner {
 	return p
 }
 

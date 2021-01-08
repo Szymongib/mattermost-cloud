@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"github.com/mattermost/mattermost-cloud/k8s"
 	"github.com/mattermost/mattermost-cloud/model"
-	mmv1alpha1 "github.com/mattermost/mattermost-operator/apis/mattermost/v1alpha1"
 	mmv1beta1 "github.com/mattermost/mattermost-operator/apis/mattermost/v1beta1"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
@@ -17,16 +16,16 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-type KopsCIBeta struct {
+type kopsCIBeta struct {
 	*KopsProvisioner
 }
 
 // CreateClusterInstallation creates a Mattermost installation within the given cluster.
-func (provisioner *KopsCIBeta) CreateClusterInstallation(cluster *model.Cluster, installation *model.Installation, clusterInstallation *model.ClusterInstallation) error {
+func (provisioner *kopsCIBeta) CreateClusterInstallation(cluster *model.Cluster, installation *model.Installation, clusterInstallation *model.ClusterInstallation) error {
 	logger := provisioner.logger.WithFields(log.Fields{
 		"cluster":      clusterInstallation.ClusterID,
 		"installation": clusterInstallation.InstallationID,
-		"version": "v1beta1",
+		"version":      "v1beta1",
 	})
 	logger.Info("Creating cluster installation")
 
@@ -55,12 +54,12 @@ func (provisioner *KopsCIBeta) CreateClusterInstallation(cluster *model.Cluster,
 			Labels:    generateClusterInstallationResourceLabels(installation, clusterInstallation),
 		},
 		Spec: mmv1beta1.MattermostSpec{
-			Size:          installation.Size,
-			Version:       translateMattermostVersion(installation.Version),
-			Image:         installation.Image,
-			IngressName:   installation.DNS,
-			MattermostEnv: mattermostEnv.ToEnvList(),
-			UseIngressTLS: false,
+			Size:               installation.Size,
+			Version:            translateMattermostVersion(installation.Version),
+			Image:              installation.Image,
+			IngressName:        installation.DNS,
+			MattermostEnv:      mattermostEnv.ToEnvList(),
+			UseIngressTLS:      false,
 			IngressAnnotations: getIngressAnnotations(),
 		},
 	}
@@ -93,7 +92,7 @@ func (provisioner *KopsCIBeta) CreateClusterInstallation(cluster *model.Cluster,
 
 // HibernateClusterInstallation updates a cluster installation to consume fewer
 // resources.
-func (provisioner *KopsCIBeta) HibernateClusterInstallation(cluster *model.Cluster, installation *model.Installation, clusterInstallation *model.ClusterInstallation) error {
+func (provisioner *kopsCIBeta) HibernateClusterInstallation(cluster *model.Cluster, installation *model.Installation, clusterInstallation *model.ClusterInstallation) error {
 	logger := provisioner.logger.WithFields(log.Fields{
 		"cluster":      clusterInstallation.ClusterID,
 		"installation": clusterInstallation.InstallationID,
@@ -137,7 +136,7 @@ func (provisioner *KopsCIBeta) HibernateClusterInstallation(cluster *model.Clust
 
 // UpdateClusterInstallation updates the cluster installation spec to match the
 // installation specification.
-func (provisioner *KopsCIBeta) UpdateClusterInstallation(cluster *model.Cluster, installation *model.Installation, clusterInstallation *model.ClusterInstallation) error {
+func (provisioner *kopsCIBeta) UpdateClusterInstallation(cluster *model.Cluster, installation *model.Installation, clusterInstallation *model.ClusterInstallation) error {
 	logger := provisioner.logger.WithFields(log.Fields{
 		"cluster":      clusterInstallation.ClusterID,
 		"installation": clusterInstallation.InstallationID,
@@ -192,25 +191,7 @@ func (provisioner *KopsCIBeta) UpdateClusterInstallation(cluster *model.Cluster,
 	//    when the size request change comes in on the API, but would require
 	//    new scheduling logic. For now, take care when resizing.
 	//    TODO: address these issue.
-	if mattermost.Spec.Size == installation.Size {
-		logger.Debugf("Mattermost installation already on size %s", installation.Size)
-	} else {
-		logger.Debugf("Mattermost installation size updated from %s to %s", mattermost.Spec.Size, installation.Size)
-		mattermost.Spec.Size = installation.Size
-	}
-
-	sizeTemplate, err := mmv1alpha1.GetClusterSize(installation.Size)
-	if err != nil {
-		return errors.Wrap(err, "failed to get size requirements")
-	}
-	if unwrapInt32(mattermost.Spec.Replicas) == sizeTemplate.App.Replicas {
-		logger.Debugf("Mattermost installation already has %d replicas", sizeTemplate.App.Replicas)
-	} else {
-		logger.Debugf("Mattermost installation replicas updated from %d to %d", mattermost.Spec.Replicas, sizeTemplate.App.Replicas)
-		mattermost.Spec.Replicas = &sizeTemplate.App.Replicas
-	}
-	// Always ensure resources match
-	mattermost.Spec.Scheduling.Resources = sizeTemplate.App.Resources
+	mattermost.Spec.Size = installation.Size // Appropriate replicas and resources will be set by Operator.
 
 	mattermost.Spec.LicenseSecret = ""
 	secretName := fmt.Sprintf("%s-license", installationName)
@@ -246,7 +227,7 @@ func (provisioner *KopsCIBeta) UpdateClusterInstallation(cluster *model.Cluster,
 	return nil
 }
 
-func (provisioner *KopsCIBeta) ensureFilestoreAndDatabase(
+func (provisioner *kopsCIBeta) ensureFilestoreAndDatabase(
 	mattermost *mmv1beta1.Mattermost,
 	installation *model.Installation,
 	clusterInstallation *model.ClusterInstallation,
@@ -296,7 +277,7 @@ func (provisioner *KopsCIBeta) ensureFilestoreAndDatabase(
 // NOTE: this does NOT ensure that other resources such as network policies for
 // that namespace are correct. Also, the values checked are ONLY values that are
 // defined by both the installation and group configuration.
-func (provisioner *KopsCIBeta) VerifyClusterInstallationMatchesConfig(cluster *model.Cluster, installation *model.Installation, clusterInstallation *model.ClusterInstallation) (bool, error) {
+func (provisioner *kopsCIBeta) VerifyClusterInstallationMatchesConfig(cluster *model.Cluster, installation *model.Installation, clusterInstallation *model.ClusterInstallation) (bool, error) {
 	logger := provisioner.logger.WithFields(log.Fields{
 		"cluster":      clusterInstallation.ClusterID,
 		"installation": clusterInstallation.InstallationID,
@@ -334,7 +315,7 @@ func (provisioner *KopsCIBeta) VerifyClusterInstallationMatchesConfig(cluster *m
 }
 
 // DeleteClusterInstallation deletes a Mattermost installation within the given cluster.
-func (provisioner *KopsCIBeta) DeleteClusterInstallation(cluster *model.Cluster, installation *model.Installation, clusterInstallation *model.ClusterInstallation) error {
+func (provisioner *kopsCIBeta) DeleteClusterInstallation(cluster *model.Cluster, installation *model.Installation, clusterInstallation *model.ClusterInstallation) error {
 	logger := provisioner.logger.WithFields(log.Fields{
 		"cluster":      clusterInstallation.ClusterID,
 		"installation": clusterInstallation.InstallationID,
@@ -382,7 +363,7 @@ func (provisioner *KopsCIBeta) DeleteClusterInstallation(cluster *model.Cluster,
 }
 
 // IsResourceReady checks if the ClusterInstallation Custom Resource is ready on the cluster.
-func (provisioner *KopsCIBeta) IsResourceReady(cluster *model.Cluster, clusterInstallation *model.ClusterInstallation) (bool, error) {
+func (provisioner *kopsCIBeta) IsResourceReady(cluster *model.Cluster, clusterInstallation *model.ClusterInstallation) (bool, error) {
 	logger := provisioner.logger.WithFields(log.Fields{
 		"cluster":      clusterInstallation.ClusterID,
 		"installation": clusterInstallation.InstallationID,
@@ -404,7 +385,7 @@ func (provisioner *KopsCIBeta) IsResourceReady(cluster *model.Cluster, clusterIn
 
 // getMattermostCustomResource gets the cluster installation resource from
 // the kubernetes API.
-func (provisioner *KopsCIBeta) getMattermostCustomResource(cluster *model.Cluster, clusterInstallation *model.ClusterInstallation, logger log.FieldLogger) (*mmv1beta1.Mattermost, error) {
+func (provisioner *kopsCIBeta) getMattermostCustomResource(cluster *model.Cluster, clusterInstallation *model.ClusterInstallation, logger log.FieldLogger) (*mmv1beta1.Mattermost, error) {
 	configLocation, err := provisioner.getCachedKopsClusterKubecfg(cluster.ProvisionerMetadataKops.Name, logger)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to get kops config from cache")

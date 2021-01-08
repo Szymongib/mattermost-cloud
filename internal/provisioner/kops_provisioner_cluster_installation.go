@@ -21,12 +21,32 @@ import (
 	"k8s.io/client-go/kubernetes/scheme"
 )
 
-type KopsCIAlpha struct {
+// ClusterInstallationProvisioner is an interface for provisioning and managing ClusterInstallations.
+type ClusterInstallationProvisioner interface {
+	CreateClusterInstallation(cluster *model.Cluster, installation *model.Installation, clusterInstallation *model.ClusterInstallation) error
+	HibernateClusterInstallation(cluster *model.Cluster, installation *model.Installation, clusterInstallation *model.ClusterInstallation) error
+	UpdateClusterInstallation(cluster *model.Cluster, installation *model.Installation, clusterInstallation *model.ClusterInstallation) error
+	VerifyClusterInstallationMatchesConfig(cluster *model.Cluster, installation *model.Installation, clusterInstallation *model.ClusterInstallation) (bool, error)
+	DeleteClusterInstallation(cluster *model.Cluster, installation *model.Installation, clusterInstallation *model.ClusterInstallation) error
+	IsResourceReady(cluster *model.Cluster, clusterInstallation *model.ClusterInstallation) (bool, error)
+}
+
+// ClusterInstallationProvisioner function returns an implementation of ClusterInstallationProvisioner interface
+// based on specified Custom Resource version.
+func (provisioner *KopsProvisioner) ClusterInstallationProvisioner(crVersion string) ClusterInstallationProvisioner {
+	if crVersion == model.V1betaCRVersion {
+		return &kopsCIBeta{KopsProvisioner: provisioner}
+	}
+
+	return &kopsCIAlpha{KopsProvisioner: provisioner}
+}
+
+type kopsCIAlpha struct {
 	*KopsProvisioner
 }
 
 // CreateClusterInstallation creates a Mattermost installation within the given cluster.
-func (provisioner *KopsCIAlpha) CreateClusterInstallation(cluster *model.Cluster, installation *model.Installation, clusterInstallation *model.ClusterInstallation) error {
+func (provisioner *kopsCIAlpha) CreateClusterInstallation(cluster *model.Cluster, installation *model.Installation, clusterInstallation *model.ClusterInstallation) error {
 	logger := provisioner.logger.WithFields(log.Fields{
 		"cluster":      clusterInstallation.ClusterID,
 		"installation": clusterInstallation.InstallationID,
@@ -67,12 +87,12 @@ func (provisioner *KopsCIAlpha) CreateClusterInstallation(cluster *model.Cluster
 			Labels:    generateClusterInstallationResourceLabels(installation, clusterInstallation),
 		},
 		Spec: mmv1alpha1.ClusterInstallationSpec{
-			Size:          installation.Size,
-			Version:       translateMattermostVersion(installation.Version),
-			Image:         installation.Image,
-			IngressName:   installation.DNS,
-			MattermostEnv: mattermostEnv.ToEnvList(),
-			UseIngressTLS: false,
+			Size:               installation.Size,
+			Version:            translateMattermostVersion(installation.Version),
+			Image:              installation.Image,
+			IngressName:        installation.DNS,
+			MattermostEnv:      mattermostEnv.ToEnvList(),
+			UseIngressTLS:      false,
 			IngressAnnotations: getIngressAnnotations(),
 		},
 	}
@@ -105,7 +125,7 @@ func (provisioner *KopsCIAlpha) CreateClusterInstallation(cluster *model.Cluster
 
 // HibernateClusterInstallation updates a cluster installation to consume fewer
 // resources.
-func (provisioner *KopsCIAlpha) HibernateClusterInstallation(cluster *model.Cluster, installation *model.Installation, clusterInstallation *model.ClusterInstallation) error {
+func (provisioner *kopsCIAlpha) HibernateClusterInstallation(cluster *model.Cluster, installation *model.Installation, clusterInstallation *model.ClusterInstallation) error {
 	logger := provisioner.logger.WithFields(log.Fields{
 		"cluster":      clusterInstallation.ClusterID,
 		"installation": clusterInstallation.InstallationID,
@@ -149,7 +169,7 @@ func (provisioner *KopsCIAlpha) HibernateClusterInstallation(cluster *model.Clus
 
 // UpdateClusterInstallation updates the cluster installation spec to match the
 // installation specification.
-func (provisioner *KopsCIAlpha) UpdateClusterInstallation(cluster *model.Cluster, installation *model.Installation, clusterInstallation *model.ClusterInstallation) error {
+func (provisioner *kopsCIAlpha) UpdateClusterInstallation(cluster *model.Cluster, installation *model.Installation, clusterInstallation *model.ClusterInstallation) error {
 	logger := provisioner.logger.WithFields(log.Fields{
 		"cluster":      clusterInstallation.ClusterID,
 		"installation": clusterInstallation.InstallationID,
@@ -204,25 +224,7 @@ func (provisioner *KopsCIAlpha) UpdateClusterInstallation(cluster *model.Cluster
 	//    when the size request change comes in on the API, but would require
 	//    new scheduling logic. For now, take care when resizing.
 	//    TODO: address these issue.
-	if cr.Spec.Size == installation.Size {
-		logger.Debugf("Cluster installation already on size %s", installation.Size)
-	} else {
-		logger.Debugf("Cluster installation size updated from %s to %s", cr.Spec.Size, installation.Size)
-		cr.Spec.Size = installation.Size
-	}
-
-	sizeTemplate, err := mmv1alpha1.GetClusterSize(installation.Size)
-	if err != nil {
-		return errors.Wrap(err, "failed to get size requirements")
-	}
-	if cr.Spec.Replicas == sizeTemplate.App.Replicas {
-		logger.Debugf("Cluster installation already has %d replicas", sizeTemplate.App.Replicas)
-	} else {
-		logger.Debugf("Cluster installation replicas updated from %d to %d", cr.Spec.Replicas, sizeTemplate.App.Replicas)
-		cr.Spec.Replicas = sizeTemplate.App.Replicas
-	}
-	// Always ensure resources match
-	cr.Spec.Resources = sizeTemplate.App.Resources
+	cr.Spec.Size = installation.Size // Appropriate replicas and resources will be set by Operator.
 
 	cr.Spec.MattermostLicenseSecret = ""
 	secretName := fmt.Sprintf("%s-license", name)
@@ -258,7 +260,7 @@ func (provisioner *KopsCIAlpha) UpdateClusterInstallation(cluster *model.Cluster
 	return nil
 }
 
-func (provisioner *KopsCIAlpha) ensureFilestoreAndDatabase(
+func (provisioner *kopsCIAlpha) ensureFilestoreAndDatabase(
 	mattermost *mmv1alpha1.ClusterInstallation,
 	installation *model.Installation,
 	clusterInstallation *model.ClusterInstallation,
@@ -304,7 +306,7 @@ func (provisioner *KopsCIAlpha) ensureFilestoreAndDatabase(
 // NOTE: this does NOT ensure that other resources such as network policies for
 // that namespace are correct. Also, the values checked are ONLY values that are
 // defined by both the installation and group configuration.
-func (provisioner *KopsCIAlpha) VerifyClusterInstallationMatchesConfig(cluster *model.Cluster, installation *model.Installation, clusterInstallation *model.ClusterInstallation) (bool, error) {
+func (provisioner *kopsCIAlpha) VerifyClusterInstallationMatchesConfig(cluster *model.Cluster, installation *model.Installation, clusterInstallation *model.ClusterInstallation) (bool, error) {
 	logger := provisioner.logger.WithFields(log.Fields{
 		"cluster":      clusterInstallation.ClusterID,
 		"installation": clusterInstallation.InstallationID,
@@ -352,7 +354,7 @@ func ensureEnvMatch(wanted corev1.EnvVar, all []corev1.EnvVar) bool {
 }
 
 // DeleteClusterInstallation deletes a Mattermost installation within the given cluster.
-func (provisioner *KopsCIAlpha) DeleteClusterInstallation(cluster *model.Cluster, installation *model.Installation, clusterInstallation *model.ClusterInstallation) error {
+func (provisioner *kopsCIAlpha) DeleteClusterInstallation(cluster *model.Cluster, installation *model.Installation, clusterInstallation *model.ClusterInstallation) error {
 	logger := provisioner.logger.WithFields(log.Fields{
 		"cluster":      clusterInstallation.ClusterID,
 		"installation": clusterInstallation.InstallationID,
@@ -400,7 +402,7 @@ func (provisioner *KopsCIAlpha) DeleteClusterInstallation(cluster *model.Cluster
 }
 
 // IsResourceReady checks if the ClusterInstallation Custom Resource is ready on the cluster.
-func (provisioner *KopsCIAlpha) IsResourceReady(cluster *model.Cluster, clusterInstallation *model.ClusterInstallation) (bool, error) {
+func (provisioner *kopsCIAlpha) IsResourceReady(cluster *model.Cluster, clusterInstallation *model.ClusterInstallation) (bool, error) {
 	logger := provisioner.logger.WithFields(log.Fields{
 		"cluster":      clusterInstallation.ClusterID,
 		"installation": clusterInstallation.InstallationID,
@@ -491,7 +493,7 @@ func (provisioner *KopsProvisioner) ExecClusterInstallationCLI(cluster *model.Cl
 
 // getClusterInstallationResource gets the cluster installation resource from
 // the kubernetes API.
-func (provisioner *KopsCIAlpha) getClusterInstallationResource(cluster *model.Cluster, clusterInstallation *model.ClusterInstallation, logger log.FieldLogger) (*mmv1alpha1.ClusterInstallation, error) {
+func (provisioner *kopsCIAlpha) getClusterInstallationResource(cluster *model.Cluster, clusterInstallation *model.ClusterInstallation, logger log.FieldLogger) (*mmv1alpha1.ClusterInstallation, error) {
 	configLocation, err := provisioner.getCachedKopsClusterKubecfg(cluster.ProvisionerMetadataKops.Name, logger)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to get kops config from cache")
@@ -540,7 +542,7 @@ func (provisioner *KopsProvisioner) prepareCILicenseSecret(installation *model.I
 	licenseSecretName := fmt.Sprintf("%s-license", makeClusterInstallationName(clusterInstallation))
 	licenseSecret := &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: licenseSecretName,
+			Name:      licenseSecretName,
 			Namespace: clusterInstallation.Namespace,
 		},
 		StringData: map[string]string{"license": installation.License},

@@ -305,7 +305,7 @@ func (sqlStore *SQLStore) createInstallation(db execer, installation *model.Inst
 		"APISecurityLock":  installation.APISecurityLock,
 		"LockAcquiredBy":   nil,
 		"LockAcquiredAt":   0,
-		"CRVersion": 		installation.CRVersion,
+		"CRVersion":        installation.CRVersion,
 	}
 
 	singleTenantDBConfJSON, err := installation.SingleTenantDatabaseConfig.ToJSON()
@@ -355,8 +355,8 @@ func (sqlStore *SQLStore) UpdateInstallation(installation *model.Installation) e
 			"License":          installation.License,
 			"MattermostEnvRaw": []byte(envJSON),
 			"State":            installation.State,
-			"CRVersion": 		installation.CRVersion,
-	}).
+			"CRVersion":        installation.CRVersion,
+		}).
 		Where("ID = ?", installation.ID),
 	)
 	if err != nil {

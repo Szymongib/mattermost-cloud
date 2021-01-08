@@ -42,7 +42,6 @@ type clusterInstallationProvisioner interface {
 // other clients needing to coordinate background jobs.
 type ClusterInstallationSupervisor struct {
 	store       clusterInstallationStore
-	//provisionerFactory clusterInstallationProvisionerFactory
 	provisioner clusterInstallationProvisioner
 	aws         aws.AWS
 	instanceID  string
