@@ -39,6 +39,10 @@ func initInstallation(apiRouter *mux.Router, context *Context) {
 	installationRouter.Handle("", addContext(handleDeleteInstallation)).Methods("DELETE")
 	installationRouter.Handle("/annotations", addContext(handleAddInstallationAnnotations)).Methods("POST")
 	installationRouter.Handle("/annotation/{annotation-name}", addContext(handleDeleteInstallationAnnotation)).Methods("DELETE")
+	//installationRouter.Handle("/database", addContext(handleGetInstallationDatabase)).Methods("GET")
+
+	installationRouter.Handle("/backup", addContext(handleBackupInstallation)).Methods("POST")
+
 }
 
 // handleGetInstallation responds to GET /api/installation/{installation}, returning the installation in question.
@@ -737,4 +741,63 @@ func handleDeleteInstallationAnnotation(c *Context, w http.ResponseWriter, r *ht
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// TODO: Do I need some body?
+
+// handleBackupInstallation responds to POST /api/installation/{installation}/backup,
+// creates backup of Installation's data.
+func handleBackupInstallation(c *Context, w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	installationID := vars["installation"]
+	c.Logger = c.Logger.
+		WithField("installation", installationID).
+		WithField("action", "backup-installation")
+
+	installationDTO, status, unlockOnce := lockInstallation(c, installationID)
+	if status != 0 {
+		w.WriteHeader(status)
+		return
+	}
+	defer unlockOnce()
+
+	if installationDTO.APISecurityLock {
+		logSecurityLockConflict("installation", c.Logger)
+		w.WriteHeader(http.StatusForbidden)
+		return
+	}
+
+	if installationDTO.State != model.InstallationStateHibernating {
+		c.Logger.Error("Only hibernated installations can be backed up")
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	backupRunning, err := c.Store.IsBackupRunning(installationDTO.ID)
+	if err != nil {
+		c.Logger.WithError(err).Error("Failed to check if backup is running for Installation")
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	if backupRunning {
+		c.Logger.Error("Backup for the installation is already requested or in progress")
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	backupMetadata := &model.BackupMetadata{
+		InstallationId: installationDTO.ID,
+		State:          model.BackupStateBackupRequested,
+	}
+
+	err = c.Store.CreateBackupMetadata(backupMetadata)
+	if err != nil {
+		c.Logger.Error("Failed to create backup metadata")
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	outputJSON(c, w, backupMetadata)
 }

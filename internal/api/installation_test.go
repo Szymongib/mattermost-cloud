@@ -1416,3 +1416,66 @@ func dtosToInstallations(dtos []*model.InstallationDTO) []*model.Installation {
 	}
 	return installations
 }
+
+func TestInstallationBackup(t *testing.T) {
+	logger := testlib.MakeLogger(t)
+	sqlStore := store.MakeTestSQLStore(t, logger)
+	defer store.CloseConnection(t, sqlStore)
+
+	router := mux.NewRouter()
+	api.Register(router, &api.Context{
+		Store:      sqlStore,
+		Supervisor: &mockSupervisor{},
+		Logger:     logger,
+	})
+
+	ts := httptest.NewServer(router)
+	client := model.NewClient(ts.URL)
+	installation1, err := client.CreateInstallation(
+		&model.CreateInstallationRequest{
+			OwnerID:  "owner",
+			Version:  "version",
+			DNS:      "dns1.example.com",
+			Affinity: model.InstallationAffinityMultiTenant,
+		})
+	require.NoError(t, err)
+
+	t.Run("fail for not hibernated installation1", func(t *testing.T) {
+		_, err = client.RequestInstallationBackup(installation1.ID)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "400")
+	})
+
+	installation1.State = model.InstallationStateHibernating
+	err = sqlStore.UpdateInstallation(installation1.Installation)
+	require.NoError(t, err)
+
+	backupMeta, err := client.RequestInstallationBackup(installation1.ID)
+	require.NoError(t, err)
+	assert.NotEmpty(t, backupMeta.ID)
+
+	t.Run("fail to request multiple backups for same installation1", func(t *testing.T) {
+		_, err = client.RequestInstallationBackup(installation1.ID)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "400")
+	})
+
+	t.Run("can request backup for different installation", func(t *testing.T) {
+		installation2, err := client.CreateInstallation(
+			&model.CreateInstallationRequest{
+				OwnerID:  "owner",
+				Version:  "version",
+				DNS:      "dns2.example.com",
+				Affinity: model.InstallationAffinityMultiTenant,
+			})
+		require.NoError(t, err)
+
+		installation2.State = model.InstallationStateHibernating
+		err = sqlStore.UpdateInstallation(installation2.Installation)
+		require.NoError(t, err)
+
+		backupMeta2, err := client.RequestInstallationBackup(installation2.ID)
+		require.NoError(t, err)
+		assert.NotEmpty(t, backupMeta2.ID)
+	})
+}
