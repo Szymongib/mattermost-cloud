@@ -8,8 +8,8 @@ import (
 
 type BackupMetadata struct {
 	ID             string
-	InstallationId string
-	DataResidence  *S3DataResidence
+	InstallationID string
+	DataResidence  *S3DataResidence // TODO: DataResidence or Residency?
 	State          BackupState
 	RequestAt      int64
 	StartAt        int64 // TODO: Job creation timestamp?
@@ -17,11 +17,15 @@ type BackupMetadata struct {
 	LockAcquiredBy *string
 	LockAcquiredAt int64
 
+	// ClusterInstallationID is set when backup is scheduled.
+	ClusterInstallationID string
 }
 
 type S3DataResidence struct {
-	Region string
-	Bucket string
+	Region    string
+	URL       string
+	Bucket    string
+	ObjectKey string
 }
 
 type BackupState string
@@ -32,6 +36,14 @@ const (
 	BackupStateBackupSucceeded BackupState = "backup-succeeded"
 	BackupStateBackupFailed BackupState = "backup-failed"
 )
+
+// AllBackupMetadataStatesPendingWork is a list of all backup metadata states that
+// the supervisor will attempt to transition towards stable on the next "tick".
+var AllBackupMetadataStatesPendingWork = []BackupState{
+	BackupStateBackupRequested,
+	BackupStateBackupInProgress,
+}
+
 
 // NewBackupMetadataFromReader will create a BackupMetadata from an
 // io.Reader with JSON data.

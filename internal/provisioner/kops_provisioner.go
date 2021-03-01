@@ -5,6 +5,7 @@
 package provisioner
 
 import (
+	"github.com/mattermost/mattermost-cloud/k8s"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 
@@ -110,4 +111,23 @@ func (provisioner *KopsProvisioner) invalidateCachedKopsClientOnError(err error,
 	}
 
 	provisioner.invalidateCachedKopsClient(name, logger)
+}
+
+func (provisioner *KopsProvisioner) k8sClient(clusterName string, logger log.FieldLogger) (*k8s.KubeClient, func(err error), error) {
+	configLocation, err := provisioner.getCachedKopsClusterKubecfg(clusterName, logger)
+	if err != nil {
+		return nil, nil, errors.Wrap(err, "failed to get kops config from cache")
+	}
+	invalidateOnError := func(err error) {
+		provisioner.invalidateCachedKopsClientOnError(err, clusterName, logger)
+	}
+	defer invalidateOnError(err)
+
+	var k8sClient *k8s.KubeClient
+	k8sClient, err = k8s.NewFromFile(configLocation, logger)
+	if err != nil {
+		return nil, nil, errors.Wrap(err, "failed to create k8s client from file")
+	}
+
+	return k8sClient, invalidateOnError, nil
 }
