@@ -17,7 +17,7 @@ var backupMetadataSelect sq.SelectBuilder
 func init() {
 	backupMetadataSelect = sq.
 		Select(
-			"ID", "InstallationID", "DataResidenceRaw", "State", "RequestAt", "StartAt", "DeleteAt", "LockAcquiredBy", "LockAcquiredAt",
+			"ID", "InstallationID", "ClusterInstallationID", "DataResidenceRaw", "State", "RequestAt", "StartAt", "DeleteAt", "LockAcquiredBy", "LockAcquiredAt",
 		).
 		From(backupMetadataTable)
 }
@@ -57,6 +57,7 @@ func (sqlStore *SQLStore) CreateBackupMetadata(backupMeta *model.BackupMetadata)
 		SetMap(map[string]interface{}{
 			"ID":               backupMeta.ID,
 			"InstallationID":   backupMeta.InstallationID,
+			"ClusterInstallationID": backupMeta.ClusterInstallationID,
 			"DataResidenceRaw": nil,
 			"State":            backupMeta.State,
 			"RequestAt":        backupMeta.RequestAt,
@@ -157,8 +158,8 @@ func (sqlStore *SQLStore) GetUnlockedBackupMetadataPendingWork() ([]*model.Backu
 	return backupsMeta, nil
 }
 
-// UpdateBackupDataResidency updates the given backup metadata data residency.
-func (sqlStore *SQLStore) UpdateBackupDataResidency(backupMeta *model.BackupMetadata) error {
+// UpdateBackupSchedulingData updates the given backup metadata data residency and ClusterInstallationID.
+func (sqlStore *SQLStore) UpdateBackupSchedulingData(backupMeta *model.BackupMetadata) error {
 	data, err := json.Marshal(backupMeta.DataResidence)
 	if err != nil {
 		return errors.Wrap(err, "failed to marshal data residency")
@@ -167,9 +168,17 @@ func (sqlStore *SQLStore) UpdateBackupDataResidency(backupMeta *model.BackupMeta
 	return sqlStore.updateBackupMetadataFields(
 		backupMeta.ID, map[string]interface{}{
 			"DataResidenceRaw": data,
+			"ClusterInstallationID": backupMeta.ClusterInstallationID,
 		})
 }
 
+// UpdateBackupSchedulingData updates the given backup metadata data residency and ClusterInstallationID.
+func (sqlStore *SQLStore) UpdateBackupStartTime(backupMeta *model.BackupMetadata) error {
+	return sqlStore.updateBackupMetadataFields(
+		backupMeta.ID, map[string]interface{}{
+			"StartAt": backupMeta.StartAt,
+		})
+}
 
 // UpdateBackupMetadataState updates the given backup metadata to a new state.
 func (sqlStore *SQLStore) UpdateBackupMetadataState(backupMeta *model.BackupMetadata) error {

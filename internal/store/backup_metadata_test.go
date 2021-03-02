@@ -147,20 +147,40 @@ func TestUpdateBackupMetadata(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, model.BackupStateBackupSucceeded, fetched.State)
 		assert.Equal(t, int64(0), fetched.StartAt) // Assert start time not updated
+		assert.Equal(t, "", fetched.ClusterInstallationID) // Assert CI ID not updated
 	})
 
 	t.Run("update data residency only", func(t *testing.T) {
 		updatedResidence := &model.S3DataResidence{URL: "s3.amazon.com"}
+		clusterInstallationID := "cluster-installation-1"
 
 		metadata.StartAt = -1
 		metadata.DataResidence = updatedResidence
+		metadata.ClusterInstallationID = clusterInstallationID
 
-		err = sqlStore.UpdateBackupDataResidency(metadata)
+		err = sqlStore.UpdateBackupSchedulingData(metadata)
 		require.NoError(t, err)
 
 		fetched, err := sqlStore.GetBackupMetadata(metadata.ID)
 		require.NoError(t, err)
 		assert.Equal(t, updatedResidence, fetched.DataResidence)
+		assert.Equal(t, clusterInstallationID, fetched.ClusterInstallationID)
 		assert.Equal(t, int64(0), fetched.StartAt) // Assert start time not updated
+	})
+
+	t.Run("update start time", func(t *testing.T) {
+		var startTime int64 = 10000
+		originalCIId := metadata.ClusterInstallationID
+
+		metadata.StartAt = startTime
+		metadata.ClusterInstallationID = "modified-ci-id"
+
+		err = sqlStore.UpdateBackupStartTime(metadata)
+		require.NoError(t, err)
+
+		fetched, err := sqlStore.GetBackupMetadata(metadata.ID)
+		require.NoError(t, err)
+		assert.Equal(t, startTime, fetched.StartAt)
+		assert.Equal(t, originalCIId, fetched.ClusterInstallationID) // Assert ClusterInstallationID not updated
 	})
 }

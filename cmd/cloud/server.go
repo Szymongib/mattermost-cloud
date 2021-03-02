@@ -253,6 +253,12 @@ var serverCmd = &cobra.Command{
 		if clusterInstallationSupervisor {
 			multiDoer = append(multiDoer, supervisor.NewClusterInstallationSupervisor(sqlStore, kopsProvisioner, awsClient, instanceID, logger))
 		}
+		//if backupSupervisor { // TODO: use the param
+		if true {
+			// TODO: take image as flag
+			backupOperator := provisioner.NewBackupOperator(kopsProvisioner, "szymongib/backup-restore-tool:latest", awsRegion)
+			multiDoer = append(multiDoer, supervisor.NewBackupSupervisor(sqlStore, backupOperator, awsClient, instanceID, logger, cloudMetrics))
+		}
 
 		// Setup the supervisor to effect any requested changes. It is wrapped in a
 		// scheduler to trigger it periodically in addition to being poked by the API

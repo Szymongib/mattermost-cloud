@@ -1200,6 +1200,7 @@ var migrations = []migration{
 			CREATE TABLE BackupMetadata (
 				ID TEXT PRIMARY KEY,
 				InstallationID TEXT NOT NULL,
+				ClusterInstallationID TEXT NOT NULL,
 				DataResidenceRaw BYTEA NULL,
 				State TEXT NOT NULL,
 				RequestAt BIGINT NOT NULL,

@@ -2,23 +2,25 @@ package model
 
 import (
 	"encoding/json"
+	"fmt"
 	"github.com/pkg/errors"
 	"io"
+	"strings"
 )
 
 type BackupMetadata struct {
 	ID             string
 	InstallationID string
+	// ClusterInstallationID is set when backup is scheduled.
+	ClusterInstallationID string
 	DataResidence  *S3DataResidence // TODO: DataResidence or Residency?
 	State          BackupState
 	RequestAt      int64
-	StartAt        int64 // TODO: Job creation timestamp?
+	// StartAt is a start time of job that successfully completed backup.
+	StartAt        int64
 	DeleteAt       int64
 	LockAcquiredBy *string
 	LockAcquiredAt int64
-
-	// ClusterInstallationID is set when backup is scheduled.
-	ClusterInstallationID string
 }
 
 type S3DataResidence struct {
@@ -55,4 +57,27 @@ func NewBackupMetadataFromReader(reader io.Reader) (*BackupMetadata, error) {
 	}
 
 	return &backupMetadata, nil
+}
+
+func EnsureBackupCompatible(installation *Installation) error {
+	var errs []string
+
+	if installation.State != InstallationStateHibernating {
+		errs = append(errs, "only hibernated installations can be backed up")
+	}
+
+	if installation.Database != InstallationDatabaseMultiTenantRDSPostgres &&
+		installation.Database != InstallationDatabaseSingleTenantRDSPostgres {
+		errs = append(errs, fmt.Sprintf("database backup supported only for Postgres database, the database type is %q", installation.Database))
+	}
+
+	if installation.Filestore == InstallationFilestoreMinioOperator {
+		errs = append(errs, "cannot backup database for installation using local Minio file store")
+	}
+
+	if len(errs) > 0 {
+		return errors.Errorf("some settings are incompatible with backup: [%s]", strings.Join(errs, "; "))
+	}
+
+	return nil
 }

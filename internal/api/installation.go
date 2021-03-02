@@ -5,10 +5,8 @@
 package api
 
 import (
-	"fmt"
 	"github.com/pkg/errors"
 	"net/http"
-	"strings"
 	"time"
 
 	"github.com/mattermost/mattermost-cloud/internal/store"
@@ -769,7 +767,7 @@ func handleBackupInstallation(c *Context, w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	if err := isBackupCompatible(installationDTO.Installation); err != nil {
+	if err := model.EnsureBackupCompatible(installationDTO.Installation); err != nil {
 		c.Logger.WithError(err).Error("installation cannot be backed up")
 		w.WriteHeader(http.StatusBadRequest)
 		return
@@ -799,31 +797,9 @@ func handleBackupInstallation(c *Context, w http.ResponseWriter, r *http.Request
 		return
 	}
 
+	c.Supervisor.Do()
+
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	outputJSON(c, w, backupMetadata)
-}
-
-// TODO: Put it in Backup model stuff and use if Supervisor also
-func isBackupCompatible(installation *model.Installation) error {
-	var errs []string
-
-	if installation.State != model.InstallationStateHibernating {
-		errs = append(errs, "only hibernated installations can be backed up")
-	}
-
-	if installation.Database != model.InstallationDatabaseMultiTenantRDSPostgres &&
-		installation.Database != model.InstallationDatabaseSingleTenantRDSPostgres {
-		errs = append(errs, fmt.Sprintf("database backup supported only for Postgres database, the database type is %q", installation.Database))
-	}
-
-	if installation.Filestore == model.InstallationFilestoreMinioOperator {
-		errs = append(errs, "cannot backup database for installation using local Minio file store")
-	}
-
-	if len(errs) > 0 {
-		return errors.Errorf("some settings are incompatible with backup: [%s]", strings.Join(errs, "; "))
-	}
-
-	return nil
 }

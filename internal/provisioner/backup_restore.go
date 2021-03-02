@@ -29,6 +29,15 @@ type Operator struct {
 	awsRegion string
 }
 
+// TODO: create this from KopsProvisioner and do not pass Provisioner?
+func NewBackupOperator(provisioner *KopsProvisioner, image string, region string) *Operator {
+	return &Operator{
+		provisioner:        provisioner,
+		backupRestoreImage: image,
+		awsRegion:          region,
+	}
+}
+
 func (o Operator) TriggerBackup(backupMetadata *model.BackupMetadata, cluster *model.Cluster, installation *model.Installation) (*model.S3DataResidence, error) {
 	logger := o.provisioner.logger.WithFields(log.Fields{
 		"cluster":      cluster.ID,
@@ -85,12 +94,12 @@ func (o Operator) triggerBackup(
 
 	storageObjectKey := backupObjectKey(backupMetadata.ID, backupMetadata.RequestAt)
 
-	storageTLS := true
-	if installation.Filestore == model.InstallationFilestoreBifrost {
-		storageTLS = false
-	}
+	envVars := o.prepareEnvs(fileStoreCfg.URL, fileStoreCfg.Bucket, storageObjectKey, fileStoreSecret, dbSecret)
 
-	envVars := o.prepareEnvs(fileStoreCfg.URL, fileStoreCfg.Bucket, storageObjectKey, fileStoreSecret, dbSecret, storageTLS)
+	if installation.Filestore == model.InstallationFilestoreBifrost {
+		bifrostEnv := bifrostEnvs(envVars)
+		envVars = append(envVars, bifrostEnv...)
+	}
 
 	job := o.createBackupRestoreJob(backupMetadata.ID, installation.ID, "backup", envVars)
 
@@ -115,10 +124,10 @@ func (o Operator) triggerBackup(
 
 // CheckBackupStatus checks status of running backup job,
 // returns job start time, when the job finished or -1 if it is still running.
-func (o Operator) CheckBackupStatus(backupMetadata *model.BackupMetadata, cluster *model.Cluster, installation *model.Installation) (int64, error) {
+func (o Operator) CheckBackupStatus(backupMetadata *model.BackupMetadata, cluster *model.Cluster) (int64, error) {
 	logger := o.provisioner.logger.WithFields(log.Fields{
 		"cluster":      cluster.ID,
-		"installation": installation.ID,
+		"installation": backupMetadata.InstallationID,
 		"backup":       backupMetadata.ID,
 	})
 	logger.Info("Checking backup status for installation")
@@ -129,7 +138,7 @@ func (o Operator) CheckBackupStatus(backupMetadata *model.BackupMetadata, cluste
 	}
 	defer invalidateCache(err)
 
-	jobsClient := k8sClient.Clientset.BatchV1().Jobs(installation.ID)
+	jobsClient := k8sClient.Clientset.BatchV1().Jobs(backupMetadata.InstallationID)
 
 	return o.checkBackupStatus(jobsClient, backupMetadata, logger)
 }
@@ -173,7 +182,7 @@ func (o Operator) checkBackupStatus(jobsClient v1.JobInterface, backupMetadata *
 	}
 
 	backoffLimit :=  getInt32(job.Spec.BackoffLimit)
-	if job.Status.Failed == backoffLimit {
+	if job.Status.Failed >= backoffLimit {
 		logger.Error("Backup job reached backoff limit")
 		return  -1, ErrJobBackoffLimitReached
 	}
@@ -199,6 +208,7 @@ func (o Operator) createBackupRestoreJob(backupId, namespace, action string, env
 					Containers: []corev1.Container{
 						o.createBackupRestoreContainer(action, envs),
 					},
+					RestartPolicy: corev1.RestartPolicyNever,
 				},
 			},
 			BackoffLimit: &backoff,
@@ -213,14 +223,13 @@ func (o Operator) createBackupRestoreContainer(action string, envs []corev1.EnvV
 	return corev1.Container{
 		Name:                     "backup-restore",
 		Image:                    o.backupRestoreImage,
-		Command:                  []string{"backup-restore-tool", action},
-		Args:                     []string{"storage-type", "bifrost"},
+		Args:                     []string{action},
 		Env: 		envs,
 	}
 }
 
-func (o Operator) prepareEnvs(storageEndpoint, bucket, objectKey, fileStoreSecret, dbSecret string, storageTLS bool) ([]corev1.EnvVar) {
-	return []corev1.EnvVar{
+func (o Operator) prepareEnvs(storageEndpoint, bucket, objectKey, fileStoreSecret, dbSecret string) []corev1.EnvVar {
+	envs := []corev1.EnvVar{
 		{
 			Name: "BRT_STORAGE_REGION",
 			Value: o.awsRegion,
@@ -231,15 +240,11 @@ func (o Operator) prepareEnvs(storageEndpoint, bucket, objectKey, fileStoreSecre
 		},
 		{
 			Name: "BRT_STORAGE_ENDPOINT",
-			Value: storageEndpoint,
+			Value: storageEndpoint, // TODO: this also needs to change for Bifrost
 		},
 		{
 			Name: "BRT_STORAGE_OBJECT_KEY",
 			Value: objectKey,
-		},
-		{
-			Name: "BRT_STORAGE_TLS",
-			Value: strconv.FormatBool(storageTLS),
 		},
 		{
 			Name: "BRT_DATABASE",
@@ -252,6 +257,29 @@ func (o Operator) prepareEnvs(storageEndpoint, bucket, objectKey, fileStoreSecre
 		{
 			Name: "BRT_STORAGE_SECRET_KEY",
 			ValueFrom: envSourceFromSecret(fileStoreSecret, "secretkey"),
+		},
+	}
+
+	return envs
+}
+
+func bifrostEnvs(envs []corev1.EnvVar) []corev1.EnvVar {
+	// TODO: remove this part if you align with gabe, or change it?
+	for i, e := range envs {
+		if e.Name == "BRT_STORAGE_ENDPOINT" {
+			envs[i].Value = "bifrost.bifrost:80"
+			break
+		}
+	}
+
+	return []corev1.EnvVar{
+		{
+			Name: "BRT_STORAGE_TLS",
+			Value: strconv.FormatBool(false),
+		},
+		{
+			Name:      "BRT_STORAGE_TYPE",
+			Value:     "bifrost",
 		},
 	}
 }
@@ -268,7 +296,7 @@ func envSourceFromSecret(secretName, key string) *corev1.EnvVarSource {
 }
 
 func backupObjectKey(id string, timestamp int64) string {
-	return fmt.Sprintf("backup-%s-%s", id) // TODO: use time here?
+	return fmt.Sprintf("backup-%s", id) // TODO: use time here?
 }
 
 func jobName(action, id string) string {
