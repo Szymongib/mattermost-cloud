@@ -17,78 +17,43 @@ import (
 )
 
 const (
-	backupRestoreBackoffLimit int32 = 1 // TODO: only 1 attempt - make sure it will not retry
+	// Run job with only one attempt to avoid possibility of waking up workspace before retry.
+	backupRestoreBackoffLimit int32 = 0
 )
 
 // ErrJobBackoffLimitReached indicates that job failed all possible attempts and there is no reason for retrying.
 var ErrJobBackoffLimitReached = errors.New("job reached backoff limit")
 
-type Operator struct {
-	provisioner *KopsProvisioner
-
-	backupRestoreImage string
-	awsRegion          string
+type BackupOperator struct {
+	jobTTLSecondsAfterFinish *int32
+	backupRestoreImage       string
+	awsRegion                string
 }
 
-// TODO: create this from KopsProvisioner and do not pass Provisioner? <-- this
-func NewBackupOperator(provisioner *KopsProvisioner, image string, region string) *Operator {
-	return &Operator{
-		provisioner:        provisioner,
-		backupRestoreImage: image,
-		awsRegion:          region,
+func NewBackupOperator(image, region string, jobTTLSeconds int32) *BackupOperator {
+	jobTTL := &jobTTLSeconds
+	if jobTTLSeconds < 0 {
+		jobTTL = nil
+	}
+
+	return &BackupOperator{
+		jobTTLSecondsAfterFinish: jobTTL,
+		backupRestoreImage:       image,
+		awsRegion:                region,
 	}
 }
 
-func (o Operator) TriggerBackup(backupMetadata *model.BackupMetadata, cluster *model.Cluster, installation *model.Installation) (*model.S3DataResidence, error) {
-	logger := o.provisioner.logger.WithFields(log.Fields{
-		"cluster":      cluster.ID,
-		"installation": installation.ID,
-		"backup":       backupMetadata.ID,
-	})
-	logger.Info("Triggering backup for installation")
-
-	k8sClient, invalidateCache, err := o.provisioner.k8sClient(cluster.ProvisionerMetadataKops.Name, logger)
-	if err != nil {
-		return nil, errors.Wrap(err, "failed to create k8s client")
-	}
-	defer invalidateCache(err)
-
-	filestoreCfg, filestoreSecret, err := o.provisioner.resourceUtil.GetFilestore(installation).
-		GenerateFilestoreSpecAndSecret(o.provisioner.store, logger)
-	if err != nil {
-		return nil, errors.Wrap(err, "failed to get files store configuration for installation")
-	}
-	// Backup is not supported for local MinIO storage, therefore this should not happen
-	if filestoreCfg == nil || filestoreSecret == nil {
-		return nil, errors.New("file store secret and config cannot be empty for backup")
-	}
-	dbSecret, err := o.provisioner.resourceUtil.GetDatabase(installation).GenerateDatabaseSecret(o.provisioner.store, logger)
-	if err != nil {
-		return nil, errors.Wrap(err, "failed to get database configuration")
-	}
-	// Backup is not supported for local MySQL, therefore this should not happen
-	if dbSecret == nil {
-		return nil, errors.New("database secret cannot be empty for backup")
-	}
-
-	jobsClient := k8sClient.Clientset.BatchV1().Jobs(installation.ID)
-
-	return o.triggerBackup(jobsClient, backupMetadata, installation, filestoreCfg, filestoreSecret.Name, dbSecret.Name, logger)
-
-	// TODO: should we wait for backup job to start running?
-}
-
-func (o Operator) triggerBackup(
+func (o BackupOperator) TriggerBackup(
 	jobsClient v1.JobInterface,
 	backupMetadata *model.BackupMetadata,
 	installation *model.Installation,
 	fileStoreCfg *model.FilestoreConfig,
-	fileStoreSecret, dbSecret string,
+	dbSecret string,
 	logger log.FieldLogger) (*model.S3DataResidence, error) {
 
 	storageObjectKey := backupObjectKey(backupMetadata.ID, backupMetadata.RequestAt)
 
-	envVars := o.prepareEnvs(fileStoreCfg.URL, fileStoreCfg.Bucket, storageObjectKey, fileStoreSecret, dbSecret)
+	envVars := o.prepareEnvs(fileStoreCfg.URL, fileStoreCfg.Bucket, storageObjectKey, fileStoreCfg.Secret, dbSecret)
 
 	if installation.Filestore == model.InstallationFilestoreBifrost {
 		bifrostEnv := bifrostEnvs(envVars)
@@ -106,6 +71,8 @@ func (o Operator) triggerBackup(
 		logger.Warn("Backup job already exists")
 	}
 
+	// TODO: should we wait for backup job to start running?
+
 	dataResidence := &model.S3DataResidence{
 		Region:    o.awsRegion,
 		Bucket:    fileStoreCfg.Bucket,
@@ -116,49 +83,16 @@ func (o Operator) triggerBackup(
 	return dataResidence, nil
 }
 
-// CheckBackupStatus checks status of running backup job,
-// returns job start time, when the job finished or -1 if it is still running.
-func (o Operator) CheckBackupStatus(backupMetadata *model.BackupMetadata, cluster *model.Cluster) (int64, error) {
-	logger := o.provisioner.logger.WithFields(log.Fields{
-		"cluster":      cluster.ID,
-		"installation": backupMetadata.InstallationID,
-		"backup":       backupMetadata.ID,
-	})
-	logger.Info("Checking backup status for installation")
-
-	k8sClient, invalidateCache, err := o.provisioner.k8sClient(cluster.ProvisionerMetadataKops.Name, logger)
-	if err != nil {
-		return -1, errors.Wrap(err, "failed to create k8s client")
-	}
-	defer invalidateCache(err)
-
-	jobsClient := k8sClient.Clientset.BatchV1().Jobs(backupMetadata.InstallationID)
-
-	return o.checkBackupStatus(jobsClient, backupMetadata, logger)
-}
-
-func (o Operator) checkBackupStatus(jobsClient v1.JobInterface, backupMetadata *model.BackupMetadata, logger log.FieldLogger) (int64, error) {
+func (o BackupOperator) CheckBackupStatus(jobsClient v1.JobInterface, backupMetadata *model.BackupMetadata, logger log.FieldLogger) (int64, error) {
 	ctx := context.Background()
 	job, err := jobsClient.Get(ctx, jobName("backup", backupMetadata.ID), metav1.GetOptions{})
 	if err != nil {
 		return -1, errors.Wrap(err, "failed to get backup job")
 	}
 
-	// TODO: move it to function - finalizeBackup
 	if job.Status.Succeeded > 0 {
-		// TODO: what else on success? Cleanup?
-
 		logger.Info("Backup finished with success")
-
-		var startTime int64
-		if job.Status.StartTime == nil {
-			logger.Warn("failed to get job start time, using creation timestamp")
-			startTime = asMillis(job.CreationTimestamp)
-		} else {
-			startTime = asMillis(*job.Status.StartTime)
-		}
-
-		return startTime, nil
+		return o.extractStartTime(job, logger), nil
 	}
 
 	if job.Status.Failed > 0 {
@@ -176,16 +110,25 @@ func (o Operator) checkBackupStatus(jobsClient v1.JobInterface, backupMetadata *
 	}
 
 	backoffLimit := getInt32(job.Spec.BackoffLimit)
-	if job.Status.Failed >= backoffLimit {
+	if job.Status.Failed > backoffLimit {
 		logger.Error("Backup job reached backoff limit")
 		return -1, ErrJobBackoffLimitReached
 	}
 
-	logger.Infof("Backup job waiting for retry, will be retried at most %d more times", backoffLimit-job.Status.Failed)
+	logger.Infof("Backup job waiting for retry, will be retried at most %d more times", backoffLimit+1-job.Status.Failed)
 	return -1, nil
 }
 
-func (o Operator) createBackupRestoreJob(backupId, namespace, action string, envs []corev1.EnvVar) *batchv1.Job {
+func (o BackupOperator) extractStartTime(job *batchv1.Job, logger log.FieldLogger) int64 {
+	if job.Status.StartTime != nil {
+		return asMillis(*job.Status.StartTime)
+	}
+
+	logger.Warn("failed to get job start time, using creation timestamp")
+	return asMillis(job.CreationTimestamp)
+}
+
+func (o BackupOperator) createBackupRestoreJob(backupId, namespace, action string, envs []corev1.EnvVar) *batchv1.Job {
 	backoff := backupRestoreBackoffLimit
 
 	job := &batchv1.Job{
@@ -206,15 +149,15 @@ func (o Operator) createBackupRestoreJob(backupId, namespace, action string, env
 					RestartPolicy: corev1.RestartPolicyNever,
 				},
 			},
-			BackoffLimit: &backoff,
-			//TTLSecondsAfterFinished: int32Ptr(), // TODO: add job TTL?
+			BackoffLimit:            &backoff,
+			TTLSecondsAfterFinished: o.jobTTLSecondsAfterFinish,
 		},
 	}
 
 	return job
 }
 
-func (o Operator) createBackupRestoreContainer(action string, envs []corev1.EnvVar) corev1.Container {
+func (o BackupOperator) createBackupRestoreContainer(action string, envs []corev1.EnvVar) corev1.Container {
 	return corev1.Container{
 		Name:  "backup-restore",
 		Image: o.backupRestoreImage,
@@ -232,7 +175,7 @@ func (o Operator) createBackupRestoreContainer(action string, envs []corev1.EnvV
 	}
 }
 
-func (o Operator) prepareEnvs(storageEndpoint, bucket, objectKey, fileStoreSecret, dbSecret string) []corev1.EnvVar {
+func (o BackupOperator) prepareEnvs(storageEndpoint, bucket, objectKey, fileStoreSecret, dbSecret string) []corev1.EnvVar {
 	envs := []corev1.EnvVar{
 		{
 			Name:  "BRT_STORAGE_REGION",

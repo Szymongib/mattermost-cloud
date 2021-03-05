@@ -52,6 +52,8 @@ func init() {
 	serverCmd.PersistentFlags().Bool("debug-helm", false, "Whether to include Helm output in debug logs.")
 	serverCmd.PersistentFlags().Bool("machine-readable-logs", false, "Output the logs in machine readable format.")
 	serverCmd.PersistentFlags().Bool("dev", false, "Set sane defaults for development")
+	serverCmd.PersistentFlags().String("backup-restore-tool-image", "mattermost/backup-restore-tool:latest", "Image of Backup Restore Tool to use.")
+	serverCmd.PersistentFlags().Int32("backup-job-ttl-seconds", 3600, "Number of seconds after which finished backup jobs will be cleaned up. Set to negative value to not cleanup or 0 to cleanup immediately.")
 
 	// Supervisors
 	serverCmd.PersistentFlags().Int("poll", 30, "The interval in seconds to poll for background work.")
@@ -59,6 +61,7 @@ func init() {
 	serverCmd.PersistentFlags().Bool("group-supervisor", false, "Whether this server will run an installation group supervisor or not.")
 	serverCmd.PersistentFlags().Bool("installation-supervisor", true, "Whether this server will run an installation supervisor or not.")
 	serverCmd.PersistentFlags().Bool("cluster-installation-supervisor", true, "Whether this server will run a cluster installation supervisor or not.")
+	serverCmd.PersistentFlags().Bool("backup-supervisor", true, "Whether this server will run a backup supervisor or not.")
 
 	// Scheduling and installation options
 	serverCmd.PersistentFlags().Bool("balanced-installation-scheduling", false, "Whether to schedule installations on the cluster with the greatest percentage of available resources or not. (slows down scheduling speed as cluster count increases)")
@@ -147,7 +150,8 @@ var serverCmd = &cobra.Command{
 		groupSupervisor, _ := command.Flags().GetBool("group-supervisor")
 		installationSupervisor, _ := command.Flags().GetBool("installation-supervisor")
 		clusterInstallationSupervisor, _ := command.Flags().GetBool("cluster-installation-supervisor")
-		if !clusterSupervisor && !installationSupervisor && !clusterInstallationSupervisor && !groupSupervisor {
+		backupSupervisor, _ := command.Flags().GetBool("backup-supervisor")
+		if !clusterSupervisor && !installationSupervisor && !clusterInstallationSupervisor && !groupSupervisor && !backupSupervisor {
 			logger.Warn("Server will be running with no supervisors. Only API functionality will work.")
 		}
 
@@ -156,6 +160,8 @@ var serverCmd = &cobra.Command{
 		keepFilestoreData, _ := command.Flags().GetBool("keep-filestore-data")
 		useExistingResources, _ := command.Flags().GetBool("use-existing-aws-resources")
 		balancedInstallationScheduling, _ := command.Flags().GetBool("balanced-installation-scheduling")
+		backupRestoreToolImage, _ := command.Flags().GetString("backup-restore-tool-image")
+		backupJobTTL, _ := command.Flags().GetInt32("backup-job-ttl-seconds")
 
 		wd, err := os.Getwd()
 		if err != nil {
@@ -178,6 +184,7 @@ var serverCmd = &cobra.Command{
 			"group-supervisor":                       groupSupervisor,
 			"installation-supervisor":                installationSupervisor,
 			"cluster-installation-supervisor":        clusterInstallationSupervisor,
+			"backup-supervisor":                      backupSupervisor,
 			"store-version":                          currentVersion,
 			"state-store":                            s3StateStore,
 			"working-directory":                      wd,
@@ -188,6 +195,8 @@ var serverCmd = &cobra.Command{
 			"keep-database-data":                     keepDatabaseData,
 			"keep-filestore-data":                    keepFilestoreData,
 			"force-cr-upgrade":                       forceCRUpgrade,
+			"backup-restore-tool-image":              backupRestoreToolImage,
+			"backup-job-ttl-seconds":                 backupJobTTL,
 			"debug":                                  debugMode,
 			"dev-mode":                               devMode,
 		}).Info("Starting Mattermost Provisioning Server")
@@ -224,13 +233,18 @@ var serverCmd = &cobra.Command{
 
 		resourceUtil := utils.NewResourceUtil(instanceID, awsClient)
 
+		kopsProvisionerConf := provisioner.KopsProvisionerConfig{
+			S3StateStore:            s3StateStore,
+			AllowCIDRRangeList:      allowListCIDRRange,
+			VpnCIDRList:             vpnListCIDR,
+			Owner:                   owner,
+			UseExistingAWSResources: useExistingResources,
+			BackupOperator:          provisioner.NewBackupOperator(backupRestoreToolImage, awsRegion, backupJobTTL),
+		}
+
 		// Setup the provisioner for actually effecting changes to clusters.
 		kopsProvisioner := provisioner.NewKopsProvisioner(
-			s3StateStore,
-			owner,
-			useExistingResources,
-			allowListCIDRRange,
-			vpnListCIDR,
+			kopsProvisionerConf,
 			resourceUtil,
 			logger,
 			sqlStore,
@@ -253,11 +267,8 @@ var serverCmd = &cobra.Command{
 		if clusterInstallationSupervisor {
 			multiDoer = append(multiDoer, supervisor.NewClusterInstallationSupervisor(sqlStore, kopsProvisioner, awsClient, instanceID, logger))
 		}
-		//if backupSupervisor { // TODO: use the param
-		if true {
-			// TODO: take image as flag
-			backupOperator := provisioner.NewBackupOperator(kopsProvisioner, "szymongib/backup-restore-tool:latest", awsRegion)
-			multiDoer = append(multiDoer, supervisor.NewBackupSupervisor(sqlStore, backupOperator, awsClient, instanceID, logger, cloudMetrics))
+		if backupSupervisor {
+			multiDoer = append(multiDoer, supervisor.NewBackupSupervisor(sqlStore, kopsProvisioner, awsClient, instanceID, logger, cloudMetrics))
 		}
 
 		// Setup the supervisor to effect any requested changes. It is wrapped in a
