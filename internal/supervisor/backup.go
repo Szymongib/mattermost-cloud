@@ -15,7 +15,7 @@ import (
 // backupMetadataStore abstracts the database operations required to query installations.
 type backupMetadataStore interface {
 	GetUnlockedBackupMetadataPendingWork() ([]*model.BackupMetadata, error)
-	GetBackupMetadata(id string) (*model.BackupMetadata, error)
+	GetBackupMetadata(id, installationID string) (*model.BackupMetadata, error)
 	UpdateBackupMetadataState(backupMeta *model.BackupMetadata) error
 	UpdateBackupSchedulingData(backupMeta *model.BackupMetadata) error
 	UpdateBackupStartTime(backupMeta *model.BackupMetadata) error
@@ -32,10 +32,7 @@ type backupMetadataStore interface {
 	LockClusterInstallations(clusterInstallationID []string, lockerID string) (bool, error)
 	UnlockClusterInstallations(clusterInstallationID []string, lockerID string, force bool) (bool, error)
 
-	GetClusters(clusterFilter *model.ClusterFilter) ([]*model.Cluster, error)
 	GetCluster(id string) (*model.Cluster, error)
-	LockCluster(clusterID, lockerID string) (bool, error)
-	UnlockCluster(clusterID string, lockerID string, force bool) (bool, error)
 
 	GetWebhooks(filter *model.WebhookFilter) ([]*model.Webhook, error)
 }
@@ -50,16 +47,16 @@ type BackupOperator interface {
 // The degree of parallelism is controlled by a weighted semaphore, intended to be shared with
 // other clients needing to coordinate background jobs.
 type BackupSupervisor struct {
-	store             backupMetadataStore
+	store backupMetadataStore
 	//provisioner       installationProvisioner
-	aws               aws.AWS
-	instanceID        string
+	aws        aws.AWS
+	instanceID string
 	//keepDatabaseData  bool // TODO: for deleting?
 	//keepFilestoreData bool // TODO: for deleting?
-	logger            log.FieldLogger
-	metrics           *metrics.CloudMetrics
+	logger  log.FieldLogger
+	metrics *metrics.CloudMetrics
 
-	backupOperator   BackupOperator
+	backupOperator BackupOperator
 }
 
 // NewInstallationSupervisor creates a new InstallationSupervisor.
@@ -72,15 +69,15 @@ func NewBackupSupervisor(
 	logger log.FieldLogger,
 	metrics *metrics.CloudMetrics) *BackupSupervisor {
 	return &BackupSupervisor{
-		store:             store,
+		store: store,
 		//provisioner:       installationProvisioner,
 		backupOperator: backupOperator,
-		aws:               aws,
-		instanceID:        instanceID,
+		aws:            aws,
+		instanceID:     instanceID,
 		//keepDatabaseData:  keepDatabaseData,
 		//keepFilestoreData: keepFilestoreData,
-		logger:            logger,
-		metrics:           metrics,
+		logger:  logger,
+		metrics: metrics,
 	}
 }
 
@@ -119,7 +116,7 @@ func (s *BackupSupervisor) Supervise(backupMetadata *model.BackupMetadata) {
 	// Before working on the backupMetadata, it is crucial that we ensure that it
 	// was not updated to a new state by another provisioning server.
 	originalState := backupMetadata.State
-	backupMetadata, err := s.store.GetBackupMetadata(backupMetadata.ID)
+	backupMetadata, err := s.store.GetBackupMetadata(backupMetadata.ID, backupMetadata.InstallationID)
 	if err != nil {
 		logger.WithError(err).Errorf("Failed to get refreshed backupMetadata")
 		return
@@ -135,7 +132,7 @@ func (s *BackupSupervisor) Supervise(backupMetadata *model.BackupMetadata) {
 
 	newState := s.transitionBackup(backupMetadata, s.instanceID, logger)
 
-	backupMetadata, err = s.store.GetBackupMetadata(backupMetadata.ID)
+	backupMetadata, err = s.store.GetBackupMetadata(backupMetadata.ID, backupMetadata.InstallationID)
 	if err != nil {
 		logger.WithError(err).Errorf("Failed to get backup metadata and thus persist state %s", newState)
 		return
@@ -176,7 +173,6 @@ func (s *BackupSupervisor) Supervise(backupMetadata *model.BackupMetadata) {
 	logger.Debugf("Transitioned backup metadata from %s to %s", oldState, backupMetadata.State)
 }
 
-
 // transitionBackup works with the given installation to transition it to a final state.
 func (s *BackupSupervisor) transitionBackup(backupMetadata *model.BackupMetadata, instanceID string, logger log.FieldLogger) model.BackupState {
 	switch backupMetadata.State {
@@ -185,7 +181,6 @@ func (s *BackupSupervisor) transitionBackup(backupMetadata *model.BackupMetadata
 
 	case model.BackupStateBackupInProgress:
 		return s.monitorBackup(backupMetadata, instanceID, logger)
-
 
 		// TODO: will need to do deletion
 	//case model.InstallationStateDeletionRequested,
@@ -208,8 +203,8 @@ func (s *BackupSupervisor) triggerBackup(backupMetadata *model.BackupMetadata, i
 		return backupMetadata.State
 	}
 	if installation == nil {
-		logger.Errorf("Failed to get installation, with id %q", backupMetadata.InstallationID)
-		return backupMetadata.State
+		logger.Errorf("Installation, with id %q not found, setting backup as failed", backupMetadata.InstallationID)
+		return model.BackupStateBackupFailed
 	}
 
 	installationLock := newInstallationLock(installation.ID, instanceID, s.store, logger)
@@ -239,7 +234,7 @@ func (s *BackupSupervisor) triggerBackup(backupMetadata *model.BackupMetadata, i
 		logger.WithError(err).Error("Expected at least one cluster installation to run backup but found none")
 		return backupMetadata.State
 	}
-	// TODO: should I lock the Cluster Installation? - Maybe not if I lock Installation?
+
 	backupCI := clusterInstallations[0]
 	ciLock := newClusterInstallationLock(backupCI.ID, instanceID, s.store, logger)
 	if !ciLock.TryLock() {
@@ -248,23 +243,11 @@ func (s *BackupSupervisor) triggerBackup(backupMetadata *model.BackupMetadata, i
 	}
 	defer ciLock.Unlock()
 
-	// TODO: I should probably put either cluster id or cluster installation ID to the BackupMetadata
-
 	cluster, err := s.store.GetCluster(backupCI.ClusterID)
 	if err != nil {
 		logger.WithError(err).Error("Failed to get cluster")
 		return backupMetadata.State
 	}
-
-	//// TODO: do I want to lock cluster? It may become problematic - no scheduling etc
-	//clusterLock := newClusterLock(cluster.ID, instanceID, s.store, logger)
-	//if !clusterLock.TryLock() {
-	//	logger.Errorf("Failed to lock cluster %s", cluster.ID)
-	//	return backupMetadata.State
-	//}
-	//defer clusterLock.Unlock()
-
-	// Start backup here?
 
 	dataRes, err := s.backupOperator.TriggerBackup(backupMetadata, cluster, installation)
 	if err != nil {
@@ -286,7 +269,8 @@ func (s *BackupSupervisor) triggerBackup(backupMetadata *model.BackupMetadata, i
 
 func (s *BackupSupervisor) monitorBackup(backupMetadata *model.BackupMetadata, instanceID string, logger log.FieldLogger) model.BackupState {
 
-	// TODO: Do I need the Installation here?
+	// TODO: Do I need the Installation here? - if deletion will be blocked when backup is running then no
+	// TODO: also ensure that cluster installation cannot be deleted while backup is running
 
 	//installation, err := s.store.GetInstallation(backupMetadata.InstallationID, false, false)
 	//if err != nil {
@@ -305,7 +289,6 @@ func (s *BackupSupervisor) monitorBackup(backupMetadata *model.BackupMetadata, i
 		logger.WithError(err).Error("Failed to get cluster installations")
 		return backupMetadata.State
 	}
-
 
 	// TODO: should I lock the Cluster Installation? - Maybe not?
 	//backupCI := clusterInstallations[0]

@@ -39,10 +39,10 @@ func initInstallation(apiRouter *mux.Router, context *Context) {
 	installationRouter.Handle("", addContext(handleDeleteInstallation)).Methods("DELETE")
 	installationRouter.Handle("/annotations", addContext(handleAddInstallationAnnotations)).Methods("POST")
 	installationRouter.Handle("/annotation/{annotation-name}", addContext(handleDeleteInstallationAnnotation)).Methods("DELETE")
-	//installationRouter.Handle("/database", addContext(handleGetInstallationDatabase)).Methods("GET")
 
 	installationRouter.Handle("/backup", addContext(handleBackupInstallation)).Methods("POST")
-
+	// TODO: backup list
+	installationRouter.Handle("/backup/{backup}", addContext(handleGetInstallationBackup)).Methods("GET")
 }
 
 // handleGetInstallation responds to GET /api/installation/{installation}, returning the installation in question.
@@ -798,6 +798,35 @@ func handleBackupInstallation(c *Context, w http.ResponseWriter, r *http.Request
 	}
 
 	c.Supervisor.Do()
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	outputJSON(c, w, backupMetadata)
+}
+
+// TODO: list backups for installation?
+
+// handleGetInstallationBackup responds to GET /api/installation/{installation}/backup/{backup},
+// returns metadata of specified backup.
+func handleGetInstallationBackup(c *Context, w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	installationID := vars["installation"]
+	backupID := vars["backup"]
+	c.Logger = c.Logger.
+		WithField("installation", installationID).
+		WithField("backup", backupID).
+		WithField("action", "get-installation-backup")
+
+	backupMetadata, err := c.Store.GetBackupMetadata(backupID, installationID)
+	if err != nil {
+		c.Logger.WithError(err).Error("Failed to get backup metadata")
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	if backupMetadata == nil {
+		w.WriteHeader(http.StatusNotFound)
+		return
+	}
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)

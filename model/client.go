@@ -603,6 +603,23 @@ func (c *Client) RequestInstallationBackup(installationID string) (*BackupMetada
 	}
 }
 
+// GetInstallationBackup returns given backup for the given installation.
+func (c *Client) GetInstallationBackup(installationID, backupID string) (*BackupMetadata, error) {
+	resp, err := c.doGet(c.buildURL("/api/installation/%s/backup/%s", installationID, backupID))
+	if err != nil {
+		return nil, err
+	}
+	defer closeBody(resp)
+
+	switch resp.StatusCode {
+	case http.StatusOK:
+		return NewBackupMetadataFromReader(resp.Body)
+
+	default:
+		return nil, errors.Errorf("failed with status code %d", resp.StatusCode)
+	}
+}
+
 // GetClusterInstallation fetches the specified cluster installation from the configured provisioning server.
 func (c *Client) GetClusterInstallation(clusterInstallationID string) (*ClusterInstallation, error) {
 	resp, err := c.doGet(c.buildURL("/api/cluster_installation/%s", clusterInstallationID))

@@ -74,9 +74,14 @@ func init() {
 	installationDeleteCmd.Flags().String("installation", "", "The id of the installation to be deleted.")
 	installationDeleteCmd.MarkFlagRequired("installation")
 
+	// TODO: move those 2 to subcommand?
 	installationBackupCmd.Flags().String("installation", "", "The id of the installation to backup.")
 	installationBackupCmd.MarkFlagRequired("installation")
 
+	installationBackupGetCmd.Flags().String("installation", "", "The id of the installation to backup.")
+	installationBackupGetCmd.Flags().String("backup", "", "The id of the backup metadata.")
+	installationBackupCmd.MarkFlagRequired("installation")
+	installationBackupCmd.MarkFlagRequired("backup")
 
 	installationCmd.AddCommand(installationCreateCmd)
 	installationCmd.AddCommand(installationUpdateCmd)
@@ -87,6 +92,7 @@ func init() {
 	installationCmd.AddCommand(installationListCmd)
 	installationCmd.AddCommand(installationShowStateReport)
 	installationCmd.AddCommand(installationBackupCmd)
+	installationCmd.AddCommand(installationBackupGetCmd)
 	installationCmd.AddCommand(installationAnnotationCmd)
 	installationCmd.AddCommand(installationsGetStatuses)
 }
@@ -444,12 +450,39 @@ var installationBackupCmd = &cobra.Command{
 
 		installationID, _ := command.Flags().GetString("installation")
 
-		installation, err := client.RequestInstallationBackup(installationID)
+		backupMetadata, err := client.RequestInstallationBackup(installationID)
 		if err != nil {
 			return errors.Wrap(err, "failed to request installation backup")
 		}
 
-		err = printJSON(installation)
+		err = printJSON(backupMetadata)
+		if err != nil {
+			return err
+		}
+
+		return nil
+	},
+}
+
+// TODO: temporary method
+var installationBackupGetCmd = &cobra.Command{
+	Use:   "backup-get",
+	Short: "Get backup metadata.",
+	RunE: func(command *cobra.Command, args []string) error {
+		command.SilenceUsage = true
+
+		serverAddress, _ := command.Flags().GetString("server")
+		client := model.NewClient(serverAddress)
+
+		installationID, _ := command.Flags().GetString("installation")
+		backupID, _ := command.Flags().GetString("backup")
+
+		backupMetadata, err := client.GetInstallationBackup(installationID, backupID)
+		if err != nil {
+			return errors.Wrap(err, "failed to get backup metadata")
+		}
+
+		err = printJSON(backupMetadata)
 		if err != nil {
 			return err
 		}

@@ -18,7 +18,7 @@ type Operator struct {
 	kubeClient *k8s.KubeClient
 
 	backupRestoreImage string
-	awsRegion string
+	awsRegion          string
 }
 
 func (o Operator) TriggerBackup(installationID, storageEndpoint, fileStoreSecret, dbSecret string) error {
@@ -37,7 +37,6 @@ func (o Operator) TriggerBackup(installationID, storageEndpoint, fileStoreSecret
 	}
 
 	// take timestamp from job
-
 
 	return nil
 }
@@ -59,13 +58,10 @@ func (o Operator) CheckBackupStatus(installationID, storageEndpoint, fileStoreSe
 
 	// take timestamp from job
 
-
 	return nil
 }
 
-
-
-func (o Operator) createBackupRestoreJob(installationID, action string, envs []corev1.EnvVar) (*batchv1.Job) {
+func (o Operator) createBackupRestoreJob(installationID, action string, envs []corev1.EnvVar) *batchv1.Job {
 	backoff := backupRestoreBackoffLimit
 
 	job := &batchv1.Job{
@@ -93,42 +89,42 @@ func (o Operator) createBackupRestoreJob(installationID, action string, envs []c
 
 func (o Operator) createBackupRestoreContainer(action string, envs []corev1.EnvVar) corev1.Container {
 	return corev1.Container{
-		Name:                     "backup-restore",
-		Image:                    o.backupRestoreImage,
-		Command:                  []string{"backup-restore-tool", action},
-		Args:                     []string{"storage-type", "bifrost"},
-		Env: 		envs,
+		Name:    "backup-restore",
+		Image:   o.backupRestoreImage,
+		Command: []string{"backup-restore-tool", action},
+		Args:    []string{"storage-type", "bifrost"},
+		Env:     envs,
 	}
 }
 
-func (o Operator) prepareEnvs(installationID, storageEndpoint, fileStoreSecret, dbSecret string) ([]corev1.EnvVar) {
+func (o Operator) prepareEnvs(installationID, storageEndpoint, fileStoreSecret, dbSecret string) []corev1.EnvVar {
 	return []corev1.EnvVar{
 		{
-			Name: "BRT_STORAGE_REGION",
+			Name:  "BRT_STORAGE_REGION",
 			Value: o.awsRegion,
 		},
 		{
-			Name: "BRT_STORAGE_BUCKET",
+			Name:  "BRT_STORAGE_BUCKET",
 			Value: installationID, // TODO: make sure it is correct
 		},
 		{
-			Name: "BRT_STORAGE_ENDPOINT",
+			Name:  "BRT_STORAGE_ENDPOINT",
 			Value: storageEndpoint,
 		},
 		{
-			Name: "BRT_STORAGE_TLS",
+			Name:  "BRT_STORAGE_TLS",
 			Value: "false", // TODO: should I do it based on storage endpoint?
 		},
 		{
-			Name: "BRT_DATABASE",
+			Name:      "BRT_DATABASE",
 			ValueFrom: envSourceFromSecret(dbSecret, "DB_CONNECTION_STRING"),
 		},
 		{
-			Name: "BRT_STORAGE_ACCESS_KEY",
+			Name:      "BRT_STORAGE_ACCESS_KEY",
 			ValueFrom: envSourceFromSecret(fileStoreSecret, "accesskey"),
 		},
 		{
-			Name: "BRT_STORAGE_SECRET_KEY",
+			Name:      "BRT_STORAGE_SECRET_KEY",
 			ValueFrom: envSourceFromSecret(fileStoreSecret, "secretkey"),
 		},
 	}

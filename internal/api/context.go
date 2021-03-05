@@ -76,6 +76,7 @@ type Store interface {
 
 	IsBackupRunning(installationID string) (bool, error)
 	CreateBackupMetadata(backupMeta *model.BackupMetadata) error
+	GetBackupMetadata(id, installationID string) (*model.BackupMetadata, error)
 }
 
 // Provisioner describes the interface required to communicate with the Kubernetes cluster.

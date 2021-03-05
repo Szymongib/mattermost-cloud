@@ -15,17 +15,17 @@ type backupMetadataLockStore interface {
 
 type backupMetadataLock struct {
 	backupMetadataID string
-	lockerID       string
-	store          backupMetadataLockStore
-	logger         log.FieldLogger
+	lockerID         string
+	store            backupMetadataLockStore
+	logger           log.FieldLogger
 }
 
 func newBackupLock(backupMetadataID, lockerID string, store backupMetadataLockStore, logger log.FieldLogger) *backupMetadataLock {
 	return &backupMetadataLock{
 		backupMetadataID: backupMetadataID,
-		lockerID:       lockerID,
-		store:          store,
-		logger:         logger,
+		lockerID:         lockerID,
+		store:            store,
+		logger:           logger,
 	}
 }
 

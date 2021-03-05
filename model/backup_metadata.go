@@ -13,9 +13,9 @@ type BackupMetadata struct {
 	InstallationID string
 	// ClusterInstallationID is set when backup is scheduled.
 	ClusterInstallationID string
-	DataResidence  *S3DataResidence // TODO: DataResidence or Residency?
-	State          BackupState
-	RequestAt      int64
+	DataResidence         *S3DataResidence // TODO: DataResidence or Residency?
+	State                 BackupState
+	RequestAt             int64
 	// StartAt is a start time of job that successfully completed backup.
 	StartAt        int64
 	DeleteAt       int64
@@ -33,10 +33,10 @@ type S3DataResidence struct {
 type BackupState string
 
 const (
-	BackupStateBackupRequested BackupState = "backup-requested"
+	BackupStateBackupRequested  BackupState = "backup-requested"
 	BackupStateBackupInProgress BackupState = "backup-in-progress"
-	BackupStateBackupSucceeded BackupState = "backup-succeeded"
-	BackupStateBackupFailed BackupState = "backup-failed"
+	BackupStateBackupSucceeded  BackupState = "backup-succeeded"
+	BackupStateBackupFailed     BackupState = "backup-failed"
 )
 
 // AllBackupMetadataStatesPendingWork is a list of all backup metadata states that
@@ -46,6 +46,15 @@ var AllBackupMetadataStatesPendingWork = []BackupState{
 	BackupStateBackupInProgress,
 }
 
+// BackupMetadataFilter describes the parameters used to constrain a set of backup metadata.
+type BackupMetadataFilter struct {
+	InstallationID        string
+	ClusterInstallationID string
+	State                 BackupState
+	Page                  int
+	PerPage               int
+	IncludeDeleted        bool
+}
 
 // NewBackupMetadataFromReader will create a BackupMetadata from an
 // io.Reader with JSON data.
@@ -59,20 +68,21 @@ func NewBackupMetadataFromReader(reader io.Reader) (*BackupMetadata, error) {
 	return &backupMetadata, nil
 }
 
+// EnsureBackupCompatible ensures that installation can be backed up.
 func EnsureBackupCompatible(installation *Installation) error {
 	var errs []string
 
 	if installation.State != InstallationStateHibernating {
-		errs = append(errs, "only hibernated installations can be backed up")
+		errs = append(errs, fmt.Sprintf("invalid installation state, only hibernated installations can be backed up, state is %q", installation.State))
 	}
 
 	if installation.Database != InstallationDatabaseMultiTenantRDSPostgres &&
 		installation.Database != InstallationDatabaseSingleTenantRDSPostgres {
-		errs = append(errs, fmt.Sprintf("database backup supported only for Postgres database, the database type is %q", installation.Database))
+		errs = append(errs, fmt.Sprintf("invalid installation database, backup is supported only for Postgres database, the database type is %q", installation.Database))
 	}
 
 	if installation.Filestore == InstallationFilestoreMinioOperator {
-		errs = append(errs, "cannot backup database for installation using local Minio file store")
+		errs = append(errs, "invalid installation file store, cannot backup database for installation using local Minio file store")
 	}
 
 	if len(errs) > 0 {

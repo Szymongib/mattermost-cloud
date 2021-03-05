@@ -9,6 +9,7 @@ import (
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	k8sErrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	v1 "k8s.io/client-go/kubernetes/typed/batch/v1"
 	"strconv"
@@ -16,7 +17,7 @@ import (
 )
 
 const (
-	backupRestoreBackoffLimit int32 = 5
+	backupRestoreBackoffLimit int32 = 1 // TODO: only 1 attempt - make sure it will not retry
 )
 
 // ErrJobBackoffLimitReached indicates that job failed all possible attempts and there is no reason for retrying.
@@ -26,10 +27,10 @@ type Operator struct {
 	provisioner *KopsProvisioner
 
 	backupRestoreImage string
-	awsRegion string
+	awsRegion          string
 }
 
-// TODO: create this from KopsProvisioner and do not pass Provisioner?
+// TODO: create this from KopsProvisioner and do not pass Provisioner? <-- this
 func NewBackupOperator(provisioner *KopsProvisioner, image string, region string) *Operator {
 	return &Operator{
 		provisioner:        provisioner,
@@ -70,18 +71,11 @@ func (o Operator) TriggerBackup(backupMetadata *model.BackupMetadata, cluster *m
 		return nil, errors.New("database secret cannot be empty for backup")
 	}
 
-	// TODO: fetch Mattermost to get all the config? Or do it by getting all resources from provi stuff?
-
-	//name := makeClusterInstallationName(clusterInstallation)
-	//mmClient := k8sClient.MattermostClientsetV1Beta.MattermostV1beta1().Mattermosts(clusterInstallation.InstallationID)
-	//
-	//mattermostCR, err := mmClient.Get(ctx, name, metav1.GetOptions{})
-	//if err != nil {
-	//	return errors.Wrap(err, "failed to get Mattermost CR")
-	//}
 	jobsClient := k8sClient.Clientset.BatchV1().Jobs(installation.ID)
 
 	return o.triggerBackup(jobsClient, backupMetadata, installation, filestoreCfg, filestoreSecret.Name, dbSecret.Name, logger)
+
+	// TODO: should we wait for backup job to start running?
 }
 
 func (o Operator) triggerBackup(
@@ -90,7 +84,7 @@ func (o Operator) triggerBackup(
 	installation *model.Installation,
 	fileStoreCfg *model.FilestoreConfig,
 	fileStoreSecret, dbSecret string,
-	logger log.FieldLogger,) (*model.S3DataResidence, error) {
+	logger log.FieldLogger) (*model.S3DataResidence, error) {
 
 	storageObjectKey := backupObjectKey(backupMetadata.ID, backupMetadata.RequestAt)
 
@@ -113,9 +107,9 @@ func (o Operator) triggerBackup(
 	}
 
 	dataResidence := &model.S3DataResidence{
-		Region: o.awsRegion,
-		Bucket: fileStoreCfg.Bucket,
-		URL:    fileStoreCfg.URL,
+		Region:    o.awsRegion,
+		Bucket:    fileStoreCfg.Bucket,
+		URL:       fileStoreCfg.URL,
 		ObjectKey: storageObjectKey,
 	}
 
@@ -173,31 +167,32 @@ func (o Operator) checkBackupStatus(jobsClient v1.JobInterface, backupMetadata *
 
 	if job.Status.Active > 0 {
 		logger.Info("Backup job is still running")
-		return  -1, nil
+		return -1, nil
 	}
 
 	if job.Status.Failed == 0 {
-		logger.Info("Backup job not running yet")
-		return  -1, nil
+		logger.Info("Backup job not started yet")
+		return -1, nil
 	}
 
-	backoffLimit :=  getInt32(job.Spec.BackoffLimit)
+	backoffLimit := getInt32(job.Spec.BackoffLimit)
 	if job.Status.Failed >= backoffLimit {
 		logger.Error("Backup job reached backoff limit")
-		return  -1, ErrJobBackoffLimitReached
+		return -1, ErrJobBackoffLimitReached
 	}
 
 	logger.Infof("Backup job waiting for retry, will be retried at most %d more times", backoffLimit-job.Status.Failed)
-	return  -1, nil
+	return -1, nil
 }
 
-func (o Operator) createBackupRestoreJob(backupId, namespace, action string, envs []corev1.EnvVar) (*batchv1.Job) {
+func (o Operator) createBackupRestoreJob(backupId, namespace, action string, envs []corev1.EnvVar) *batchv1.Job {
 	backoff := backupRestoreBackoffLimit
 
 	job := &batchv1.Job{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      jobName(action, backupId),
 			Namespace: namespace,
+			Labels:    map[string]string{"app": "backup-restore"},
 		},
 		Spec: batchv1.JobSpec{
 			Template: corev1.PodTemplateSpec{
@@ -221,41 +216,50 @@ func (o Operator) createBackupRestoreJob(backupId, namespace, action string, env
 
 func (o Operator) createBackupRestoreContainer(action string, envs []corev1.EnvVar) corev1.Container {
 	return corev1.Container{
-		Name:                     "backup-restore",
-		Image:                    o.backupRestoreImage,
-		Args:                     []string{action},
-		Env: 		envs,
+		Name:  "backup-restore",
+		Image: o.backupRestoreImage,
+		Args:  []string{action},
+		Env:   envs,
+		Resources: corev1.ResourceRequirements{
+			// TODO: memory?
+			Limits: corev1.ResourceList{
+				corev1.ResourceEphemeralStorage: resource.MustParse("15Gi"),
+			},
+			Requests: corev1.ResourceList{
+				corev1.ResourceEphemeralStorage: resource.MustParse("2Gi"),
+			},
+		},
 	}
 }
 
 func (o Operator) prepareEnvs(storageEndpoint, bucket, objectKey, fileStoreSecret, dbSecret string) []corev1.EnvVar {
 	envs := []corev1.EnvVar{
 		{
-			Name: "BRT_STORAGE_REGION",
+			Name:  "BRT_STORAGE_REGION",
 			Value: o.awsRegion,
 		},
 		{
-			Name: "BRT_STORAGE_BUCKET",
+			Name:  "BRT_STORAGE_BUCKET",
 			Value: bucket,
 		},
 		{
-			Name: "BRT_STORAGE_ENDPOINT",
+			Name:  "BRT_STORAGE_ENDPOINT",
 			Value: storageEndpoint, // TODO: this also needs to change for Bifrost
 		},
 		{
-			Name: "BRT_STORAGE_OBJECT_KEY",
+			Name:  "BRT_STORAGE_OBJECT_KEY",
 			Value: objectKey,
 		},
 		{
-			Name: "BRT_DATABASE",
+			Name:      "BRT_DATABASE",
 			ValueFrom: envSourceFromSecret(dbSecret, "DB_CONNECTION_STRING"),
 		},
 		{
-			Name: "BRT_STORAGE_ACCESS_KEY",
+			Name:      "BRT_STORAGE_ACCESS_KEY",
 			ValueFrom: envSourceFromSecret(fileStoreSecret, "accesskey"),
 		},
 		{
-			Name: "BRT_STORAGE_SECRET_KEY",
+			Name:      "BRT_STORAGE_SECRET_KEY",
 			ValueFrom: envSourceFromSecret(fileStoreSecret, "secretkey"),
 		},
 	}
@@ -274,12 +278,12 @@ func bifrostEnvs(envs []corev1.EnvVar) []corev1.EnvVar {
 
 	return []corev1.EnvVar{
 		{
-			Name: "BRT_STORAGE_TLS",
+			Name:  "BRT_STORAGE_TLS",
 			Value: strconv.FormatBool(false),
 		},
 		{
-			Name:      "BRT_STORAGE_TYPE",
-			Value:     "bifrost",
+			Name:  "BRT_STORAGE_TYPE",
+			Value: "bifrost",
 		},
 	}
 }

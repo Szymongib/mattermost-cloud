@@ -1433,10 +1433,12 @@ func TestInstallationBackup(t *testing.T) {
 	client := model.NewClient(ts.URL)
 	installation1, err := client.CreateInstallation(
 		&model.CreateInstallationRequest{
-			OwnerID:  "owner",
-			Version:  "version",
-			DNS:      "dns1.example.com",
-			Affinity: model.InstallationAffinityMultiTenant,
+			OwnerID:   "owner",
+			Version:   "version",
+			DNS:       "dns1.example.com",
+			Affinity:  model.InstallationAffinityMultiTenant,
+			Database:  model.InstallationDatabaseMultiTenantRDSPostgres,
+			Filestore: model.InstallationFilestoreBifrost,
 		})
 	require.NoError(t, err)
 
@@ -1463,10 +1465,12 @@ func TestInstallationBackup(t *testing.T) {
 	t.Run("can request backup for different installation", func(t *testing.T) {
 		installation2, err := client.CreateInstallation(
 			&model.CreateInstallationRequest{
-				OwnerID:  "owner",
-				Version:  "version",
-				DNS:      "dns2.example.com",
-				Affinity: model.InstallationAffinityMultiTenant,
+				OwnerID:   "owner",
+				Version:   "version",
+				DNS:       "dns2.example.com",
+				Affinity:  model.InstallationAffinityMultiTenant,
+				Database:  model.InstallationDatabaseMultiTenantRDSPostgres,
+				Filestore: model.InstallationFilestoreBifrost,
 			})
 		require.NoError(t, err)
 
@@ -1477,5 +1481,47 @@ func TestInstallationBackup(t *testing.T) {
 		backupMeta2, err := client.RequestInstallationBackup(installation2.ID)
 		require.NoError(t, err)
 		assert.NotEmpty(t, backupMeta2.ID)
+	})
+}
+
+func TestGetInstallationBackup(t *testing.T) {
+	logger := testlib.MakeLogger(t)
+	sqlStore := store.MakeTestSQLStore(t, logger)
+	defer store.CloseConnection(t, sqlStore)
+
+	router := mux.NewRouter()
+	api.Register(router, &api.Context{
+		Store:      sqlStore,
+		Supervisor: &mockSupervisor{},
+		Logger:     logger,
+	})
+
+	ts := httptest.NewServer(router)
+	client := model.NewClient(ts.URL)
+
+	installation1 := &model.Installation{
+		OwnerID:   "owner",
+		Version:   "version",
+		DNS:       "dns1.example.com",
+		Affinity:  model.InstallationAffinityMultiTenant,
+		Database:  model.InstallationDatabaseMultiTenantRDSPostgres,
+		Filestore: model.InstallationFilestoreBifrost,
+		State:     model.InstallationStateHibernating,
+	}
+	err := sqlStore.CreateInstallation(installation1, nil)
+	require.NoError(t, err)
+
+	backupMeta, err := client.RequestInstallationBackup(installation1.ID)
+	require.NoError(t, err)
+	assert.NotEmpty(t, backupMeta.ID)
+
+	fetchedMeta, err := client.GetInstallationBackup(installation1.ID, backupMeta.ID)
+	require.NoError(t, err)
+	assert.Equal(t, backupMeta, fetchedMeta)
+
+	t.Run("return 404 if backup not found", func(t *testing.T) {
+		_, err = client.GetInstallationBackup(installation1.ID, "not-real")
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "404")
 	})
 }

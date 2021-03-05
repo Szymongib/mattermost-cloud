@@ -22,6 +22,45 @@ func init() {
 		From(backupMetadataTable)
 }
 
+type rawBackupMetadata struct {
+	*model.BackupMetadata
+	DataResidenceRaw []byte
+}
+
+type rawBackupsMetadata []*rawBackupMetadata
+
+func (r *rawBackupMetadata) toBackupMetadata() (*model.BackupMetadata, error) {
+	// We only need to set values that are converted from a raw database format.
+	var err error
+	if len(r.DataResidenceRaw) > 0 {
+		// TODO: set it to empty if not set?
+		dataResidence := model.S3DataResidence{}
+		err = json.Unmarshal(r.DataResidenceRaw, &dataResidence)
+		if err != nil {
+			return nil, err
+		}
+		r.BackupMetadata.DataResidence = &dataResidence
+	}
+
+	return r.BackupMetadata, nil
+}
+
+func (r *rawBackupsMetadata) toBackupsMetadata() ([]*model.BackupMetadata, error) {
+	if r == nil {
+		return []*model.BackupMetadata{}, nil
+	}
+	backupsMeta := make([]*model.BackupMetadata, 0, len(*r))
+
+	for _, raw := range *r {
+		metadata, err := raw.toBackupMetadata()
+		if err != nil {
+			return nil, errors.Wrap(err, "failed to create backup metadata from raw")
+		}
+		backupsMeta = append(backupsMeta, metadata)
+	}
+	return backupsMeta, nil
+}
+
 func (sqlStore *SQLStore) IsBackupRunning(installationID string) (bool, error) {
 	var totalResult countResult
 	builder := sq.
@@ -43,7 +82,6 @@ func (sqlStore *SQLStore) IsBackupRunning(installationID string) (bool, error) {
 	return ongoingBackups > 0, nil
 }
 
-
 // CreateBackupMetadata record backup metadata to the database, assigning it a unique ID.
 func (sqlStore *SQLStore) CreateBackupMetadata(backupMeta *model.BackupMetadata) error {
 
@@ -55,16 +93,16 @@ func (sqlStore *SQLStore) CreateBackupMetadata(backupMeta *model.BackupMetadata)
 	_, err := sqlStore.execBuilder(sqlStore.db, sq.
 		Insert(backupMetadataTable).
 		SetMap(map[string]interface{}{
-			"ID":               backupMeta.ID,
-			"InstallationID":   backupMeta.InstallationID,
+			"ID":                    backupMeta.ID,
+			"InstallationID":        backupMeta.InstallationID,
 			"ClusterInstallationID": backupMeta.ClusterInstallationID,
-			"DataResidenceRaw": nil,
-			"State":            backupMeta.State,
-			"RequestAt":        backupMeta.RequestAt,
-			"StartAt":          0,
-			"DeleteAt":         0,
-			"LockAcquiredBy":   nil,
-			"LockAcquiredAt":   0,
+			"DataResidenceRaw":      nil,
+			"State":                 backupMeta.State,
+			"RequestAt":             backupMeta.RequestAt,
+			"StartAt":               0,
+			"DeleteAt":              0,
+			"LockAcquiredBy":        nil,
+			"LockAcquiredAt":        0,
 		}),
 	)
 	if err != nil {
@@ -74,50 +112,35 @@ func (sqlStore *SQLStore) CreateBackupMetadata(backupMeta *model.BackupMetadata)
 	return nil
 }
 
-type rawBackupMetadata struct {
-	*model.BackupMetadata
-	DataResidenceRaw []byte
-}
+// GetBackupsMetadata fetches the given page of created backups metadata. The first page is 0.
+func (sqlStore *SQLStore) GetBackupsMetadata(filter *model.BackupMetadataFilter) ([]*model.BackupMetadata, error) {
+	builder := backupMetadataSelect.
+		OrderBy("RequestAt DESC")
+	builder = sqlStore.applyBackupMetadataFilter(builder, filter)
 
-type rawBackupsMetadata []*rawBackupMetadata
-
-func (r *rawBackupMetadata) toBackupMetadata() (*model.BackupMetadata, error) {
-	// We only need to set values that are converted from a raw database format.
-	var err error
-	dataResidence := model.S3DataResidence{}
-	if len(r.DataResidenceRaw) > 0 {
-		err = json.Unmarshal(r.DataResidenceRaw, &dataResidence)
-		if err != nil {
-			return nil, err
-		}
+	var rawBackupsMetadata rawBackupsMetadata
+	err := sqlStore.selectBuilder(sqlStore.db, &rawBackupsMetadata, builder)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to query for backups metadata")
 	}
-	r.BackupMetadata.DataResidence = &dataResidence
 
-	return r.BackupMetadata, nil
-}
-
-func (r *rawBackupsMetadata) toBackupsMetadata() ([]*model.BackupMetadata, error) {
-	if r == nil {
-		return []*model.BackupMetadata{}, nil
+	backupsMetadata, err := rawBackupsMetadata.toBackupsMetadata()
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to backup metadata from raw")
 	}
-	backupsMeta := make([]*model.BackupMetadata, 0, len(*r))
 
-	for _, raw := range *r {
-		metadata, err := raw.toBackupMetadata()
-		if err != nil {
-			return nil, errors.Wrap(err, "failed to create backup metadata from raw")
-		}
-		backupsMeta = append(backupsMeta, metadata)
-	}
-	return backupsMeta, nil
+	return backupsMetadata, nil
 }
 
 // GetBackupMetadata fetches the given backup metadata by id.
-func (sqlStore *SQLStore) GetBackupMetadata(id string) (*model.BackupMetadata, error) {
+func (sqlStore *SQLStore) GetBackupMetadata(id, installationID string) (*model.BackupMetadata, error) {
+	builder := backupMetadataSelect.Where("ID = ?", id)
+	if installationID != "" {
+		builder = builder.Where("InstallationID = ?", installationID)
+	}
+
 	var rawMetadata rawBackupMetadata
-	err := sqlStore.getBuilder(sqlStore.db, &rawMetadata,
-		backupMetadataSelect.Where("ID = ?", id),
-	)
+	err := sqlStore.getBuilder(sqlStore.db, &rawMetadata, builder)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	} else if err != nil {
@@ -134,7 +157,6 @@ func (sqlStore *SQLStore) GetBackupMetadata(id string) (*model.BackupMetadata, e
 
 // TODO: get, update etc
 
-// TODO: test
 // GetUnlockedInstallationsPendingWork returns an unlocked installation in a pending state.
 func (sqlStore *SQLStore) GetUnlockedBackupMetadataPendingWork() ([]*model.BackupMetadata, error) {
 	builder := backupMetadataSelect.
@@ -167,7 +189,7 @@ func (sqlStore *SQLStore) UpdateBackupSchedulingData(backupMeta *model.BackupMet
 
 	return sqlStore.updateBackupMetadataFields(
 		backupMeta.ID, map[string]interface{}{
-			"DataResidenceRaw": data,
+			"DataResidenceRaw":      data,
 			"ClusterInstallationID": backupMeta.ClusterInstallationID,
 		})
 }
@@ -184,15 +206,25 @@ func (sqlStore *SQLStore) UpdateBackupStartTime(backupMeta *model.BackupMetadata
 func (sqlStore *SQLStore) UpdateBackupMetadataState(backupMeta *model.BackupMetadata) error {
 	return sqlStore.updateBackupMetadataFields(
 		backupMeta.ID, map[string]interface{}{
-		"State": backupMeta.State,
-	})
+			"State": backupMeta.State,
+		})
+}
+
+// DeleteBackupMetadata marks the given backup metadata as deleted, but does not remove
+// the record from the database.
+func (sqlStore *SQLStore) DeleteBackupMetadata(backupMeta *model.BackupMetadata) error {
+	return sqlStore.updateBackupMetadataFields(
+		backupMeta.ID, map[string]interface{}{
+			"DeleteAt": GetMillis(),
+		})
 }
 
 func (sqlStore *SQLStore) updateBackupMetadataFields(id string, fields map[string]interface{}) error {
 	_, err := sqlStore.execBuilder(sqlStore.db, sq.
 		Update(backupMetadataTable).
 		SetMap(fields).
-		Where("ID = ?", id),
+		Where("ID = ?", id).
+		Where("DeleteAt = ?", 0),
 	)
 	if err != nil {
 		return errors.Wrapf(err, "failed to update backup metadata fields: %s", getMapKeys(fields))
@@ -209,6 +241,29 @@ func (sqlStore *SQLStore) LockBackupMetadata(backupMetadataID, lockerID string) 
 // UnlockBackupMetadata releases a lock previously acquired against a caller.
 func (sqlStore *SQLStore) UnlockBackupMetadata(backupMetadataID, lockerID string, force bool) (bool, error) {
 	return sqlStore.unlockRows(backupMetadataTable, []string{backupMetadataID}, lockerID, force)
+}
+
+func (sqlStore *SQLStore) applyBackupMetadataFilter(builder sq.SelectBuilder, filter *model.BackupMetadataFilter) sq.SelectBuilder {
+	if filter.PerPage != model.AllPerPage {
+		builder = builder.
+			Limit(uint64(filter.PerPage)).
+			Offset(uint64(filter.Page * filter.PerPage))
+	}
+
+	if filter.InstallationID != "" {
+		builder = builder.Where("InstallationID = ?", filter.InstallationID)
+	}
+	if filter.ClusterInstallationID != "" {
+		builder = builder.Where("ClusterInstallationID = ?", filter.ClusterInstallationID)
+	}
+	if filter.State != "" {
+		builder = builder.Where("State = ?", filter.State)
+	}
+	if !filter.IncludeDeleted {
+		builder = builder.Where("DeleteAt = 0")
+	}
+
+	return builder
 }
 
 func getMapKeys(m map[string]interface{}) []string {
