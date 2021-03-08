@@ -14,12 +14,13 @@ type BackupMetadata struct {
 	InstallationID string
 	// ClusterInstallationID is set when backup is scheduled.
 	ClusterInstallationID string
-	DataResidence         *S3DataResidence // TODO: DataResidence or Residency?
+	DataResidence         *S3DataResidence
 	State                 BackupState
 	RequestAt             int64
 	// StartAt is a start time of job that successfully completed backup.
 	StartAt        int64
 	DeleteAt       int64
+	APISecurityLock bool
 	LockAcquiredBy *string
 	LockAcquiredAt int64
 }

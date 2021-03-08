@@ -1206,6 +1206,7 @@ var migrations = []migration{
 				RequestAt BIGINT NOT NULL,
 				StartAt BIGINT NOT NULL,
 				DeleteAt BIGINT NOT NULL,
+				APISecurityLock BOOLEAN NOT NULL, 
 				LockAcquiredBy TEXT NULL,
 				LockAcquiredAt BIGINT NOT NULL
 			);

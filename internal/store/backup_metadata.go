@@ -18,7 +18,7 @@ var backupMetadataSelect sq.SelectBuilder
 func init() {
 	backupMetadataSelect = sq.
 		Select(
-			"ID", "InstallationID", "ClusterInstallationID", "DataResidenceRaw", "State", "RequestAt", "StartAt", "DeleteAt", "LockAcquiredBy", "LockAcquiredAt",
+			"ID", "InstallationID", "ClusterInstallationID", "DataResidenceRaw", "State", "RequestAt", "StartAt", "DeleteAt", "APISecurityLock", "LockAcquiredBy", "LockAcquiredAt",
 		).
 		From(backupMetadataTable)
 }
@@ -34,7 +34,6 @@ func (r *rawBackupMetadata) toBackupMetadata() (*model.BackupMetadata, error) {
 	// We only need to set values that are converted from a raw database format.
 	var err error
 	if len(r.DataResidenceRaw) > 0 {
-		// TODO: set it to empty if not set?
 		dataResidence := model.S3DataResidence{}
 		err = json.Unmarshal(r.DataResidenceRaw, &dataResidence)
 		if err != nil {
@@ -85,11 +84,8 @@ func (sqlStore *SQLStore) IsBackupRunning(installationID string) (bool, error) {
 
 // CreateBackupMetadata record backup metadata to the database, assigning it a unique ID.
 func (sqlStore *SQLStore) CreateBackupMetadata(backupMeta *model.BackupMetadata) error {
-
 	backupMeta.ID = model.NewID()
 	backupMeta.RequestAt = GetMillis()
-
-	// TODO: data residence - empty? Or leave it null?
 
 	_, err := sqlStore.execBuilder(sqlStore.db, sq.
 		Insert(backupMetadataTable).
@@ -102,6 +98,7 @@ func (sqlStore *SQLStore) CreateBackupMetadata(backupMeta *model.BackupMetadata)
 			"RequestAt":             backupMeta.RequestAt,
 			"StartAt":               0,
 			"DeleteAt":              0,
+			"APISecurityLock": 		 backupMeta.APISecurityLock,
 			"LockAcquiredBy":        nil,
 			"LockAcquiredAt":        0,
 		}),
@@ -209,19 +206,23 @@ func (sqlStore *SQLStore) UpdateBackupMetadataState(backupMeta *model.BackupMeta
 // DeleteBackupMetadata marks the given backup metadata as deleted, but does not remove
 // the record from the database.
 func (sqlStore *SQLStore) DeleteBackupMetadata(id string) error {
-	return sqlStore.updateBackupMetadataFields(
-		id, map[string]interface{}{
-			"DeleteAt": GetMillis(),
-		})
+	_, err := sqlStore.execBuilder(sqlStore.db, sq.
+		Update(backupMetadataTable).
+		Set("DeleteAt", GetMillis()).
+		Where("ID = ?", id).
+		Where("DeleteAt = ?", 0))
+	if err != nil {
+		return errors.Wrapf(err, "failed to to mark backup metadata as deleted")
+	}
+
+	return nil
 }
 
 func (sqlStore *SQLStore) updateBackupMetadataFields(id string, fields map[string]interface{}) error {
 	_, err := sqlStore.execBuilder(sqlStore.db, sq.
 		Update(backupMetadataTable).
 		SetMap(fields).
-		Where("ID = ?", id).
-		Where("DeleteAt = ?", 0),
-	)
+		Where("ID = ?", id))
 	if err != nil {
 		return errors.Wrapf(err, "failed to update backup metadata fields: %s", getMapKeys(fields))
 	}
@@ -260,6 +261,22 @@ func (sqlStore *SQLStore) applyBackupMetadataFilter(builder sq.SelectBuilder, fi
 	}
 
 	return builder
+}
+
+// LockBackupAPI locks updates to the backup from the API.
+func (sqlStore *SQLStore) LockBackupAPI(backupMetadataID string) error {
+	return sqlStore.updateBackupMetadataFields(
+		backupMetadataID, map[string]interface{}{
+			"APISecurityLock": true,
+		})
+}
+
+// UnlockBackupAPI unlocks updates to the backup from the API.
+func (sqlStore *SQLStore) UnlockBackupAPI(backupMetadataID string) error {
+	return sqlStore.updateBackupMetadataFields(
+		backupMetadataID, map[string]interface{}{
+			"APISecurityLock": false,
+		})
 }
 
 func getMapKeys(m map[string]interface{}) []string {

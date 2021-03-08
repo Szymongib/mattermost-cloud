@@ -1083,6 +1083,16 @@ func (c *Client) UnlockAPIForGroup(groupID string) error {
 	return c.makeSecurityCall("group", groupID, "api", "unlock")
 }
 
+// LockAPIForBackup locks API changes for a given backup.
+func (c *Client) LockAPIForBackup(backupID string) error {
+	return c.makeSecurityCall("installation/backup", backupID, "api", "lock")
+}
+
+// UnlockAPIForBackup unlocks API changes for a given backup.
+func (c *Client) UnlockAPIForBackup(backupID string) error {
+	return c.makeSecurityCall("installation/backup", backupID, "api", "unlock")
+}
+
 func (c *Client) makeSecurityCall(resourceType, id, securityType, action string) error {
 	resp, err := c.doPost(c.buildURL("/api/security/%s/%s/%s/%s", resourceType, id, securityType, action), nil)
 	if err != nil {

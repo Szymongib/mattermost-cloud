@@ -78,6 +78,8 @@ type Store interface {
 	CreateBackupMetadata(backupMeta *model.BackupMetadata) error
 	GetBackupMetadata(id string) (*model.BackupMetadata, error)
 	GetBackupsMetadata(filter *model.BackupMetadataFilter) ([]*model.BackupMetadata, error)
+	LockBackupAPI(backupMetadataID string) error
+	UnlockBackupAPI(backupMetadataID string) error
 }
 
 // Provisioner describes the interface required to communicate with the Kubernetes cluster.
