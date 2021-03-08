@@ -1,10 +1,11 @@
-package testlib
+package testutil
 
 import (
+	"testing"
+
 	"github.com/mattermost/mattermost-cloud/internal/store"
 	"github.com/mattermost/mattermost-cloud/model"
 	"github.com/stretchr/testify/require"
-	"testing"
 )
 
 func CreateBackupCompatibleInstallation(t *testing.T, sqlStore *store.SQLStore) *model.Installation {
@@ -17,4 +18,3 @@ func CreateBackupCompatibleInstallation(t *testing.T, sqlStore *store.SQLStore) 
 	require.NoError(t, err)
 	return installation
 }
-

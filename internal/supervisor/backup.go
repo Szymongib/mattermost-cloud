@@ -1,13 +1,14 @@
 package supervisor
 
 import (
+	"time"
+
 	"github.com/mattermost/mattermost-cloud/internal/metrics"
 	"github.com/mattermost/mattermost-cloud/internal/provisioner"
 	"github.com/mattermost/mattermost-cloud/internal/tools/aws"
 	"github.com/mattermost/mattermost-cloud/internal/webhook"
 	"github.com/mattermost/mattermost-cloud/model"
 	log "github.com/sirupsen/logrus"
-	"time"
 )
 
 // TODO: this Supervisior could run few different backups at a time
@@ -15,7 +16,7 @@ import (
 // backupMetadataStore abstracts the database operations required to query installations.
 type backupMetadataStore interface {
 	GetUnlockedBackupMetadataPendingWork() ([]*model.BackupMetadata, error)
-	GetBackupMetadata(id, installationID string) (*model.BackupMetadata, error)
+	GetBackupMetadata(id string) (*model.BackupMetadata, error)
 	UpdateBackupMetadataState(backupMeta *model.BackupMetadata) error
 	UpdateBackupSchedulingData(backupMeta *model.BackupMetadata) error
 	UpdateBackupStartTime(backupMeta *model.BackupMetadata) error
@@ -47,8 +48,7 @@ type BackupOperator interface {
 // The degree of parallelism is controlled by a weighted semaphore, intended to be shared with
 // other clients needing to coordinate background jobs.
 type BackupSupervisor struct {
-	store backupMetadataStore
-	//provisioner       installationProvisioner
+	store      backupMetadataStore
 	aws        aws.AWS
 	instanceID string
 	//keepDatabaseData  bool // TODO: for deleting?
@@ -62,22 +62,18 @@ type BackupSupervisor struct {
 // NewInstallationSupervisor creates a new InstallationSupervisor.
 func NewBackupSupervisor(
 	store backupMetadataStore,
-	//installationProvisioner installationProvisioner,
 	backupOperator BackupOperator,
 	aws aws.AWS,
 	instanceID string,
-	logger log.FieldLogger,
-	metrics *metrics.CloudMetrics) *BackupSupervisor {
+	logger log.FieldLogger) *BackupSupervisor {
 	return &BackupSupervisor{
-		store: store,
-		//provisioner:       installationProvisioner,
+		store:          store,
 		backupOperator: backupOperator,
 		aws:            aws,
 		instanceID:     instanceID,
 		//keepDatabaseData:  keepDatabaseData,
 		//keepFilestoreData: keepFilestoreData,
-		logger:  logger,
-		metrics: metrics,
+		logger: logger,
 	}
 }
 
@@ -116,7 +112,7 @@ func (s *BackupSupervisor) Supervise(backupMetadata *model.BackupMetadata) {
 	// Before working on the backupMetadata, it is crucial that we ensure that it
 	// was not updated to a new state by another provisioning server.
 	originalState := backupMetadata.State
-	backupMetadata, err := s.store.GetBackupMetadata(backupMetadata.ID, backupMetadata.InstallationID)
+	backupMetadata, err := s.store.GetBackupMetadata(backupMetadata.ID)
 	if err != nil {
 		logger.WithError(err).Errorf("Failed to get refreshed backupMetadata")
 		return
@@ -132,7 +128,7 @@ func (s *BackupSupervisor) Supervise(backupMetadata *model.BackupMetadata) {
 
 	newState := s.transitionBackup(backupMetadata, s.instanceID, logger)
 
-	backupMetadata, err = s.store.GetBackupMetadata(backupMetadata.ID, backupMetadata.InstallationID)
+	backupMetadata, err = s.store.GetBackupMetadata(backupMetadata.ID)
 	if err != nil {
 		logger.WithError(err).Errorf("Failed to get backup metadata and thus persist state %s", newState)
 		return

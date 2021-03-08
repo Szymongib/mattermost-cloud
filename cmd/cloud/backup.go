@@ -18,30 +18,13 @@ func init() {
 	backupListCmd.Flags().Int("page", 0, "The page of installations to fetch, starting at 0.")
 	backupListCmd.Flags().Int("per-page", 100, "The number of installations to fetch per page.")
 	backupListCmd.Flags().Bool("include-deleted", false, "Whether to include deleted installations.")
-	backupListCmd.MarkFlagRequired("installation") // TODO: this is temporary before I change API
 
-	backupGetCmd.Flags().String("installation", "", "The id of the installation to backup.")
 	backupGetCmd.Flags().String("backup", "", "The id of the backup to get.")
-	backupGetCmd.MarkFlagRequired("installation") // TODO: this is temporary before I change API
 	backupGetCmd.MarkFlagRequired("backup")
-
-	//installationBackupCmd.MarkFlagRequired("backup")
 
 	backupCmd.AddCommand(backupRequestCmd)
 	backupCmd.AddCommand(backupListCmd)
 	backupCmd.AddCommand(backupGetCmd)
-
-	//installationCmd.AddCommand(installationCreateCmd)
-	//installationCmd.AddCommand(installationUpdateCmd)
-	//installationCmd.AddCommand(installationDeleteCmd)
-	//installationCmd.AddCommand(installationHibernateCmd)
-	//installationCmd.AddCommand(installationWakeupCmd)
-	//installationCmd.AddCommand(installationGetCmd)
-	//installationCmd.AddCommand(installationListCmd)
-	//installationCmd.AddCommand(installationShowStateReport)
-	//installationCmd.AddCommand(installationBackupCmd)
-	//installationCmd.AddCommand(installationBackupGetCmd)
-	//installationCmd.AddCommand(installationAnnotationCmd)
 }
 
 var backupCmd = &cobra.Command{
@@ -86,6 +69,7 @@ var backupListCmd = &cobra.Command{
 		includeDeleted, _ := command.Flags().GetBool("include-deleted")
 
 		request := &model.GetBackupsMetadataRequest{
+			InstallationID:        installationID,
 			ClusterInstallationID: clusterInstallationID,
 			State:                 state,
 			Page:                  page,
@@ -95,7 +79,7 @@ var backupListCmd = &cobra.Command{
 
 		// TODO: dry run
 
-		backupMetadata, err := client.GetInstallationBackups(installationID, request)
+		backupMetadata, err := client.GetInstallationBackups(request)
 		if err != nil {
 			return errors.Wrap(err, "failed to get backup metadata")
 		}
@@ -118,10 +102,9 @@ var backupGetCmd = &cobra.Command{
 		serverAddress, _ := command.Flags().GetString("server")
 		client := model.NewClient(serverAddress)
 
-		installationID, _ := command.Flags().GetString("installation")
 		backupID, _ := command.Flags().GetString("backup")
 
-		backupMetadata, err := client.GetInstallationBackup(installationID, backupID)
+		backupMetadata, err := client.GetInstallationBackup(backupID)
 		if err != nil {
 			return errors.Wrap(err, "failed to get backup metadata")
 		}

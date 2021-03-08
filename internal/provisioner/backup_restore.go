@@ -3,6 +3,9 @@ package provisioner
 import (
 	"context"
 	"fmt"
+	"strconv"
+	"time"
+
 	"github.com/mattermost/mattermost-cloud/model"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
@@ -12,8 +15,6 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	v1 "k8s.io/client-go/kubernetes/typed/batch/v1"
-	"strconv"
-	"time"
 )
 
 const (

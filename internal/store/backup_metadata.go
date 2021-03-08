@@ -3,6 +3,7 @@ package store
 import (
 	"database/sql"
 	"encoding/json"
+
 	sq "github.com/Masterminds/squirrel"
 	"github.com/mattermost/mattermost-cloud/model"
 	"github.com/pkg/errors"
@@ -133,11 +134,8 @@ func (sqlStore *SQLStore) GetBackupsMetadata(filter *model.BackupMetadataFilter)
 }
 
 // GetBackupMetadata fetches the given backup metadata by id.
-func (sqlStore *SQLStore) GetBackupMetadata(id, installationID string) (*model.BackupMetadata, error) {
+func (sqlStore *SQLStore) GetBackupMetadata(id string) (*model.BackupMetadata, error) {
 	builder := backupMetadataSelect.Where("ID = ?", id)
-	if installationID != "" {
-		builder = builder.Where("InstallationID = ?", installationID)
-	}
 
 	var rawMetadata rawBackupMetadata
 	err := sqlStore.getBuilder(sqlStore.db, &rawMetadata, builder)
@@ -154,8 +152,6 @@ func (sqlStore *SQLStore) GetBackupMetadata(id, installationID string) (*model.B
 
 	return backupMetadata, nil
 }
-
-// TODO: get, update etc
 
 // GetUnlockedInstallationsPendingWork returns an unlocked installation in a pending state.
 func (sqlStore *SQLStore) GetUnlockedBackupMetadataPendingWork() ([]*model.BackupMetadata, error) {
@@ -212,9 +208,9 @@ func (sqlStore *SQLStore) UpdateBackupMetadataState(backupMeta *model.BackupMeta
 
 // DeleteBackupMetadata marks the given backup metadata as deleted, but does not remove
 // the record from the database.
-func (sqlStore *SQLStore) DeleteBackupMetadata(backupMeta *model.BackupMetadata) error {
+func (sqlStore *SQLStore) DeleteBackupMetadata(id string) error {
 	return sqlStore.updateBackupMetadataFields(
-		backupMeta.ID, map[string]interface{}{
+		id, map[string]interface{}{
 			"DeleteAt": GetMillis(),
 		})
 }

@@ -76,7 +76,7 @@ type Store interface {
 
 	IsBackupRunning(installationID string) (bool, error)
 	CreateBackupMetadata(backupMeta *model.BackupMetadata) error
-	GetBackupMetadata(id, installationID string) (*model.BackupMetadata, error)
+	GetBackupMetadata(id string) (*model.BackupMetadata, error)
 	GetBackupsMetadata(filter *model.BackupMetadataFilter) ([]*model.BackupMetadata, error)
 }
 

@@ -5,9 +5,10 @@
 package api
 
 import (
-	"github.com/pkg/errors"
 	"net/http"
 	"time"
+
+	"github.com/pkg/errors"
 
 	"github.com/mattermost/mattermost-cloud/internal/store"
 
@@ -23,6 +24,8 @@ func initInstallation(apiRouter *mux.Router, context *Context) {
 	}
 
 	installationsRouter := apiRouter.PathPrefix("/installations").Subrouter()
+	initInstallationBackup(installationsRouter, context)
+
 	installationsRouter.Handle("", addContext(handleGetInstallations)).Methods("GET")
 	installationsRouter.Handle("", addContext(handleCreateInstallation)).Methods("POST")
 	installationsRouter.Handle("/count", addContext(handleGetNumberOfInstallations)).Methods("GET")
@@ -39,11 +42,6 @@ func initInstallation(apiRouter *mux.Router, context *Context) {
 	installationRouter.Handle("", addContext(handleDeleteInstallation)).Methods("DELETE")
 	installationRouter.Handle("/annotations", addContext(handleAddInstallationAnnotations)).Methods("POST")
 	installationRouter.Handle("/annotation/{annotation-name}", addContext(handleDeleteInstallationAnnotation)).Methods("DELETE")
-
-	installationRouter.Handle("/backups", addContext(handleBackupInstallation)).Methods("POST")
-	installationRouter.Handle("/backups", addContext(handleGetInstallationBackups)).Methods("GET")
-	installationRouter.Handle("/backup/{backup}", addContext(handleGetInstallationBackup)).Methods("GET")
-	// TODO: delete backup
 }
 
 // handleGetInstallation responds to GET /api/installation/{installation}, returning the installation in question.
@@ -743,127 +741,3 @@ func handleDeleteInstallationAnnotation(c *Context, w http.ResponseWriter, r *ht
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusNoContent)
 }
-
-// TODO: Do I need some body?
-
-// handleBackupInstallation responds to POST /api/installation/{installation}/backups,
-// requests backup of Installation's data.
-func handleBackupInstallation(c *Context, w http.ResponseWriter, r *http.Request) {
-	vars := mux.Vars(r)
-	installationID := vars["installation"]
-	c.Logger = c.Logger.
-		WithField("installation", installationID).
-		WithField("action", "backup-installation")
-
-	installationDTO, status, unlockOnce := lockInstallation(c, installationID)
-	if status != 0 {
-		w.WriteHeader(status)
-		return
-	}
-	defer unlockOnce()
-
-	if err := model.EnsureBackupCompatible(installationDTO.Installation); err != nil {
-		c.Logger.WithError(err).Error("installation cannot be backed up")
-		w.WriteHeader(http.StatusBadRequest)
-		return
-	}
-
-	backupRunning, err := c.Store.IsBackupRunning(installationDTO.ID)
-	if err != nil {
-		c.Logger.WithError(err).Error("Failed to check if backup is running for Installation")
-		w.WriteHeader(http.StatusInternalServerError)
-		return
-	}
-	if backupRunning {
-		c.Logger.Error("Backup for the installation is already requested or in progress")
-		w.WriteHeader(http.StatusBadRequest)
-		return
-	}
-
-	backupMetadata := &model.BackupMetadata{
-		InstallationID: installationDTO.ID,
-		State:          model.BackupStateBackupRequested,
-	}
-
-	err = c.Store.CreateBackupMetadata(backupMetadata)
-	if err != nil {
-		c.Logger.Error("Failed to create backup metadata")
-		w.WriteHeader(http.StatusInternalServerError)
-		return
-	}
-
-	c.Supervisor.Do()
-
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	outputJSON(c, w, backupMetadata)
-}
-
-// handleGetInstallationBackups responds to GET /api/installation/{installation}/backups,
-// returns backups metadata for specified installation.
-func handleGetInstallationBackups(c *Context, w http.ResponseWriter, r *http.Request) {
-	vars := mux.Vars(r)
-	installationID := vars["installation"]
-	c.Logger = c.Logger.
-		WithField("installation", installationID).
-		WithField("action", "list-installation-backups")
-
-	page, perPage, includeDeleted, err := parsePaging(r.URL)
-	if err != nil {
-		c.Logger.WithError(err).Error("failed to parse paging parameters")
-		w.WriteHeader(http.StatusBadRequest)
-		return
-	}
-
-	clusterInstallation := r.URL.Query().Get("cluster_installation")
-	state := r.URL.Query().Get("state")
-
-	filter := &model.BackupMetadataFilter{
-		InstallationID:        installationID,
-		ClusterInstallationID: clusterInstallation,
-		State:                 model.BackupState(state),
-		Page:                  page,
-		PerPage:               perPage,
-		IncludeDeleted:        includeDeleted,
-	}
-
-	backupsMeta, err := c.Store.GetBackupsMetadata(filter)
-	if err != nil {
-		c.Logger.WithError(err).Error("failed to list installation backups")
-		w.WriteHeader(http.StatusInternalServerError)
-		return
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	outputJSON(c, w, backupsMeta)
-}
-
-// handleGetInstallationBackup responds to GET /api/installation/{installation}/backup/{backup},
-// returns metadata of specified backup.
-func handleGetInstallationBackup(c *Context, w http.ResponseWriter, r *http.Request) {
-	vars := mux.Vars(r)
-	installationID := vars["installation"]
-	backupID := vars["backup"]
-	c.Logger = c.Logger.
-		WithField("installation", installationID).
-		WithField("backup", backupID).
-		WithField("action", "get-installation-backup")
-
-	backupMetadata, err := c.Store.GetBackupMetadata(backupID, installationID)
-	if err != nil {
-		c.Logger.WithError(err).Error("Failed to get backup metadata")
-		w.WriteHeader(http.StatusInternalServerError)
-		return
-	}
-	if backupMetadata == nil {
-		w.WriteHeader(http.StatusNotFound)
-		return
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	outputJSON(c, w, backupMetadata)
-}
-
-// TODO: delete

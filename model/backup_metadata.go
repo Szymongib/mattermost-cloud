@@ -3,9 +3,10 @@ package model
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/pkg/errors"
 	"io"
 	"strings"
+
+	"github.com/pkg/errors"
 )
 
 type BackupMetadata struct {

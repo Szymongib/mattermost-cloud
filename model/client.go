@@ -588,7 +588,7 @@ func (c *Client) DeleteInstallationAnnotation(installationID string, annotationN
 
 // RequestInstallationBackup triggers backup for the given installation.
 func (c *Client) RequestInstallationBackup(installationID string) (*BackupMetadata, error) {
-	resp, err := c.doPost(c.buildURL("/api/installation/%s/backups", installationID), nil)
+	resp, err := c.doPost(c.buildURL("/api/installations/backups"), &BackupRequest{InstallationID: installationID})
 	if err != nil {
 		return nil, err
 	}
@@ -604,8 +604,8 @@ func (c *Client) RequestInstallationBackup(installationID string) (*BackupMetada
 }
 
 // GetInstallationBackups returns backups for the given installation.
-func (c *Client) GetInstallationBackups(installationID string, request *GetBackupsMetadataRequest) ([]*BackupMetadata, error) {
-	u, err := url.Parse(c.buildURL("/api/installation/%s/backups", installationID))
+func (c *Client) GetInstallationBackups(request *GetBackupsMetadataRequest) ([]*BackupMetadata, error) {
+	u, err := url.Parse(c.buildURL("/api/installations/backups"))
 	if err != nil {
 		return nil, err
 	}
@@ -628,8 +628,8 @@ func (c *Client) GetInstallationBackups(installationID string, request *GetBacku
 }
 
 // GetInstallationBackup returns given backup for the given installation.
-func (c *Client) GetInstallationBackup(installationID, backupID string) (*BackupMetadata, error) {
-	resp, err := c.doGet(c.buildURL("/api/installation/%s/backup/%s", installationID, backupID))
+func (c *Client) GetInstallationBackup(backupID string) (*BackupMetadata, error) {
+	resp, err := c.doGet(c.buildURL("/api/installations/backup/%s", backupID))
 	if err != nil {
 		return nil, err
 	}

@@ -3,6 +3,8 @@ package provisioner
 import (
 	"context"
 	"fmt"
+	"testing"
+
 	"github.com/mattermost/mattermost-cloud/model"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
@@ -11,7 +13,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes/fake"
-	"testing"
 )
 
 func TestOperator_TriggerBackup(t *testing.T) {

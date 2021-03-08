@@ -1,12 +1,13 @@
 package store
 
 import (
+	"testing"
+	"time"
+
 	"github.com/mattermost/mattermost-cloud/internal/testlib"
 	"github.com/mattermost/mattermost-cloud/model"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"testing"
-	"time"
 )
 
 func TestIsBackupRunning(t *testing.T) {
@@ -31,8 +32,6 @@ func TestIsBackupRunning(t *testing.T) {
 	running, err = sqlStore.IsBackupRunning(installation.ID)
 	require.NoError(t, err)
 	require.True(t, running)
-
-	// TODO: extend test with one stable and then one in progress
 }
 
 func TestCreateBackupMetadata(t *testing.T) {
@@ -74,43 +73,15 @@ func TestGetBackupMetadata(t *testing.T) {
 	err = sqlStore.CreateBackupMetadata(metadata2)
 	require.NoError(t, err)
 
-	for _, testCase := range []struct {
-		description    string
-		id             string
-		installationID string
-		expectedMeta   *model.BackupMetadata
-	}{
-		{
-			description:    "fetch with ID and Installation ID",
-			id:             metadata1.ID,
-			installationID: installation1.ID,
-			expectedMeta:   metadata1,
-		},
-		{
-			description:    "fetch with ID only",
-			id:             metadata1.ID,
-			installationID: "",
-			expectedMeta:   metadata1,
-		},
-		{
-			description:    "fail to fetch if no match",
-			id:             metadata1.ID,
-			installationID: installation2.ID,
-			expectedMeta:   nil,
-		},
-		{
-			description:    "fail to fetch with empty id",
-			id:             "",
-			installationID: installation2.ID,
-			expectedMeta:   nil,
-		},
-	} {
-		t.Run(testCase.description, func(t *testing.T) {
-			fetchedMetadata, err := sqlStore.GetBackupMetadata(testCase.id, testCase.installationID)
-			require.NoError(t, err)
-			assert.Equal(t, testCase.expectedMeta, fetchedMetadata)
-		})
-	}
+	fetchedMeta, err := sqlStore.GetBackupMetadata(metadata1.ID)
+	require.NoError(t, err)
+	assert.Equal(t, metadata1, fetchedMeta)
+
+	t.Run("metadata not found", func(t *testing.T) {
+		fetchedMeta, err = sqlStore.GetBackupMetadata("non-existent")
+		require.NoError(t, err)
+		assert.Nil(t, fetchedMeta)
+	})
 }
 
 func TestGetBackupsMetadata(t *testing.T) {
@@ -140,7 +111,7 @@ func TestGetBackupsMetadata(t *testing.T) {
 		time.Sleep(1 * time.Millisecond) // Ensure RequestAt is different for all installations.
 	}
 
-	err = sqlStore.DeleteBackupMetadata(backupsMeta[2])
+	err = sqlStore.DeleteBackupMetadata(backupsMeta[2].ID)
 	require.NoError(t, err)
 
 	for _, testCase := range []struct {
@@ -248,7 +219,7 @@ func TestUpdateBackupMetadata(t *testing.T) {
 		err = sqlStore.UpdateBackupMetadataState(metadata)
 		require.NoError(t, err)
 
-		fetched, err := sqlStore.GetBackupMetadata(metadata.ID, "")
+		fetched, err := sqlStore.GetBackupMetadata(metadata.ID)
 		require.NoError(t, err)
 		assert.Equal(t, model.BackupStateBackupSucceeded, fetched.State)
 		assert.Equal(t, int64(0), fetched.StartAt)         // Assert start time not updated
@@ -266,7 +237,7 @@ func TestUpdateBackupMetadata(t *testing.T) {
 		err = sqlStore.UpdateBackupSchedulingData(metadata)
 		require.NoError(t, err)
 
-		fetched, err := sqlStore.GetBackupMetadata(metadata.ID, "")
+		fetched, err := sqlStore.GetBackupMetadata(metadata.ID)
 		require.NoError(t, err)
 		assert.Equal(t, updatedResidence, fetched.DataResidence)
 		assert.Equal(t, clusterInstallationID, fetched.ClusterInstallationID)
@@ -283,7 +254,7 @@ func TestUpdateBackupMetadata(t *testing.T) {
 		err = sqlStore.UpdateBackupStartTime(metadata)
 		require.NoError(t, err)
 
-		fetched, err := sqlStore.GetBackupMetadata(metadata.ID, "")
+		fetched, err := sqlStore.GetBackupMetadata(metadata.ID)
 		require.NoError(t, err)
 		assert.Equal(t, startTime, fetched.StartAt)
 		assert.Equal(t, originalCIId, fetched.ClusterInstallationID) // Assert ClusterInstallationID not updated
