@@ -1499,17 +1499,7 @@ func TestGetInstallationBackup(t *testing.T) {
 	ts := httptest.NewServer(router)
 	client := model.NewClient(ts.URL)
 
-	installation1 := &model.Installation{
-		OwnerID:   "owner",
-		Version:   "version",
-		DNS:       "dns1.example.com",
-		Affinity:  model.InstallationAffinityMultiTenant,
-		Database:  model.InstallationDatabaseMultiTenantRDSPostgres,
-		Filestore: model.InstallationFilestoreBifrost,
-		State:     model.InstallationStateHibernating,
-	}
-	err := sqlStore.CreateInstallation(installation1, nil)
-	require.NoError(t, err)
+	installation1 := testlib.CreateBackupCompatibleInstallation(t, sqlStore)
 
 	backupMeta, err := client.RequestInstallationBackup(installation1.ID)
 	require.NoError(t, err)
@@ -1525,3 +1515,4 @@ func TestGetInstallationBackup(t *testing.T) {
 		assert.Contains(t, err.Error(), "404")
 	})
 }
+

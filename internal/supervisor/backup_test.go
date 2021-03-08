@@ -428,7 +428,7 @@ func TestBackupMetadataSupervisorSupervise(t *testing.T) {
 }
 
 func setupBackupRequiredResources(t *testing.T, sqlStore *store.SQLStore) (*model.Installation, *model.ClusterInstallation) {
-	installation := createBackupCompatibleInstallation(t, sqlStore)
+	installation := testlib.CreateBackupCompatibleInstallation(t, sqlStore)
 
 	cluster := &model.Cluster{}
 	err := sqlStore.CreateCluster(cluster, nil)
@@ -439,15 +439,4 @@ func setupBackupRequiredResources(t *testing.T, sqlStore *store.SQLStore) (*mode
 	require.NoError(t, err)
 
 	return installation, clusterInstallation
-}
-
-func createBackupCompatibleInstallation(t *testing.T, sqlStore *store.SQLStore) *model.Installation {
-	installation := &model.Installation{
-		Database:  model.InstallationDatabaseMultiTenantRDSPostgres,
-		Filestore: model.InstallationFilestoreBifrost,
-		State:     model.InstallationStateHibernating,
-	}
-	err := sqlStore.CreateInstallation(installation, nil)
-	require.NoError(t, err)
-	return installation
 }

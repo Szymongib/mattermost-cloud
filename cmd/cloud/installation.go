@@ -74,15 +74,6 @@ func init() {
 	installationDeleteCmd.Flags().String("installation", "", "The id of the installation to be deleted.")
 	installationDeleteCmd.MarkFlagRequired("installation")
 
-	// TODO: move those 2 to subcommand?
-	installationBackupCmd.Flags().String("installation", "", "The id of the installation to backup.")
-	installationBackupCmd.MarkFlagRequired("installation")
-
-	installationBackupGetCmd.Flags().String("installation", "", "The id of the installation to backup.")
-	installationBackupGetCmd.Flags().String("backup", "", "The id of the backup metadata.")
-	installationBackupCmd.MarkFlagRequired("installation")
-	installationBackupCmd.MarkFlagRequired("backup")
-
 	installationCmd.AddCommand(installationCreateCmd)
 	installationCmd.AddCommand(installationUpdateCmd)
 	installationCmd.AddCommand(installationDeleteCmd)
@@ -91,10 +82,9 @@ func init() {
 	installationCmd.AddCommand(installationGetCmd)
 	installationCmd.AddCommand(installationListCmd)
 	installationCmd.AddCommand(installationShowStateReport)
-	installationCmd.AddCommand(installationBackupCmd)
-	installationCmd.AddCommand(installationBackupGetCmd)
 	installationCmd.AddCommand(installationAnnotationCmd)
 	installationCmd.AddCommand(installationsGetStatuses)
+	installationCmd.AddCommand(backupCmd)
 }
 
 var installationCmd = &cobra.Command{
@@ -431,58 +421,6 @@ var installationShowStateReport = &cobra.Command{
 		command.SilenceUsage = true
 
 		err := printJSON(model.GetInstallationRequestStateReport())
-		if err != nil {
-			return err
-		}
-
-		return nil
-	},
-}
-
-var installationBackupCmd = &cobra.Command{
-	Use:   "backup",
-	Short: "Request Installation database backup.",
-	RunE: func(command *cobra.Command, args []string) error {
-		command.SilenceUsage = true
-
-		serverAddress, _ := command.Flags().GetString("server")
-		client := model.NewClient(serverAddress)
-
-		installationID, _ := command.Flags().GetString("installation")
-
-		backupMetadata, err := client.RequestInstallationBackup(installationID)
-		if err != nil {
-			return errors.Wrap(err, "failed to request installation backup")
-		}
-
-		err = printJSON(backupMetadata)
-		if err != nil {
-			return err
-		}
-
-		return nil
-	},
-}
-
-// TODO: temporary method
-var installationBackupGetCmd = &cobra.Command{
-	Use:   "backup-get",
-	Short: "Get backup metadata.",
-	RunE: func(command *cobra.Command, args []string) error {
-		command.SilenceUsage = true
-
-		serverAddress, _ := command.Flags().GetString("server")
-		client := model.NewClient(serverAddress)
-
-		installationID, _ := command.Flags().GetString("installation")
-		backupID, _ := command.Flags().GetString("backup")
-
-		backupMetadata, err := client.GetInstallationBackup(installationID, backupID)
-		if err != nil {
-			return errors.Wrap(err, "failed to get backup metadata")
-		}
-
-		err = printJSON(backupMetadata)
 		if err != nil {
 			return err
 		}

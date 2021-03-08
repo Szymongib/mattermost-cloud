@@ -68,6 +68,18 @@ func NewBackupMetadataFromReader(reader io.Reader) (*BackupMetadata, error) {
 	return &backupMetadata, nil
 }
 
+// NewBackupsMetadataFromReader will create a slice of BackupMetadata from an
+// io.Reader with JSON data.
+func NewBackupsMetadataFromReader(reader io.Reader) ([]*BackupMetadata, error) {
+	backupMetadata := []*BackupMetadata{}
+	err := json.NewDecoder(reader).Decode(&backupMetadata)
+	if err != nil && err != io.EOF {
+		return nil, errors.Wrap(err, "failed to decode backups metadata")
+	}
+
+	return backupMetadata, nil
+}
+
 // EnsureBackupCompatible ensures that installation can be backed up.
 func EnsureBackupCompatible(installation *Installation) error {
 	var errs []string

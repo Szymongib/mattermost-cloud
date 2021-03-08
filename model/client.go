@@ -588,7 +588,7 @@ func (c *Client) DeleteInstallationAnnotation(installationID string, annotationN
 
 // RequestInstallationBackup triggers backup for the given installation.
 func (c *Client) RequestInstallationBackup(installationID string) (*BackupMetadata, error) {
-	resp, err := c.doPost(c.buildURL("/api/installation/%s/backup", installationID), nil)
+	resp, err := c.doPost(c.buildURL("/api/installation/%s/backups", installationID), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -597,6 +597,30 @@ func (c *Client) RequestInstallationBackup(installationID string) (*BackupMetada
 	switch resp.StatusCode {
 	case http.StatusOK:
 		return NewBackupMetadataFromReader(resp.Body)
+
+	default:
+		return nil, errors.Errorf("failed with status code %d", resp.StatusCode)
+	}
+}
+
+// GetInstallationBackups returns backups for the given installation.
+func (c *Client) GetInstallationBackups(installationID string, request *GetBackupsMetadataRequest) ([]*BackupMetadata, error) {
+	u, err := url.Parse(c.buildURL("/api/installation/%s/backups", installationID))
+	if err != nil {
+		return nil, err
+	}
+
+	request.ApplyToURL(u)
+
+	resp, err := c.doGet(u.String())
+	if err != nil {
+		return nil, err
+	}
+	defer closeBody(resp)
+
+	switch resp.StatusCode {
+	case http.StatusOK:
+		return NewBackupsMetadataFromReader(resp.Body)
 
 	default:
 		return nil, errors.Errorf("failed with status code %d", resp.StatusCode)
