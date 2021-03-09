@@ -1,3 +1,7 @@
+// Copyright (c) 2015-present Mattermost, Inc. All Rights Reserved.
+// See LICENSE.txt for license information.
+//
+
 package store
 
 import (
@@ -17,8 +21,17 @@ var backupMetadataSelect sq.SelectBuilder
 
 func init() {
 	backupMetadataSelect = sq.
-		Select(
-			"ID", "InstallationID", "ClusterInstallationID", "DataResidenceRaw", "State", "RequestAt", "StartAt", "DeleteAt", "APISecurityLock", "LockAcquiredBy", "LockAcquiredAt",
+		Select("ID",
+			"InstallationID",
+			"ClusterInstallationID",
+			"DataResidenceRaw",
+			"State",
+			"RequestAt",
+			"StartAt",
+			"DeleteAt",
+			"APISecurityLock",
+			"LockAcquiredBy",
+			"LockAcquiredAt",
 		).
 		From(backupMetadataTable)
 }
@@ -61,6 +74,7 @@ func (r *rawBackupsMetadata) toBackupsMetadata() ([]*model.BackupMetadata, error
 	return backupsMeta, nil
 }
 
+// IsBackupRunning checks if any backup is currently running or requested for specified installation.
 func (sqlStore *SQLStore) IsBackupRunning(installationID string) (bool, error) {
 	var totalResult countResult
 	builder := sq.
@@ -98,7 +112,7 @@ func (sqlStore *SQLStore) CreateBackupMetadata(backupMeta *model.BackupMetadata)
 			"RequestAt":             backupMeta.RequestAt,
 			"StartAt":               0,
 			"DeleteAt":              0,
-			"APISecurityLock": 		 backupMeta.APISecurityLock,
+			"APISecurityLock":       backupMeta.APISecurityLock,
 			"LockAcquiredBy":        nil,
 			"LockAcquiredAt":        0,
 		}),
@@ -150,7 +164,7 @@ func (sqlStore *SQLStore) GetBackupMetadata(id string) (*model.BackupMetadata, e
 	return backupMetadata, nil
 }
 
-// GetUnlockedInstallationsPendingWork returns an unlocked installation in a pending state.
+// GetUnlockedBackupMetadataPendingWork returns an unlocked backups metadata in a pending state.
 func (sqlStore *SQLStore) GetUnlockedBackupMetadataPendingWork() ([]*model.BackupMetadata, error) {
 	builder := backupMetadataSelect.
 		Where(sq.Eq{
@@ -187,7 +201,7 @@ func (sqlStore *SQLStore) UpdateBackupSchedulingData(backupMeta *model.BackupMet
 		})
 }
 
-// UpdateBackupSchedulingData updates the given backup metadata data residency and ClusterInstallationID.
+// UpdateBackupStartTime updates the given backup start time.
 func (sqlStore *SQLStore) UpdateBackupStartTime(backupMeta *model.BackupMetadata) error {
 	return sqlStore.updateBackupMetadataFields(
 		backupMeta.ID, map[string]interface{}{

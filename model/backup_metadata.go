@@ -1,3 +1,7 @@
+// Copyright (c) 2015-present Mattermost, Inc. All Rights Reserved.
+// See LICENSE.txt for license information.
+//
+
 package model
 
 import (
@@ -9,6 +13,7 @@ import (
 	"github.com/pkg/errors"
 )
 
+// BackupMetadata contains information about installation's backup.
 type BackupMetadata struct {
 	ID             string
 	InstallationID string
@@ -18,13 +23,14 @@ type BackupMetadata struct {
 	State                 BackupState
 	RequestAt             int64
 	// StartAt is a start time of job that successfully completed backup.
-	StartAt        int64
-	DeleteAt       int64
+	StartAt         int64
+	DeleteAt        int64
 	APISecurityLock bool
-	LockAcquiredBy *string
-	LockAcquiredAt int64
+	LockAcquiredBy  *string
+	LockAcquiredAt  int64
 }
 
+// S3DataResidence contains information about backup location.
 type S3DataResidence struct {
 	Region    string
 	URL       string
@@ -32,13 +38,18 @@ type S3DataResidence struct {
 	ObjectKey string
 }
 
+// BackupState represents the state of backup.
 type BackupState string
 
 const (
-	BackupStateBackupRequested  BackupState = "backup-requested"
+	// BackupStateBackupRequested is a requested backup that was not yet triggered.
+	BackupStateBackupRequested BackupState = "backup-requested"
+	// BackupStateBackupInProgress is a backup that is currently running.
 	BackupStateBackupInProgress BackupState = "backup-in-progress"
-	BackupStateBackupSucceeded  BackupState = "backup-succeeded"
-	BackupStateBackupFailed     BackupState = "backup-failed"
+	// BackupStateBackupSucceeded is a backup that have finished with success.
+	BackupStateBackupSucceeded BackupState = "backup-succeeded"
+	// BackupStateBackupFailed if a backup that have failed.
+	BackupStateBackupFailed BackupState = "backup-failed"
 )
 
 // AllBackupMetadataStatesPendingWork is a list of all backup metadata states that

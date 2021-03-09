@@ -1,3 +1,7 @@
+// Copyright (c) 2015-present Mattermost, Inc. All Rights Reserved.
+// See LICENSE.txt for license information.
+//
+
 package model
 
 import (
@@ -9,6 +13,7 @@ import (
 	"github.com/pkg/errors"
 )
 
+// BackupRequest represents request for installation backup.
 type BackupRequest struct {
 	InstallationID string
 }
