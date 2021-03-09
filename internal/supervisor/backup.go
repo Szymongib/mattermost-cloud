@@ -3,15 +3,12 @@ package supervisor
 import (
 	"time"
 
-	"github.com/mattermost/mattermost-cloud/internal/metrics"
 	"github.com/mattermost/mattermost-cloud/internal/provisioner"
 	"github.com/mattermost/mattermost-cloud/internal/tools/aws"
 	"github.com/mattermost/mattermost-cloud/internal/webhook"
 	"github.com/mattermost/mattermost-cloud/model"
 	log "github.com/sirupsen/logrus"
 )
-
-// TODO: this Supervisior could run few different backups at a time
 
 // backupMetadataStore abstracts the database operations required to query installations.
 type backupMetadataStore interface {
@@ -51,10 +48,7 @@ type BackupSupervisor struct {
 	store      backupMetadataStore
 	aws        aws.AWS
 	instanceID string
-	//keepDatabaseData  bool // TODO: for deleting?
-	//keepFilestoreData bool // TODO: for deleting?
-	logger  log.FieldLogger
-	metrics *metrics.CloudMetrics
+	logger     log.FieldLogger
 
 	backupOperator BackupOperator
 }
@@ -71,9 +65,7 @@ func NewBackupSupervisor(
 		backupOperator: backupOperator,
 		aws:            aws,
 		instanceID:     instanceID,
-		//keepDatabaseData:  keepDatabaseData,
-		//keepFilestoreData: keepFilestoreData,
-		logger: logger,
+		logger:         logger,
 	}
 }
 
@@ -147,19 +139,13 @@ func (s *BackupSupervisor) Supervise(backupMetadata *model.BackupMetadata) {
 		return
 	}
 
-	environment, err := s.aws.GetCloudEnvironmentName()
-	if err != nil {
-		logger.WithError(err).Error("getting the AWS Cloud environment")
-		return
-	}
-
 	webhookPayload := &model.WebhookPayload{
 		Type:      model.TypeInstallation,
 		ID:        backupMetadata.ID,
 		NewState:  string(backupMetadata.State),
 		OldState:  string(oldState),
 		Timestamp: time.Now().UnixNano(),
-		ExtraData: map[string]string{"Environment": environment},
+		ExtraData: map[string]string{"Environment": s.aws.GetCloudEnvironmentName()},
 	}
 	err = webhook.SendToAllWebhooks(s.store, webhookPayload, logger.WithField("webhookEvent", webhookPayload.NewState))
 	if err != nil {
@@ -177,14 +163,6 @@ func (s *BackupSupervisor) transitionBackup(backupMetadata *model.BackupMetadata
 
 	case model.BackupStateBackupInProgress:
 		return s.monitorBackup(backupMetadata, instanceID, logger)
-
-		// TODO: will need to do deletion
-	//case model.InstallationStateDeletionRequested,
-	//	model.InstallationStateDeletionInProgress:
-	//	return s.deleteInstallation(backupMetadata, instanceID, logger)
-	//
-	//case model.InstallationStateDeletionFinalCleanup:
-	//	return s.finalDeletionCleanup(backupMetadata, logger)
 
 	default:
 		logger.Warnf("Found backup metadata pending work in unexpected state %s", backupMetadata.State)
@@ -268,32 +246,11 @@ func (s *BackupSupervisor) monitorBackup(backupMetadata *model.BackupMetadata, i
 	// TODO: Do I need the Installation here? - if deletion will be blocked when backup is running then no
 	// TODO: also ensure that cluster installation cannot be deleted while backup is running
 
-	//installation, err := s.store.GetInstallation(backupMetadata.InstallationID, false, false)
-	//if err != nil {
-	//	logger.WithError(err).Error("Failed to get installation")
-	//	return backupMetadata.State
-	//}
-	//if installation == nil {
-	//	logger.Errorf("Failed to get installation, with id %q", backupMetadata.InstallationID)
-	//	return backupMetadata.State
-	//}
-
-	// TODO: sanity check that CI ID is not empty?
-
 	backupCI, err := s.store.GetClusterInstallation(backupMetadata.ClusterInstallationID)
 	if err != nil {
 		logger.WithError(err).Error("Failed to get cluster installations")
 		return backupMetadata.State
 	}
-
-	// TODO: should I lock the Cluster Installation? - Maybe not?
-	//backupCI := clusterInstallations[0]
-	//ciLock := newClusterInstallationLock(backupCI.ID, instanceID, s.store, logger)
-	//if !ciLock.TryLock() {
-	//	logger.Errorf("Failed to lock cluster installation %s", backupCI.ID)
-	//	return backupMetadata.State
-	//}
-	//defer ciLock.Unlock()
 
 	cluster, err := s.store.GetCluster(backupCI.ClusterID)
 	if err != nil {

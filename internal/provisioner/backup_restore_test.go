@@ -4,6 +4,10 @@ import (
 	"context"
 	"fmt"
 	"testing"
+	"time"
+
+	"k8s.io/apimachinery/pkg/util/wait"
+	v1 "k8s.io/client-go/kubernetes/typed/batch/v1"
 
 	"github.com/mattermost/mattermost-cloud/model"
 	"github.com/sirupsen/logrus"
@@ -11,7 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
-	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes/fake"
 )
 
@@ -57,6 +61,7 @@ func TestOperator_TriggerBackup(t *testing.T) {
 		t.Run(testCase.description, func(t *testing.T) {
 			k8sClient := fake.NewSimpleClientset()
 			jobClinet := k8sClient.BatchV1().Jobs("installation-1")
+			go setJobActiveWhenExists(t, jobClinet, "database-backup-backup-meta-1")
 
 			dataRes, err := operator.TriggerBackup(
 				jobClinet,
@@ -72,7 +77,7 @@ func TestOperator_TriggerBackup(t *testing.T) {
 			assert.Equal(t, "plastic", dataRes.Bucket)
 			assert.Equal(t, "backup-backup-meta-1", dataRes.ObjectKey)
 
-			createdJob, err := jobClinet.Get(context.Background(), "database-backup-backup-meta-1", v1.GetOptions{})
+			createdJob, err := jobClinet.Get(context.Background(), "database-backup-backup-meta-1", metav1.GetOptions{})
 			require.NoError(t, err)
 
 			assert.Equal(t, "backup-restore", createdJob.Labels["app"])
@@ -101,7 +106,8 @@ func TestOperator_TriggerBackup(t *testing.T) {
 
 	t.Run("succeed if job already exists", func(t *testing.T) {
 		existing := &batchv1.Job{
-			ObjectMeta: v1.ObjectMeta{Name: "database-backup-backup-meta-1", Namespace: "installation-1"},
+			ObjectMeta: metav1.ObjectMeta{Name: "database-backup-backup-meta-1", Namespace: "installation-1"},
+			Status:     batchv1.JobStatus{Active: 1},
 		}
 		k8sClient := fake.NewSimpleClientset(existing)
 		jobClinet := k8sClient.BatchV1().Jobs("installation-1")
@@ -126,6 +132,7 @@ func TestOperator_TriggerBackup(t *testing.T) {
 	t.Run("set ttl to nil if negative value", func(t *testing.T) {
 		k8sClient := fake.NewSimpleClientset()
 		jobClinet := k8sClient.BatchV1().Jobs("installation-1")
+		go setJobActiveWhenExists(t, jobClinet, "database-backup-backup-meta-1")
 
 		installation := &model.Installation{ID: "installation-1", Filestore: model.InstallationFilestoreMultiTenantAwsS3}
 
@@ -140,9 +147,24 @@ func TestOperator_TriggerBackup(t *testing.T) {
 			logrus.New())
 		require.NoError(t, err)
 
-		createdJob, err := jobClinet.Get(context.Background(), "database-backup-backup-meta-1", v1.GetOptions{})
+		createdJob, err := jobClinet.Get(context.Background(), "database-backup-backup-meta-1", metav1.GetOptions{})
 		require.NoError(t, err)
 		assert.Nil(t, createdJob.Spec.TTLSecondsAfterFinished)
+	})
+
+	t.Run("fail if job not ready", func(t *testing.T) {
+		k8sClient := fake.NewSimpleClientset()
+		jobClinet := k8sClient.BatchV1().Jobs("installation-1")
+		installation := &model.Installation{ID: "installation-1", Filestore: model.InstallationFilestoreMultiTenantAwsS3}
+
+		_, err := operator.TriggerBackup(
+			jobClinet,
+			backupMeta,
+			installation,
+			fileStoreCfg,
+			databaseSecret,
+			logrus.New())
+		require.Error(t, err)
 	})
 }
 
@@ -165,12 +187,12 @@ func TestOperator_CheckBackupStatus(t *testing.T) {
 	})
 
 	job := &batchv1.Job{
-		ObjectMeta: v1.ObjectMeta{Name: "database-backup-backup-meta-1"},
+		ObjectMeta: metav1.ObjectMeta{Name: "database-backup-backup-meta-1"},
 		Spec:       batchv1.JobSpec{},
 		Status:     batchv1.JobStatus{},
 	}
 	var err error
-	job, err = jobClinet.Create(context.Background(), job, v1.CreateOptions{})
+	job, err = jobClinet.Create(context.Background(), job, metav1.CreateOptions{})
 	require.NoError(t, err)
 
 	t.Run("return -1 start time if not finished", func(t *testing.T) {
@@ -180,7 +202,7 @@ func TestOperator_CheckBackupStatus(t *testing.T) {
 	})
 
 	job.Status.Failed = backupRestoreBackoffLimit + 1
-	job, err = jobClinet.Update(context.Background(), job, v1.UpdateOptions{})
+	job, err = jobClinet.Update(context.Background(), job, metav1.UpdateOptions{})
 	require.NoError(t, err)
 
 	t.Run("ErrJobBackoffLimitReached when failed enough times", func(t *testing.T) {
@@ -189,10 +211,10 @@ func TestOperator_CheckBackupStatus(t *testing.T) {
 		assert.Equal(t, ErrJobBackoffLimitReached, err)
 	})
 
-	expectedStartTime := v1.Now()
+	expectedStartTime := metav1.Now()
 	job.Status.Succeeded = 1
 	job.Status.StartTime = &expectedStartTime
-	job, err = jobClinet.Update(context.Background(), job, v1.UpdateOptions{})
+	job, err = jobClinet.Update(context.Background(), job, metav1.UpdateOptions{})
 	require.NoError(t, err)
 
 	t.Run("return start time when succeeded", func(t *testing.T) {
@@ -200,6 +222,23 @@ func TestOperator_CheckBackupStatus(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, asMillis(expectedStartTime), startTime)
 	})
+}
+
+func setJobActiveWhenExists(t *testing.T, client v1.JobInterface, name string) {
+	ctx := context.Background()
+	err := wait.Poll(1*time.Second, 30*time.Second, func() (bool, error) {
+		job, err := client.Get(ctx, name, metav1.GetOptions{})
+		if err != nil {
+			return false, nil
+		}
+		job.Status.Active = 1
+		_, err = client.Update(ctx, job, metav1.UpdateOptions{})
+		if err != nil {
+			return false, nil
+		}
+		return true, err
+	})
+	require.NoError(t, err)
 }
 
 func assertEnvVarEqual(t *testing.T, name, val string, env []corev1.EnvVar) {

@@ -6,6 +6,8 @@ import (
 	"strconv"
 	"time"
 
+	"k8s.io/apimachinery/pkg/util/wait"
+
 	"github.com/mattermost/mattermost-cloud/model"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
@@ -52,16 +54,19 @@ func (o BackupOperator) TriggerBackup(
 	dbSecret string,
 	logger log.FieldLogger) (*model.S3DataResidence, error) {
 
-	storageObjectKey := backupObjectKey(backupMetadata.ID, backupMetadata.RequestAt)
+	storageObjectKey := backupObjectKey(backupMetadata.ID)
 
-	envVars := o.prepareEnvs(fileStoreCfg.URL, fileStoreCfg.Bucket, storageObjectKey, fileStoreCfg.Secret, dbSecret)
+	var envVars []corev1.EnvVar
+	storageEndpoint := fileStoreCfg.URL
 
 	if installation.Filestore == model.InstallationFilestoreBifrost {
-		bifrostEnv := bifrostEnvs(envVars)
-		envVars = append(envVars, bifrostEnv...)
+		storageEndpoint = bifrostEndpoint
+		envVars = bifrostEnvs()
 	}
+	envVars = append(envVars, o.prepareEnvs(storageEndpoint, fileStoreCfg.Bucket, storageObjectKey, fileStoreCfg.Secret, dbSecret)...)
 
-	job := o.createBackupRestoreJob(backupMetadata.ID, installation.ID, "backup", envVars)
+	backupJobName := jobName("backup", backupMetadata.ID)
+	job := o.createBackupRestoreJob(backupJobName, installation.ID, "backup", envVars)
 
 	ctx := context.Background()
 	job, err := jobsClient.Create(ctx, job, metav1.CreateOptions{})
@@ -72,7 +77,21 @@ func (o BackupOperator) TriggerBackup(
 		logger.Warn("Backup job already exists")
 	}
 
-	// TODO: should we wait for backup job to start running?
+	// Wait for 5 seconds for job to start, if it won't it will be caught on next round.
+	err = wait.Poll(time.Second, 5*time.Second, func() (bool, error) {
+		job, err = jobsClient.Get(ctx, backupJobName, metav1.GetOptions{})
+		if err != nil {
+			return false, errors.Wrap(err, "failed to get backup job")
+		}
+		if job.Status.Active == 0 && job.Status.CompletionTime == nil {
+			logger.Info("Backup job not yet started")
+			return false, nil
+		}
+		return true, nil
+	})
+	if err != nil {
+		return nil, errors.Wrap(err, "Backup job not yet started")
+	}
 
 	dataResidence := &model.S3DataResidence{
 		Region:    o.awsRegion,
@@ -129,12 +148,12 @@ func (o BackupOperator) extractStartTime(job *batchv1.Job, logger log.FieldLogge
 	return asMillis(job.CreationTimestamp)
 }
 
-func (o BackupOperator) createBackupRestoreJob(backupId, namespace, action string, envs []corev1.EnvVar) *batchv1.Job {
+func (o BackupOperator) createBackupRestoreJob(name, namespace, action string, envs []corev1.EnvVar) *batchv1.Job {
 	backoff := backupRestoreBackoffLimit
 
 	job := &batchv1.Job{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      jobName(action, backupId),
+			Name:      name,
 			Namespace: namespace,
 			Labels:    map[string]string{"app": "backup-restore"},
 		},
@@ -165,9 +184,8 @@ func (o BackupOperator) createBackupRestoreContainer(action string, envs []corev
 		Args:  []string{action},
 		Env:   envs,
 		Resources: corev1.ResourceRequirements{
-			// TODO: memory?
 			Limits: corev1.ResourceList{
-				corev1.ResourceEphemeralStorage: resource.MustParse("15Gi"),
+				corev1.ResourceEphemeralStorage: resource.MustParse("15Gi"), // This should be enough even for very large installations
 			},
 			Requests: corev1.ResourceList{
 				corev1.ResourceEphemeralStorage: resource.MustParse("2Gi"),
@@ -188,7 +206,7 @@ func (o BackupOperator) prepareEnvs(storageEndpoint, bucket, objectKey, fileStor
 		},
 		{
 			Name:  "BRT_STORAGE_ENDPOINT",
-			Value: storageEndpoint, // TODO: this also needs to change for Bifrost
+			Value: storageEndpoint,
 		},
 		{
 			Name:  "BRT_STORAGE_OBJECT_KEY",
@@ -211,15 +229,7 @@ func (o BackupOperator) prepareEnvs(storageEndpoint, bucket, objectKey, fileStor
 	return envs
 }
 
-func bifrostEnvs(envs []corev1.EnvVar) []corev1.EnvVar {
-	// TODO: remove this part if you align with gabe, or change it?
-	for i, e := range envs {
-		if e.Name == "BRT_STORAGE_ENDPOINT" {
-			envs[i].Value = "bifrost.bifrost:80"
-			break
-		}
-	}
-
+func bifrostEnvs() []corev1.EnvVar {
 	return []corev1.EnvVar{
 		{
 			Name:  "BRT_STORAGE_TLS",
@@ -243,8 +253,8 @@ func envSourceFromSecret(secretName, key string) *corev1.EnvVarSource {
 	}
 }
 
-func backupObjectKey(id string, timestamp int64) string {
-	return fmt.Sprintf("backup-%s", id) // TODO: use time here?
+func backupObjectKey(id string) string {
+	return fmt.Sprintf("backup-%s", id)
 }
 
 func jobName(action, id string) string {
@@ -258,7 +268,7 @@ func getInt32(i32 *int32) int32 {
 	return *i32
 }
 
-// asMillis returns time.Time as milliseconds.
+// asMillis returns metav1.Time as milliseconds.
 func asMillis(t metav1.Time) int64 {
 	return t.UnixNano() / int64(time.Millisecond)
 }
