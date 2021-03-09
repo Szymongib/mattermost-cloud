@@ -74,12 +74,12 @@ type Store interface {
 	CreateInstallationAnnotations(installationID string, annotations []*model.Annotation) ([]*model.Annotation, error)
 	DeleteInstallationAnnotation(installationID string, annotationName string) error
 
-	IsBackupRunning(installationID string) (bool, error)
-	CreateBackupMetadata(backupMeta *model.BackupMetadata) error
-	GetBackupMetadata(id string) (*model.BackupMetadata, error)
-	GetBackupsMetadata(filter *model.BackupMetadataFilter) ([]*model.BackupMetadata, error)
-	LockBackupAPI(backupMetadataID string) error
-	UnlockBackupAPI(backupMetadataID string) error
+	IsInstallationBackupRunning(installationID string) (bool, error)
+	CreateInstallationBackup(backupMeta *model.InstallationBackup) error
+	GetInstallationBackup(id string) (*model.InstallationBackup, error)
+	GetInstallationBackups(filter *model.InstallationBackupFilter) ([]*model.InstallationBackup, error)
+	LockInstallationBackupAPI(backupID string) error
+	UnlockInstallationBackupAPI(backupID string) error
 }
 
 // Provisioner describes the interface required to communicate with the Kubernetes cluster.

@@ -43,12 +43,12 @@ var backupRequestCmd = &cobra.Command{
 
 		installationID, _ := command.Flags().GetString("installation")
 
-		backupMetadata, err := client.RequestInstallationBackup(installationID)
+		backup, err := client.RequestInstallationBackup(installationID)
 		if err != nil {
 			return errors.Wrap(err, "failed to request installation backup")
 		}
 
-		return printJSON(backupMetadata)
+		return printJSON(backup)
 	},
 }
 
@@ -68,7 +68,7 @@ var backupListCmd = &cobra.Command{
 		perPage, _ := command.Flags().GetInt("per-page")
 		includeDeleted, _ := command.Flags().GetBool("include-deleted")
 
-		request := &model.GetBackupsMetadataRequest{
+		request := &model.GetInstallationBackupsRequest{
 			InstallationID:        installationID,
 			ClusterInstallationID: clusterInstallationID,
 			State:                 state,
@@ -81,7 +81,7 @@ var backupListCmd = &cobra.Command{
 
 		backupMetadata, err := client.GetInstallationBackups(request)
 		if err != nil {
-			return errors.Wrap(err, "failed to get backup metadata")
+			return errors.Wrap(err, "failed to get backup")
 		}
 
 		err = printJSON(backupMetadata)
@@ -95,7 +95,7 @@ var backupListCmd = &cobra.Command{
 
 var backupGetCmd = &cobra.Command{
 	Use:   "get",
-	Short: "Get backup metadata.",
+	Short: "Get backup.",
 	RunE: func(command *cobra.Command, args []string) error {
 		command.SilenceUsage = true
 
@@ -106,7 +106,7 @@ var backupGetCmd = &cobra.Command{
 
 		backupMetadata, err := client.GetInstallationBackup(backupID)
 		if err != nil {
-			return errors.Wrap(err, "failed to get backup metadata")
+			return errors.Wrap(err, "failed to get backup")
 		}
 
 		err = printJSON(backupMetadata)

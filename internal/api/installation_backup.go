@@ -26,7 +26,7 @@ func initInstallationBackup(apiRouter *mux.Router, context *Context) {
 // handleRequestInstallationBackup responds to POST /api/installations/backups,
 // requests backup of Installation's data.
 func handleRequestInstallationBackup(c *Context, w http.ResponseWriter, r *http.Request) {
-	backupRequest, err := model.NewBackupRequestFromReader(r.Body)
+	backupRequest, err := model.NewInstallationBackupRequestFromReader(r.Body)
 	if err != nil {
 		c.Logger.WithError(err).Error("failed to decode request")
 		w.WriteHeader(http.StatusBadRequest)
@@ -50,26 +50,26 @@ func handleRequestInstallationBackup(c *Context, w http.ResponseWriter, r *http.
 		return
 	}
 
-	backupRunning, err := c.Store.IsBackupRunning(installationDTO.ID)
+	backupRunning, err := c.Store.IsInstallationBackupRunning(installationDTO.ID)
 	if err != nil {
 		c.Logger.WithError(err).Error("Failed to check if backup is running for Installation")
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
 	if backupRunning {
-		c.Logger.Error("Backup for the installation is already requested or in progress")
+		c.Logger.Error("InstallationBackup for the installation is already requested or in progress")
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
 
-	backupMetadata := &model.BackupMetadata{
+	backup := &model.InstallationBackup{
 		InstallationID: installationDTO.ID,
 		State:          model.BackupStateBackupRequested,
 	}
 
-	err = c.Store.CreateBackupMetadata(backupMetadata)
+	err = c.Store.CreateInstallationBackup(backup)
 	if err != nil {
-		c.Logger.Error("Failed to create backup metadata")
+		c.Logger.Error("Failed to create backup")
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
@@ -78,7 +78,7 @@ func handleRequestInstallationBackup(c *Context, w http.ResponseWriter, r *http.
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	outputJSON(c, w, backupMetadata)
+	outputJSON(c, w, backup)
 }
 
 // handleGetInstallationBackups responds to GET /api/installations/backups,
@@ -98,7 +98,7 @@ func handleGetInstallationBackups(c *Context, w http.ResponseWriter, r *http.Req
 	clusterInstallationID := r.URL.Query().Get("cluster_installation")
 	state := r.URL.Query().Get("state")
 
-	filter := &model.BackupMetadataFilter{
+	filter := &model.InstallationBackupFilter{
 		InstallationID:        installationID,
 		ClusterInstallationID: clusterInstallationID,
 		State:                 model.BackupState(state),
@@ -107,7 +107,7 @@ func handleGetInstallationBackups(c *Context, w http.ResponseWriter, r *http.Req
 		IncludeDeleted:        includeDeleted,
 	}
 
-	backupsMeta, err := c.Store.GetBackupsMetadata(filter)
+	backupsMeta, err := c.Store.GetInstallationBackups(filter)
 	if err != nil {
 		c.Logger.WithError(err).Error("failed to list installation backups")
 		w.WriteHeader(http.StatusInternalServerError)
@@ -130,9 +130,9 @@ func handleGetInstallationBackup(c *Context, w http.ResponseWriter, r *http.Requ
 		WithField("backup", backupID).
 		WithField("action", "get-installation-backup")
 
-	backupMetadata, err := c.Store.GetBackupMetadata(backupID)
+	backupMetadata, err := c.Store.GetInstallationBackup(backupID)
 	if err != nil {
-		c.Logger.WithError(err).Error("Failed to get backup metadata")
+		c.Logger.WithError(err).Error("Failed to get backup")
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}

@@ -28,7 +28,7 @@ func TestOperator_TriggerBackup(t *testing.T) {
 	}
 	databaseSecret := "database-secret"
 
-	backupMeta := &model.BackupMetadata{
+	backupMeta := &model.InstallationBackup{
 		ID:             "backup-meta-1",
 		InstallationID: "installation-1",
 		State:          model.BackupStateBackupRequested,
@@ -169,7 +169,7 @@ func TestOperator_TriggerBackup(t *testing.T) {
 }
 
 func TestOperator_CheckBackupStatus(t *testing.T) {
-	backupMeta := &model.BackupMetadata{
+	backupMeta := &model.InstallationBackup{
 		ID:             "backup-meta-1",
 		InstallationID: "installation-1",
 		State:          model.BackupStateBackupRequested,

@@ -99,7 +99,7 @@ func TestGetInstallationBackups(t *testing.T) {
 	installation1 := testutil.CreateBackupCompatibleInstallation(t, sqlStore)
 	installation2 := testutil.CreateBackupCompatibleInstallation(t, sqlStore)
 
-	backupMeta := []*model.BackupMetadata{
+	backupMeta := []*model.InstallationBackup{
 		{
 			InstallationID: installation1.ID,
 			State:          model.BackupStateBackupRequested,
@@ -125,61 +125,61 @@ func TestGetInstallationBackups(t *testing.T) {
 	}
 
 	for i := range backupMeta {
-		err := sqlStore.CreateBackupMetadata(backupMeta[i])
+		err := sqlStore.CreateInstallationBackup(backupMeta[i])
 		require.NoError(t, err)
 		time.Sleep(1 * time.Millisecond)
 	}
-	deletedMeta := &model.BackupMetadata{InstallationID: "deleted"}
-	err := sqlStore.CreateBackupMetadata(deletedMeta)
+	deletedMeta := &model.InstallationBackup{InstallationID: "deleted"}
+	err := sqlStore.CreateInstallationBackup(deletedMeta)
 	require.NoError(t, err)
-	err = sqlStore.DeleteBackupMetadata(deletedMeta.ID)
+	err = sqlStore.DeleteBackup(deletedMeta.ID)
 	require.NoError(t, err)
-	deletedMeta, err = sqlStore.GetBackupMetadata(deletedMeta.ID)
+	deletedMeta, err = sqlStore.GetInstallationBackup(deletedMeta.ID)
 
 	for _, testCase := range []struct {
 		description string
-		filter      model.GetBackupsMetadataRequest
-		found       []*model.BackupMetadata
+		filter      model.GetInstallationBackupsRequest
+		found       []*model.InstallationBackup
 	}{
 		{
 			description: "all",
-			filter:      model.GetBackupsMetadataRequest{PerPage: model.AllPerPage, IncludeDeleted: true},
+			filter:      model.GetInstallationBackupsRequest{PerPage: model.AllPerPage, IncludeDeleted: true},
 			found:       append(backupMeta, deletedMeta),
 		},
 		{
 			description: "all not deleted",
-			filter:      model.GetBackupsMetadataRequest{PerPage: model.AllPerPage, IncludeDeleted: false},
+			filter:      model.GetInstallationBackupsRequest{PerPage: model.AllPerPage, IncludeDeleted: false},
 			found:       backupMeta,
 		},
 		{
 			description: "1 per page",
-			filter:      model.GetBackupsMetadataRequest{PerPage: 1},
-			found:       []*model.BackupMetadata{backupMeta[4]},
+			filter:      model.GetInstallationBackupsRequest{PerPage: 1},
+			found:       []*model.InstallationBackup{backupMeta[4]},
 		},
 		{
 			description: "2nd page",
-			filter:      model.GetBackupsMetadataRequest{PerPage: 1, Page: 1},
-			found:       []*model.BackupMetadata{backupMeta[3]},
+			filter:      model.GetInstallationBackupsRequest{PerPage: 1, Page: 1},
+			found:       []*model.InstallationBackup{backupMeta[3]},
 		},
 		{
 			description: "filter by installation ID",
-			filter:      model.GetBackupsMetadataRequest{PerPage: model.AllPerPage, InstallationID: installation1.ID},
-			found:       []*model.BackupMetadata{backupMeta[0], backupMeta[1]},
+			filter:      model.GetInstallationBackupsRequest{PerPage: model.AllPerPage, InstallationID: installation1.ID},
+			found:       []*model.InstallationBackup{backupMeta[0], backupMeta[1]},
 		},
 		{
 			description: "filter by cluster installation ID",
-			filter:      model.GetBackupsMetadataRequest{PerPage: model.AllPerPage, ClusterInstallationID: "ci1"},
-			found:       []*model.BackupMetadata{backupMeta[3], backupMeta[4]},
+			filter:      model.GetInstallationBackupsRequest{PerPage: model.AllPerPage, ClusterInstallationID: "ci1"},
+			found:       []*model.InstallationBackup{backupMeta[3], backupMeta[4]},
 		},
 		{
 			description: "filter by state",
-			filter:      model.GetBackupsMetadataRequest{PerPage: model.AllPerPage, State: string(model.BackupStateBackupRequested)},
-			found:       []*model.BackupMetadata{backupMeta[0], backupMeta[2], backupMeta[3]},
+			filter:      model.GetInstallationBackupsRequest{PerPage: model.AllPerPage, State: string(model.BackupStateBackupRequested)},
+			found:       []*model.InstallationBackup{backupMeta[0], backupMeta[2], backupMeta[3]},
 		},
 		{
 			description: "no results",
-			filter:      model.GetBackupsMetadataRequest{PerPage: model.AllPerPage, InstallationID: "no-existent"},
-			found:       []*model.BackupMetadata{},
+			filter:      model.GetInstallationBackupsRequest{PerPage: model.AllPerPage, InstallationID: "no-existent"},
+			found:       []*model.InstallationBackup{},
 		},
 	} {
 		t.Run(testCase.description, func(t *testing.T) {

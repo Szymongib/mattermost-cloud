@@ -48,7 +48,7 @@ func NewBackupOperator(image, region string, jobTTLSeconds int32) *BackupOperato
 
 func (o BackupOperator) TriggerBackup(
 	jobsClient v1.JobInterface,
-	backupMetadata *model.BackupMetadata,
+	backupMetadata *model.InstallationBackup,
 	installation *model.Installation,
 	fileStoreCfg *model.FilestoreConfig,
 	dbSecret string,
@@ -74,7 +74,7 @@ func (o BackupOperator) TriggerBackup(
 		if !k8sErrors.IsAlreadyExists(err) {
 			return nil, errors.Wrap(err, "failed to create backup job")
 		}
-		logger.Warn("Backup job already exists")
+		logger.Warn("InstallationBackup job already exists")
 	}
 
 	// Wait for 5 seconds for job to start, if it won't it will be caught on next round.
@@ -84,13 +84,13 @@ func (o BackupOperator) TriggerBackup(
 			return false, errors.Wrap(err, "failed to get backup job")
 		}
 		if job.Status.Active == 0 && job.Status.CompletionTime == nil {
-			logger.Info("Backup job not yet started")
+			logger.Info("InstallationBackup job not yet started")
 			return false, nil
 		}
 		return true, nil
 	})
 	if err != nil {
-		return nil, errors.Wrap(err, "Backup job not yet started")
+		return nil, errors.Wrap(err, "InstallationBackup job not yet started")
 	}
 
 	dataResidence := &model.S3DataResidence{
@@ -103,7 +103,7 @@ func (o BackupOperator) TriggerBackup(
 	return dataResidence, nil
 }
 
-func (o BackupOperator) CheckBackupStatus(jobsClient v1.JobInterface, backupMetadata *model.BackupMetadata, logger log.FieldLogger) (int64, error) {
+func (o BackupOperator) CheckBackupStatus(jobsClient v1.JobInterface, backupMetadata *model.InstallationBackup, logger log.FieldLogger) (int64, error) {
 	ctx := context.Background()
 	job, err := jobsClient.Get(ctx, jobName("backup", backupMetadata.ID), metav1.GetOptions{})
 	if err != nil {
@@ -111,31 +111,31 @@ func (o BackupOperator) CheckBackupStatus(jobsClient v1.JobInterface, backupMeta
 	}
 
 	if job.Status.Succeeded > 0 {
-		logger.Info("Backup finished with success")
+		logger.Info("InstallationBackup finished with success")
 		return o.extractStartTime(job, logger), nil
 	}
 
 	if job.Status.Failed > 0 {
-		logger.Warnf("Backup job failed %d times", job.Status.Failed)
+		logger.Warnf("InstallationBackup job failed %d times", job.Status.Failed)
 	}
 
 	if job.Status.Active > 0 {
-		logger.Info("Backup job is still running")
+		logger.Info("InstallationBackup job is still running")
 		return -1, nil
 	}
 
 	if job.Status.Failed == 0 {
-		logger.Info("Backup job not started yet")
+		logger.Info("InstallationBackup job not started yet")
 		return -1, nil
 	}
 
 	backoffLimit := getInt32(job.Spec.BackoffLimit)
 	if job.Status.Failed > backoffLimit {
-		logger.Error("Backup job reached backoff limit")
+		logger.Error("InstallationBackup job reached backoff limit")
 		return -1, ErrJobBackoffLimitReached
 	}
 
-	logger.Infof("Backup job waiting for retry, will be retried at most %d more times", backoffLimit+1-job.Status.Failed)
+	logger.Infof("InstallationBackup job waiting for retry, will be retried at most %d more times", backoffLimit+1-job.Status.Failed)
 	return -1, nil
 }
 

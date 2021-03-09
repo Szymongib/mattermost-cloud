@@ -6,7 +6,7 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-func (provisioner *KopsProvisioner) TriggerBackup(backupMetadata *model.BackupMetadata, cluster *model.Cluster, installation *model.Installation) (*model.S3DataResidence, error) {
+func (provisioner *KopsProvisioner) TriggerBackup(backupMetadata *model.InstallationBackup, cluster *model.Cluster, installation *model.Installation) (*model.S3DataResidence, error) {
 	logger := provisioner.logger.WithFields(log.Fields{
 		"cluster":      cluster.ID,
 		"installation": installation.ID,
@@ -25,7 +25,7 @@ func (provisioner *KopsProvisioner) TriggerBackup(backupMetadata *model.BackupMe
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to get files store configuration for installation")
 	}
-	// Backup is not supported for local MinIO storage, therefore this should not happen
+	// InstallationBackup is not supported for local MinIO storage, therefore this should not happen
 	if filestoreCfg == nil || filestoreSecret == nil {
 		return nil, errors.New("file store secret and config cannot be empty for backup")
 	}
@@ -33,7 +33,7 @@ func (provisioner *KopsProvisioner) TriggerBackup(backupMetadata *model.BackupMe
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to get database configuration")
 	}
-	// Backup is not supported for local MySQL, therefore this should not happen
+	// InstallationBackup is not supported for local MySQL, therefore this should not happen
 	if dbSecret == nil {
 		return nil, errors.New("database secret cannot be empty for backup")
 	}
@@ -45,7 +45,7 @@ func (provisioner *KopsProvisioner) TriggerBackup(backupMetadata *model.BackupMe
 
 // CheckBackupStatus checks status of running backup job,
 // returns job start time, when the job finished or -1 if it is still running.
-func (provisioner *KopsProvisioner) CheckBackupStatus(backupMetadata *model.BackupMetadata, cluster *model.Cluster) (int64, error) {
+func (provisioner *KopsProvisioner) CheckBackupStatus(backupMetadata *model.InstallationBackup, cluster *model.Cluster) (int64, error) {
 	logger := provisioner.logger.WithFields(log.Fields{
 		"cluster":      cluster.ID,
 		"installation": backupMetadata.InstallationID,

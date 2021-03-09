@@ -221,19 +221,19 @@ func (mr *MockDynamoDBAPIMockRecorder) BatchWriteItemWithContext(arg0, arg1 inte
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BatchWriteItemWithContext", reflect.TypeOf((*MockDynamoDBAPI)(nil).BatchWriteItemWithContext), varargs...)
 }
 
-// CreateBackup mocks base method
+// CreateInstallationBackup mocks base method
 func (m *MockDynamoDBAPI) CreateBackup(arg0 *dynamodb.CreateBackupInput) (*dynamodb.CreateBackupOutput, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "CreateBackup", arg0)
+	ret := m.ctrl.Call(m, "CreateInstallationBackup", arg0)
 	ret0, _ := ret[0].(*dynamodb.CreateBackupOutput)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// CreateBackup indicates an expected call of CreateBackup
+// CreateInstallationBackup indicates an expected call of CreateInstallationBackup
 func (mr *MockDynamoDBAPIMockRecorder) CreateBackup(arg0 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateBackup", reflect.TypeOf((*MockDynamoDBAPI)(nil).CreateBackup), arg0)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateInstallationBackup", reflect.TypeOf((*MockDynamoDBAPI)(nil).CreateBackup), arg0)
 }
 
 // CreateBackupRequest mocks base method

@@ -10,16 +10,16 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-// backupMetadataStore abstracts the database operations required to query installations.
-type backupMetadataStore interface {
-	GetUnlockedBackupMetadataPendingWork() ([]*model.BackupMetadata, error)
-	GetBackupMetadata(id string) (*model.BackupMetadata, error)
-	UpdateBackupMetadataState(backupMeta *model.BackupMetadata) error
-	UpdateBackupSchedulingData(backupMeta *model.BackupMetadata) error
-	UpdateBackupStartTime(backupMeta *model.BackupMetadata) error
+// installationBackupStore abstracts the database operations required to query installations backup.
+type installationBackupStore interface {
+	GetUnlockedInstallationBackupPendingWork() ([]*model.InstallationBackup, error)
+	GetInstallationBackup(id string) (*model.InstallationBackup, error)
+	UpdateInstallationBackupState(backupMeta *model.InstallationBackup) error
+	UpdateInstallationBackupSchedulingData(backupMeta *model.InstallationBackup) error
+	UpdateInstallationBackupStartTime(backupMeta *model.InstallationBackup) error
 
-	LockBackupMetadata(installationID, lockerID string) (bool, error)
-	UnlockBackupMetadata(installationID, lockerID string, force bool) (bool, error)
+	LockInstallationBackup(installationID, lockerID string) (bool, error)
+	UnlockInstallationBackup(installationID, lockerID string, force bool) (bool, error)
 
 	GetInstallation(installationID string, includeGroupConfig, includeGroupConfigOverrides bool) (*model.Installation, error)
 	LockInstallation(installationID, lockerID string) (bool, error)
@@ -36,8 +36,8 @@ type backupMetadataStore interface {
 }
 
 type BackupOperator interface {
-	TriggerBackup(backupMeta *model.BackupMetadata, cluster *model.Cluster, installation *model.Installation) (*model.S3DataResidence, error)
-	CheckBackupStatus(backupMeta *model.BackupMetadata, cluster *model.Cluster) (int64, error)
+	TriggerBackup(backupMeta *model.InstallationBackup, cluster *model.Cluster, installation *model.Installation) (*model.S3DataResidence, error)
+	CheckBackupStatus(backupMeta *model.InstallationBackup, cluster *model.Cluster) (int64, error)
 }
 
 // InstallationSupervisor finds installations pending work and effects the required changes.
@@ -45,7 +45,7 @@ type BackupOperator interface {
 // The degree of parallelism is controlled by a weighted semaphore, intended to be shared with
 // other clients needing to coordinate background jobs.
 type BackupSupervisor struct {
-	store      backupMetadataStore
+	store      installationBackupStore
 	aws        aws.AWS
 	instanceID string
 	logger     log.FieldLogger
@@ -55,7 +55,7 @@ type BackupSupervisor struct {
 
 // NewInstallationSupervisor creates a new InstallationSupervisor.
 func NewBackupSupervisor(
-	store backupMetadataStore,
+	store installationBackupStore,
 	backupOperator BackupOperator,
 	aws aws.AWS,
 	instanceID string,
@@ -76,7 +76,7 @@ func (s *BackupSupervisor) Shutdown() {
 
 // Do looks for work to be done on any pending installations and attempts to schedule the required work.
 func (s *BackupSupervisor) Do() error {
-	installations, err := s.store.GetUnlockedBackupMetadataPendingWork()
+	installations, err := s.store.GetUnlockedInstallationBackupPendingWork()
 	if err != nil {
 		s.logger.WithError(err).Warn("Failed to query for backup pending work")
 		return nil
@@ -89,8 +89,8 @@ func (s *BackupSupervisor) Do() error {
 	return nil
 }
 
-// Supervise schedules the required work on the given backup metadata.
-func (s *BackupSupervisor) Supervise(backupMetadata *model.BackupMetadata) {
+// Supervise schedules the required work on the given backup.
+func (s *BackupSupervisor) Supervise(backupMetadata *model.InstallationBackup) {
 	logger := s.logger.WithFields(log.Fields{
 		"backupMetadata": backupMetadata.ID,
 	})
@@ -104,7 +104,7 @@ func (s *BackupSupervisor) Supervise(backupMetadata *model.BackupMetadata) {
 	// Before working on the backupMetadata, it is crucial that we ensure that it
 	// was not updated to a new state by another provisioning server.
 	originalState := backupMetadata.State
-	backupMetadata, err := s.store.GetBackupMetadata(backupMetadata.ID)
+	backupMetadata, err := s.store.GetInstallationBackup(backupMetadata.ID)
 	if err != nil {
 		logger.WithError(err).Errorf("Failed to get refreshed backupMetadata")
 		return
@@ -120,9 +120,9 @@ func (s *BackupSupervisor) Supervise(backupMetadata *model.BackupMetadata) {
 
 	newState := s.transitionBackup(backupMetadata, s.instanceID, logger)
 
-	backupMetadata, err = s.store.GetBackupMetadata(backupMetadata.ID)
+	backupMetadata, err = s.store.GetInstallationBackup(backupMetadata.ID)
 	if err != nil {
-		logger.WithError(err).Errorf("Failed to get backup metadata and thus persist state %s", newState)
+		logger.WithError(err).Errorf("Failed to get backup and thus persist state %s", newState)
 		return
 	}
 
@@ -133,9 +133,9 @@ func (s *BackupSupervisor) Supervise(backupMetadata *model.BackupMetadata) {
 	oldState := backupMetadata.State
 	backupMetadata.State = newState
 
-	err = s.store.UpdateBackupMetadataState(backupMetadata)
+	err = s.store.UpdateInstallationBackupState(backupMetadata)
 	if err != nil {
-		logger.WithError(err).Errorf("Failed to set backup metadata state to %s", newState)
+		logger.WithError(err).Errorf("Failed to set backup state to %s", newState)
 		return
 	}
 
@@ -152,11 +152,11 @@ func (s *BackupSupervisor) Supervise(backupMetadata *model.BackupMetadata) {
 		logger.WithError(err).Error("Unable to process and send webhooks")
 	}
 
-	logger.Debugf("Transitioned backup metadata from %s to %s", oldState, backupMetadata.State)
+	logger.Debugf("Transitioned backup from %s to %s", oldState, backupMetadata.State)
 }
 
 // transitionBackup works with the given installation to transition it to a final state.
-func (s *BackupSupervisor) transitionBackup(backupMetadata *model.BackupMetadata, instanceID string, logger log.FieldLogger) model.BackupState {
+func (s *BackupSupervisor) transitionBackup(backupMetadata *model.InstallationBackup, instanceID string, logger log.FieldLogger) model.BackupState {
 	switch backupMetadata.State {
 	case model.BackupStateBackupRequested:
 		return s.triggerBackup(backupMetadata, instanceID, logger)
@@ -165,12 +165,12 @@ func (s *BackupSupervisor) transitionBackup(backupMetadata *model.BackupMetadata
 		return s.monitorBackup(backupMetadata, instanceID, logger)
 
 	default:
-		logger.Warnf("Found backup metadata pending work in unexpected state %s", backupMetadata.State)
+		logger.Warnf("Found backup pending work in unexpected state %s", backupMetadata.State)
 		return backupMetadata.State
 	}
 }
 
-func (s *BackupSupervisor) triggerBackup(backupMetadata *model.BackupMetadata, instanceID string, logger log.FieldLogger) model.BackupState {
+func (s *BackupSupervisor) triggerBackup(backupMetadata *model.InstallationBackup, instanceID string, logger log.FieldLogger) model.BackupState {
 	installation, err := s.store.GetInstallation(backupMetadata.InstallationID, false, false)
 	if err != nil {
 		logger.WithError(err).Error("Failed to get installation")
@@ -232,16 +232,16 @@ func (s *BackupSupervisor) triggerBackup(backupMetadata *model.BackupMetadata, i
 	backupMetadata.DataResidence = dataRes
 	backupMetadata.ClusterInstallationID = backupCI.ID
 
-	err = s.store.UpdateBackupSchedulingData(backupMetadata)
+	err = s.store.UpdateInstallationBackupSchedulingData(backupMetadata)
 	if err != nil {
-		logger.Error("Failed to update backup metadata data residency")
+		logger.Error("Failed to update backup data residency")
 		return backupMetadata.State
 	}
 
 	return model.BackupStateBackupInProgress
 }
 
-func (s *BackupSupervisor) monitorBackup(backupMetadata *model.BackupMetadata, instanceID string, logger log.FieldLogger) model.BackupState {
+func (s *BackupSupervisor) monitorBackup(backupMetadata *model.InstallationBackup, instanceID string, logger log.FieldLogger) model.BackupState {
 
 	// TODO: Do I need the Installation here? - if deletion will be blocked when backup is running then no
 	// TODO: also ensure that cluster installation cannot be deleted while backup is running
@@ -261,7 +261,7 @@ func (s *BackupSupervisor) monitorBackup(backupMetadata *model.BackupMetadata, i
 	startTime, err := s.backupOperator.CheckBackupStatus(backupMetadata, cluster)
 	if err != nil {
 		if err == provisioner.ErrJobBackoffLimitReached {
-			logger.WithError(err).Error("Backup job backoff limit reached, backup failed")
+			logger.WithError(err).Error("InstallationBackup job backoff limit reached, backup failed")
 			return model.BackupStateBackupFailed
 		}
 		logger.WithError(err).Error("Failed to check backup state")
@@ -269,15 +269,15 @@ func (s *BackupSupervisor) monitorBackup(backupMetadata *model.BackupMetadata, i
 	}
 
 	if startTime <= 0 {
-		logger.Debugf("Backup in progress")
+		logger.Debugf("InstallationBackup in progress")
 		return backupMetadata.State
 	}
 
 	backupMetadata.StartAt = startTime
 
-	err = s.store.UpdateBackupStartTime(backupMetadata)
+	err = s.store.UpdateInstallationBackupStartTime(backupMetadata)
 	if err != nil {
-		logger.Error("Failed to update backup metadata data start time")
+		logger.Error("Failed to update backup data start time")
 		return backupMetadata.State
 	}
 

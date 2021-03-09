@@ -13,8 +13,8 @@ import (
 	"github.com/pkg/errors"
 )
 
-// BackupMetadata contains information about installation's backup.
-type BackupMetadata struct {
+// InstallationBackup contains information about installation's backup.
+type InstallationBackup struct {
 	ID             string
 	InstallationID string
 	// ClusterInstallationID is set when backup is scheduled.
@@ -52,15 +52,15 @@ const (
 	BackupStateBackupFailed BackupState = "backup-failed"
 )
 
-// AllBackupMetadataStatesPendingWork is a list of all backup metadata states that
+// AllInstallationBackupStatesPendingWork is a list of all backup states that
 // the supervisor will attempt to transition towards stable on the next "tick".
-var AllBackupMetadataStatesPendingWork = []BackupState{
+var AllInstallationBackupStatesPendingWork = []BackupState{
 	BackupStateBackupRequested,
 	BackupStateBackupInProgress,
 }
 
-// BackupMetadataFilter describes the parameters used to constrain a set of backup metadata.
-type BackupMetadataFilter struct {
+// InstallationBackupFilter describes the parameters used to constrain a set of backup.
+type InstallationBackupFilter struct {
 	InstallationID        string
 	ClusterInstallationID string
 	State                 BackupState
@@ -69,22 +69,22 @@ type BackupMetadataFilter struct {
 	IncludeDeleted        bool
 }
 
-// NewBackupMetadataFromReader will create a BackupMetadata from an
+// NewInstallationBackupFromReader will create a InstallationBackup from an
 // io.Reader with JSON data.
-func NewBackupMetadataFromReader(reader io.Reader) (*BackupMetadata, error) {
-	var backupMetadata BackupMetadata
+func NewInstallationBackupFromReader(reader io.Reader) (*InstallationBackup, error) {
+	var backupMetadata InstallationBackup
 	err := json.NewDecoder(reader).Decode(&backupMetadata)
 	if err != nil && err != io.EOF {
-		return nil, errors.Wrap(err, "failed to decode backup metadata")
+		return nil, errors.Wrap(err, "failed to decode backup")
 	}
 
 	return &backupMetadata, nil
 }
 
-// NewBackupsMetadataFromReader will create a slice of BackupMetadata from an
+// NewInstallationBackupsFromReader will create a slice of InstallationBackup from an
 // io.Reader with JSON data.
-func NewBackupsMetadataFromReader(reader io.Reader) ([]*BackupMetadata, error) {
-	backupMetadata := []*BackupMetadata{}
+func NewInstallationBackupsFromReader(reader io.Reader) ([]*InstallationBackup, error) {
+	backupMetadata := []*InstallationBackup{}
 	err := json.NewDecoder(reader).Decode(&backupMetadata)
 	if err != nil && err != io.EOF {
 		return nil, errors.Wrap(err, "failed to decode backups metadata")

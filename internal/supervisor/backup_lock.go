@@ -8,42 +8,42 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-type backupMetadataLockStore interface {
-	LockBackupMetadata(installationID, lockerID string) (bool, error)
-	UnlockBackupMetadata(installationID, lockerID string, force bool) (bool, error)
+type backupLockStore interface {
+	LockInstallationBackup(backupID, lockerID string) (bool, error)
+	UnlockInstallationBackup(backupID, lockerID string, force bool) (bool, error)
 }
 
-type backupMetadataLock struct {
-	backupMetadataID string
-	lockerID         string
-	store            backupMetadataLockStore
-	logger           log.FieldLogger
+type backupLock struct {
+	backupID string
+	lockerID string
+	store    backupLockStore
+	logger   log.FieldLogger
 }
 
-func newBackupLock(backupMetadataID, lockerID string, store backupMetadataLockStore, logger log.FieldLogger) *backupMetadataLock {
-	return &backupMetadataLock{
-		backupMetadataID: backupMetadataID,
-		lockerID:         lockerID,
-		store:            store,
-		logger:           logger,
+func newBackupLock(backupID, lockerID string, store backupLockStore, logger log.FieldLogger) *backupLock {
+	return &backupLock{
+		backupID: backupID,
+		lockerID: lockerID,
+		store:    store,
+		logger:   logger,
 	}
 }
 
-func (l *backupMetadataLock) TryLock() bool {
-	locked, err := l.store.LockBackupMetadata(l.backupMetadataID, l.lockerID)
+func (l *backupLock) TryLock() bool {
+	locked, err := l.store.LockInstallationBackup(l.backupID, l.lockerID)
 	if err != nil {
-		l.logger.WithError(err).Error("failed to lock backup metadata")
+		l.logger.WithError(err).Error("failed to lock backup")
 		return false
 	}
 
 	return locked
 }
 
-func (l *backupMetadataLock) Unlock() {
-	unlocked, err := l.store.UnlockBackupMetadata(l.backupMetadataID, l.lockerID, false)
+func (l *backupLock) Unlock() {
+	unlocked, err := l.store.UnlockInstallationBackup(l.backupID, l.lockerID, false)
 	if err != nil {
-		l.logger.WithError(err).Error("failed to unlock backup metadata")
+		l.logger.WithError(err).Error("failed to unlock backup")
 	} else if unlocked != true {
-		l.logger.Error("failed to release lock for backup metadata")
+		l.logger.Error("failed to release lock for backup")
 	}
 }

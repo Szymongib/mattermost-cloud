@@ -286,9 +286,9 @@ func handleBackupLockAPI(c *Context, w http.ResponseWriter, r *http.Request) {
 	backupID := vars["backup"]
 	c.Logger = c.Logger.WithField("backup", backupID)
 
-	backupMetadata, err := c.Store.GetBackupMetadata(backupID)
+	backupMetadata, err := c.Store.GetInstallationBackup(backupID)
 	if err != nil {
-		c.Logger.WithError(err).Error("failed to query backup metadata")
+		c.Logger.WithError(err).Error("failed to query backup")
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
@@ -298,9 +298,9 @@ func handleBackupLockAPI(c *Context, w http.ResponseWriter, r *http.Request) {
 	}
 
 	if !backupMetadata.APISecurityLock {
-		err = c.Store.LockBackupAPI(backupMetadata.ID)
+		err = c.Store.LockInstallationBackupAPI(backupMetadata.ID)
 		if err != nil {
-			c.Logger.WithError(err).Error("failed to lock backup metadata API")
+			c.Logger.WithError(err).Error("failed to lock backup API")
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
@@ -316,9 +316,9 @@ func handleBackupUnlockAPI(c *Context, w http.ResponseWriter, r *http.Request) {
 	backupID := vars["backup"]
 	c.Logger = c.Logger.WithField("backup", backupID)
 
-	backupMetadata, err := c.Store.GetBackupMetadata(backupID)
+	backupMetadata, err := c.Store.GetInstallationBackup(backupID)
 	if err != nil {
-		c.Logger.WithError(err).Error("failed to query backup metadata")
+		c.Logger.WithError(err).Error("failed to query backup")
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
@@ -328,9 +328,9 @@ func handleBackupUnlockAPI(c *Context, w http.ResponseWriter, r *http.Request) {
 	}
 
 	if backupMetadata.APISecurityLock {
-		err = c.Store.UnlockBackupAPI(backupMetadata.ID)
+		err = c.Store.UnlockInstallationBackupAPI(backupMetadata.ID)
 		if err != nil {
-			c.Logger.WithError(err).Error("failed to unlock backup metadata API")
+			c.Logger.WithError(err).Error("failed to unlock backup API")
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
