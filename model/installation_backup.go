@@ -32,11 +32,11 @@ type InstallationBackup struct {
 
 // S3DataResidence contains information about backup location.
 type S3DataResidence struct {
-	Region    string
-	URL       string
-	Bucket    string
+	Region     string
+	URL        string
+	Bucket     string
 	PathPrefix string
-	ObjectKey string
+	ObjectKey  string
 }
 
 // InstallationBackupState represents the state of backup.

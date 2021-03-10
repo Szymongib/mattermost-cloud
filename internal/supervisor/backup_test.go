@@ -107,6 +107,10 @@ func (b *mockBackupOperator) CheckBackupStatus(backup *model.InstallationBackup,
 	return b.BackupStartTime, b.err
 }
 
+func (b *mockBackupOperator) CleanupBackup(backup *model.InstallationBackup, cluster *model.Cluster) error {
+	return nil
+}
+
 func TestBackupSupervisorDo(t *testing.T) {
 	t.Run("no backup pending work", func(t *testing.T) {
 		logger := testlib.MakeLogger(t)

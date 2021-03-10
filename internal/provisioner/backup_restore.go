@@ -103,7 +103,6 @@ func (o BackupOperator) TriggerBackup(
 		return nil, errors.Wrap(err, "Backup job not yet started")
 	}
 
-
 	return &dataResidence, nil
 }
 
@@ -141,6 +140,23 @@ func (o BackupOperator) CheckBackupStatus(jobsClient v1.JobInterface, backup *mo
 
 	logger.Infof("Backup job waiting for retry, will be retried at most %d more times", backoffLimit+1-job.Status.Failed)
 	return -1, nil
+}
+
+func (o BackupOperator) CleanupBackup(jobsClient v1.JobInterface, backup *model.InstallationBackup, logger log.FieldLogger) error {
+	backupJobName := jobName("backup", backup.ID)
+
+	ctx := context.Background()
+	err := jobsClient.Delete(ctx, backupJobName, metav1.DeleteOptions{})
+	if k8sErrors.IsNotFound(err) {
+		logger.Warnf("backup job %q does not exist, assuming already deleted", backupJobName)
+		return nil
+	}
+	if err != nil {
+		return errors.Wrap(err, "failed to delete backup job")
+	}
+
+	logger.Info("backup job successfully marked for deletion")
+	return nil
 }
 
 func (o BackupOperator) extractStartTime(job *batchv1.Job, logger log.FieldLogger) int64 {

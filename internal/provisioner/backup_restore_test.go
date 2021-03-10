@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	k8sErrors "k8s.io/apimachinery/pkg/api/errors"
+
 	"k8s.io/apimachinery/pkg/util/wait"
 	v1 "k8s.io/client-go/kubernetes/typed/batch/v1"
 
@@ -29,7 +31,7 @@ func TestOperator_TriggerBackup(t *testing.T) {
 	databaseSecret := "database-secret"
 
 	backupMeta := &model.InstallationBackup{
-		ID:             "backup-meta-1",
+		ID:             "backup-1",
 		InstallationID: "installation-1",
 		State:          model.InstallationBackupStateBackupRequested,
 		RequestAt:      1,
@@ -54,15 +56,15 @@ func TestOperator_TriggerBackup(t *testing.T) {
 			expectedFileStoreURL: "bifrost.bifrost:80",
 			extraEnvs: map[string]string{
 				"BRT_STORAGE_PATH_PREFIX": "installation-1",
-				"BRT_STORAGE_TLS":  "false",
-				"BRT_STORAGE_TYPE": "bifrost",
+				"BRT_STORAGE_TLS":         "false",
+				"BRT_STORAGE_TYPE":        "bifrost",
 			},
 		},
 	} {
 		t.Run(testCase.description, func(t *testing.T) {
 			k8sClient := fake.NewSimpleClientset()
 			jobClinet := k8sClient.BatchV1().Jobs("installation-1")
-			go setJobActiveWhenExists(t, jobClinet, "database-backup-backup-meta-1")
+			go setJobActiveWhenExists(t, jobClinet, "database-backup-backup-1")
 
 			dataRes, err := operator.TriggerBackup(
 				jobClinet,
@@ -76,9 +78,9 @@ func TestOperator_TriggerBackup(t *testing.T) {
 			assert.Equal(t, "filestore.com", dataRes.URL)
 			assert.Equal(t, "us", dataRes.Region)
 			assert.Equal(t, "plastic", dataRes.Bucket)
-			assert.Equal(t, "backup-backup-meta-1", dataRes.ObjectKey)
+			assert.Equal(t, "backup-backup-1", dataRes.ObjectKey)
 
-			createdJob, err := jobClinet.Get(context.Background(), "database-backup-backup-meta-1", metav1.GetOptions{})
+			createdJob, err := jobClinet.Get(context.Background(), "database-backup-backup-1", metav1.GetOptions{})
 			require.NoError(t, err)
 
 			assert.Equal(t, "backup-restore", createdJob.Labels["app"])
@@ -94,7 +96,7 @@ func TestOperator_TriggerBackup(t *testing.T) {
 			assertEnvVarEqual(t, "BRT_STORAGE_REGION", "us", envs)
 			assertEnvVarEqual(t, "BRT_STORAGE_BUCKET", "plastic", envs)
 			assertEnvVarEqual(t, "BRT_STORAGE_ENDPOINT", testCase.expectedFileStoreURL, envs)
-			assertEnvVarEqual(t, "BRT_STORAGE_OBJECT_KEY", "backup-backup-meta-1", envs)
+			assertEnvVarEqual(t, "BRT_STORAGE_OBJECT_KEY", "backup-backup-1", envs)
 			assertEnvVarFromSecret(t, "BRT_STORAGE_ACCESS_KEY", fileStoreSecret, "accesskey", envs)
 			assertEnvVarFromSecret(t, "BRT_STORAGE_SECRET_KEY", fileStoreSecret, "secretkey", envs)
 			assertEnvVarFromSecret(t, "BRT_DATABASE", databaseSecret, "DB_CONNECTION_STRING", envs)
@@ -107,7 +109,7 @@ func TestOperator_TriggerBackup(t *testing.T) {
 
 	t.Run("succeed if job already exists", func(t *testing.T) {
 		existing := &batchv1.Job{
-			ObjectMeta: metav1.ObjectMeta{Name: "database-backup-backup-meta-1", Namespace: "installation-1"},
+			ObjectMeta: metav1.ObjectMeta{Name: "database-backup-backup-1", Namespace: "installation-1"},
 			Status:     batchv1.JobStatus{Active: 1},
 		}
 		k8sClient := fake.NewSimpleClientset(existing)
@@ -127,13 +129,13 @@ func TestOperator_TriggerBackup(t *testing.T) {
 		assert.Equal(t, "filestore.com", dataRes.URL)
 		assert.Equal(t, "us", dataRes.Region)
 		assert.Equal(t, "plastic", dataRes.Bucket)
-		assert.Equal(t, "backup-backup-meta-1", dataRes.ObjectKey)
+		assert.Equal(t, "backup-backup-1", dataRes.ObjectKey)
 	})
 
 	t.Run("set ttl to nil if negative value", func(t *testing.T) {
 		k8sClient := fake.NewSimpleClientset()
 		jobClinet := k8sClient.BatchV1().Jobs("installation-1")
-		go setJobActiveWhenExists(t, jobClinet, "database-backup-backup-meta-1")
+		go setJobActiveWhenExists(t, jobClinet, "database-backup-backup-1")
 
 		installation := &model.Installation{ID: "installation-1", Filestore: model.InstallationFilestoreMultiTenantAwsS3}
 
@@ -148,7 +150,7 @@ func TestOperator_TriggerBackup(t *testing.T) {
 			logrus.New())
 		require.NoError(t, err)
 
-		createdJob, err := jobClinet.Get(context.Background(), "database-backup-backup-meta-1", metav1.GetOptions{})
+		createdJob, err := jobClinet.Get(context.Background(), "database-backup-backup-1", metav1.GetOptions{})
 		require.NoError(t, err)
 		assert.Nil(t, createdJob.Spec.TTLSecondsAfterFinished)
 	})
@@ -171,7 +173,7 @@ func TestOperator_TriggerBackup(t *testing.T) {
 
 func TestOperator_CheckBackupStatus(t *testing.T) {
 	backupMeta := &model.InstallationBackup{
-		ID:             "backup-meta-1",
+		ID:             "backup-1",
 		InstallationID: "installation-1",
 		State:          model.InstallationBackupStateBackupRequested,
 		RequestAt:      1,
@@ -188,7 +190,7 @@ func TestOperator_CheckBackupStatus(t *testing.T) {
 	})
 
 	job := &batchv1.Job{
-		ObjectMeta: metav1.ObjectMeta{Name: "database-backup-backup-meta-1"},
+		ObjectMeta: metav1.ObjectMeta{Name: "database-backup-backup-1"},
 		Spec:       batchv1.JobSpec{},
 		Status:     batchv1.JobStatus{},
 	}
@@ -222,6 +224,38 @@ func TestOperator_CheckBackupStatus(t *testing.T) {
 		startTime, err := operator.CheckBackupStatus(jobClinet, backupMeta, logrus.New())
 		require.NoError(t, err)
 		assert.Equal(t, asMillis(expectedStartTime), startTime)
+	})
+}
+
+func TestBackupOperator_CleanupBackup(t *testing.T) {
+	operator := NewBackupOperator("mattermost/backup-restore:test", "us", 100)
+	backup := &model.InstallationBackup{
+		ID:             "backup-1",
+		InstallationID: "installation-1",
+	}
+
+	t.Run("no error when job does not exist", func(t *testing.T) {
+		k8sClient := fake.NewSimpleClientset()
+		jobClinet := k8sClient.BatchV1().Jobs("installation-1")
+
+		err := operator.CleanupBackup(jobClinet, backup, logrus.New())
+		require.NoError(t, err)
+	})
+
+	t.Run("delete job when exists", func(t *testing.T) {
+		existing := &batchv1.Job{
+			ObjectMeta: metav1.ObjectMeta{Name: "database-backup-backup-1", Namespace: "installation-1"},
+			Status:     batchv1.JobStatus{Active: 1},
+		}
+		k8sClient := fake.NewSimpleClientset(existing)
+		jobClinet := k8sClient.BatchV1().Jobs("installation-1")
+
+		err := operator.CleanupBackup(jobClinet, backup, logrus.New())
+		require.NoError(t, err)
+
+		_, err = jobClinet.Get(context.Background(), "database-backup-backup-1", metav1.GetOptions{})
+		require.Error(t, err)
+		assert.True(t, k8sErrors.IsNotFound(err))
 	})
 }
 

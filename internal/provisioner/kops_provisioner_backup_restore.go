@@ -63,3 +63,23 @@ func (provisioner *KopsProvisioner) CheckBackupStatus(backupMetadata *model.Inst
 
 	return provisioner.BackupOperator.CheckBackupStatus(jobsClient, backupMetadata, logger)
 }
+
+// CleanupBackup deletes backup job from the cluster if it exists.
+func (provisioner *KopsProvisioner) CleanupBackup(backup *model.InstallationBackup, cluster *model.Cluster) error {
+	logger := provisioner.logger.WithFields(log.Fields{
+		"cluster":      cluster.ID,
+		"installation": backup.InstallationID,
+		"backup":       backup.ID,
+	})
+	logger.Info("Cleaning up backup for installation")
+
+	k8sClient, invalidateCache, err := provisioner.k8sClient(cluster.ProvisionerMetadataKops.Name, logger)
+	if err != nil {
+		return errors.Wrap(err, "failed to create k8s client")
+	}
+	defer invalidateCache(err)
+
+	jobsClient := k8sClient.Clientset.BatchV1().Jobs(backup.InstallationID)
+
+	return provisioner.BackupOperator.CleanupBackup(jobsClient, backup, logger)
+}
