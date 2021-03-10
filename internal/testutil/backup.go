@@ -1,3 +1,7 @@
+// Copyright (c) 2015-present Mattermost, Inc. All Rights Reserved.
+// See LICENSE.txt for license information.
+//
+
 package testutil
 
 import (
@@ -11,6 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// CreateBackupCompatibleInstallation is a helper function for tests which creates Installation compatible with backup.
 func CreateBackupCompatibleInstallation(t *testing.T, sqlStore *store.SQLStore) *model.Installation {
 	installation := &model.Installation{
 		Database:  model.InstallationDatabaseMultiTenantRDSPostgres,

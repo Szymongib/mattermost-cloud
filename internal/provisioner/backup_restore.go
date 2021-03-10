@@ -1,3 +1,7 @@
+// Copyright (c) 2015-present Mattermost, Inc. All Rights Reserved.
+// See LICENSE.txt for license information.
+//
+
 package provisioner
 
 import (
@@ -27,12 +31,14 @@ const (
 // ErrJobBackoffLimitReached indicates that job failed all possible attempts and there is no reason for retrying.
 var ErrJobBackoffLimitReached = errors.New("job reached backoff limit")
 
+// BackupOperator provides methods to run, check and cleanup backup jobs.
 type BackupOperator struct {
 	jobTTLSecondsAfterFinish *int32
 	backupRestoreImage       string
 	awsRegion                string
 }
 
+// NewBackupOperator creates new BackupOperator.
 func NewBackupOperator(image, region string, jobTTLSeconds int32) *BackupOperator {
 	jobTTL := &jobTTLSeconds
 	if jobTTLSeconds < 0 {
@@ -46,6 +52,7 @@ func NewBackupOperator(image, region string, jobTTLSeconds int32) *BackupOperato
 	}
 }
 
+// TriggerBackup creates new backup job and waits for it to start.
 func (o BackupOperator) TriggerBackup(
 	jobsClient v1.JobInterface,
 	backup *model.InstallationBackup,
@@ -106,6 +113,8 @@ func (o BackupOperator) TriggerBackup(
 	return &dataResidence, nil
 }
 
+// CheckBackupStatus checks status of backup job,
+// returns job start time, when the job finished or -1 if it is still running.
 func (o BackupOperator) CheckBackupStatus(jobsClient v1.JobInterface, backup *model.InstallationBackup, logger log.FieldLogger) (int64, error) {
 	ctx := context.Background()
 	job, err := jobsClient.Get(ctx, jobName("backup", backup.ID), metav1.GetOptions{})
@@ -142,6 +151,7 @@ func (o BackupOperator) CheckBackupStatus(jobsClient v1.JobInterface, backup *mo
 	return -1, nil
 }
 
+// CleanupBackup removes backup job from the cluster if it exists.
 func (o BackupOperator) CleanupBackup(jobsClient v1.JobInterface, backup *model.InstallationBackup, logger log.FieldLogger) error {
 	backupJobName := jobName("backup", backup.ID)
 

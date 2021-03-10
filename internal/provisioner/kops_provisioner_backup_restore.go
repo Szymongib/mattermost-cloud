@@ -1,3 +1,7 @@
+// Copyright (c) 2015-present Mattermost, Inc. All Rights Reserved.
+// See LICENSE.txt for license information.
+//
+
 package provisioner
 
 import (
@@ -6,11 +10,12 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-func (provisioner *KopsProvisioner) TriggerBackup(backupMetadata *model.InstallationBackup, cluster *model.Cluster, installation *model.Installation) (*model.S3DataResidence, error) {
+// TriggerBackup triggers backup job for specific installation on the cluster.
+func (provisioner *KopsProvisioner) TriggerBackup(backup *model.InstallationBackup, cluster *model.Cluster, installation *model.Installation) (*model.S3DataResidence, error) {
 	logger := provisioner.logger.WithFields(log.Fields{
 		"cluster":      cluster.ID,
 		"installation": installation.ID,
-		"backup":       backupMetadata.ID,
+		"backup":       backup.ID,
 	})
 	logger.Info("Triggering backup for installation")
 
@@ -40,16 +45,16 @@ func (provisioner *KopsProvisioner) TriggerBackup(backupMetadata *model.Installa
 
 	jobsClient := k8sClient.Clientset.BatchV1().Jobs(installation.ID)
 
-	return provisioner.BackupOperator.TriggerBackup(jobsClient, backupMetadata, installation, filestoreCfg, dbSecret.Name, logger)
+	return provisioner.BackupOperator.TriggerBackup(jobsClient, backup, installation, filestoreCfg, dbSecret.Name, logger)
 }
 
 // CheckBackupStatus checks status of running backup job,
 // returns job start time, when the job finished or -1 if it is still running.
-func (provisioner *KopsProvisioner) CheckBackupStatus(backupMetadata *model.InstallationBackup, cluster *model.Cluster) (int64, error) {
+func (provisioner *KopsProvisioner) CheckBackupStatus(backup *model.InstallationBackup, cluster *model.Cluster) (int64, error) {
 	logger := provisioner.logger.WithFields(log.Fields{
 		"cluster":      cluster.ID,
-		"installation": backupMetadata.InstallationID,
-		"backup":       backupMetadata.ID,
+		"installation": backup.InstallationID,
+		"backup":       backup.ID,
 	})
 	logger.Info("Checking backup status for installation")
 
@@ -59,9 +64,9 @@ func (provisioner *KopsProvisioner) CheckBackupStatus(backupMetadata *model.Inst
 	}
 	defer invalidateCache(err)
 
-	jobsClient := k8sClient.Clientset.BatchV1().Jobs(backupMetadata.InstallationID)
+	jobsClient := k8sClient.Clientset.BatchV1().Jobs(backup.InstallationID)
 
-	return provisioner.BackupOperator.CheckBackupStatus(jobsClient, backupMetadata, logger)
+	return provisioner.BackupOperator.CheckBackupStatus(jobsClient, backup, logger)
 }
 
 // CleanupBackup deletes backup job from the cluster if it exists.
