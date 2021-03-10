@@ -99,11 +99,11 @@ type mockBackupOperator struct {
 	err             error
 }
 
-func (b *mockBackupOperator) TriggerBackup(backupMeta *model.InstallationBackup, cluster *model.Cluster, installation *model.Installation) (*model.S3DataResidence, error) {
+func (b *mockBackupOperator) TriggerBackup(backup *model.InstallationBackup, cluster *model.Cluster, installation *model.Installation) (*model.S3DataResidence, error) {
 	return &model.S3DataResidence{URL: "file-store.com"}, b.err
 }
 
-func (b *mockBackupOperator) CheckBackupStatus(backupMeta *model.InstallationBackup, cluster *model.Cluster) (int64, error) {
+func (b *mockBackupOperator) CheckBackupStatus(backup *model.InstallationBackup, cluster *model.Cluster) (int64, error) {
 	return b.BackupStartTime, b.err
 }
 

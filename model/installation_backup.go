@@ -35,6 +35,7 @@ type S3DataResidence struct {
 	Region    string
 	URL       string
 	Bucket    string
+	PathPrefix string
 	ObjectKey string
 }
 

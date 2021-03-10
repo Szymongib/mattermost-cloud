@@ -48,24 +48,34 @@ func NewBackupOperator(image, region string, jobTTLSeconds int32) *BackupOperato
 
 func (o BackupOperator) TriggerBackup(
 	jobsClient v1.JobInterface,
-	backupMetadata *model.InstallationBackup,
+	backup *model.InstallationBackup,
 	installation *model.Installation,
 	fileStoreCfg *model.FilestoreConfig,
 	dbSecret string,
 	logger log.FieldLogger) (*model.S3DataResidence, error) {
 
-	storageObjectKey := backupObjectKey(backupMetadata.ID)
+	dataResidence := model.S3DataResidence{
+		Region:    o.awsRegion,
+		Bucket:    fileStoreCfg.Bucket,
+		URL:       fileStoreCfg.URL,
+		ObjectKey: backupObjectKey(backup.ID),
+	}
+	storageEndpoint := fileStoreCfg.URL
 
 	var envVars []corev1.EnvVar
-	storageEndpoint := fileStoreCfg.URL
 
 	if installation.Filestore == model.InstallationFilestoreBifrost {
 		storageEndpoint = bifrostEndpoint
 		envVars = bifrostEnvs()
 	}
-	envVars = append(envVars, o.prepareEnvs(storageEndpoint, fileStoreCfg.Bucket, storageObjectKey, fileStoreCfg.Secret, dbSecret)...)
+	if installation.Filestore == model.InstallationFilestoreBifrost ||
+		installation.Filestore == model.InstallationFilestoreMultiTenantAwsS3 {
+		dataResidence.PathPrefix = installation.ID
+	}
 
-	backupJobName := jobName("backup", backupMetadata.ID)
+	envVars = append(envVars, o.prepareEnvs(dataResidence, storageEndpoint, fileStoreCfg.Secret, dbSecret)...)
+
+	backupJobName := jobName("backup", backup.ID)
 	job := o.createBackupRestoreJob(backupJobName, installation.ID, "backup", envVars)
 
 	ctx := context.Background()
@@ -74,7 +84,7 @@ func (o BackupOperator) TriggerBackup(
 		if !k8sErrors.IsAlreadyExists(err) {
 			return nil, errors.Wrap(err, "failed to create backup job")
 		}
-		logger.Warn("InstallationBackup job already exists")
+		logger.Warn("Backup job already exists")
 	}
 
 	// Wait for 5 seconds for job to start, if it won't it will be caught on next round.
@@ -84,58 +94,52 @@ func (o BackupOperator) TriggerBackup(
 			return false, errors.Wrap(err, "failed to get backup job")
 		}
 		if job.Status.Active == 0 && job.Status.CompletionTime == nil {
-			logger.Info("InstallationBackup job not yet started")
+			logger.Info("Backup job not yet started")
 			return false, nil
 		}
 		return true, nil
 	})
 	if err != nil {
-		return nil, errors.Wrap(err, "InstallationBackup job not yet started")
+		return nil, errors.Wrap(err, "Backup job not yet started")
 	}
 
-	dataResidence := &model.S3DataResidence{
-		Region:    o.awsRegion,
-		Bucket:    fileStoreCfg.Bucket,
-		URL:       fileStoreCfg.URL,
-		ObjectKey: storageObjectKey,
-	}
 
-	return dataResidence, nil
+	return &dataResidence, nil
 }
 
-func (o BackupOperator) CheckBackupStatus(jobsClient v1.JobInterface, backupMetadata *model.InstallationBackup, logger log.FieldLogger) (int64, error) {
+func (o BackupOperator) CheckBackupStatus(jobsClient v1.JobInterface, backup *model.InstallationBackup, logger log.FieldLogger) (int64, error) {
 	ctx := context.Background()
-	job, err := jobsClient.Get(ctx, jobName("backup", backupMetadata.ID), metav1.GetOptions{})
+	job, err := jobsClient.Get(ctx, jobName("backup", backup.ID), metav1.GetOptions{})
 	if err != nil {
 		return -1, errors.Wrap(err, "failed to get backup job")
 	}
 
 	if job.Status.Succeeded > 0 {
-		logger.Info("InstallationBackup finished with success")
+		logger.Info("Backup finished with success")
 		return o.extractStartTime(job, logger), nil
 	}
 
 	if job.Status.Failed > 0 {
-		logger.Warnf("InstallationBackup job failed %d times", job.Status.Failed)
+		logger.Warnf("Backup job failed %d times", job.Status.Failed)
 	}
 
 	if job.Status.Active > 0 {
-		logger.Info("InstallationBackup job is still running")
+		logger.Info("Backup job is still running")
 		return -1, nil
 	}
 
 	if job.Status.Failed == 0 {
-		logger.Info("InstallationBackup job not started yet")
+		logger.Info("Backup job not started yet")
 		return -1, nil
 	}
 
 	backoffLimit := getInt32(job.Spec.BackoffLimit)
 	if job.Status.Failed > backoffLimit {
-		logger.Error("InstallationBackup job reached backoff limit")
+		logger.Error("Backup job reached backoff limit")
 		return -1, ErrJobBackoffLimitReached
 	}
 
-	logger.Infof("InstallationBackup job waiting for retry, will be retried at most %d more times", backoffLimit+1-job.Status.Failed)
+	logger.Infof("Backup job waiting for retry, will be retried at most %d more times", backoffLimit+1-job.Status.Failed)
 	return -1, nil
 }
 
@@ -194,7 +198,7 @@ func (o BackupOperator) createBackupRestoreContainer(action string, envs []corev
 	}
 }
 
-func (o BackupOperator) prepareEnvs(storageEndpoint, bucket, objectKey, fileStoreSecret, dbSecret string) []corev1.EnvVar {
+func (o BackupOperator) prepareEnvs(dataRes model.S3DataResidence, endpoint string, fileStoreSecret, dbSecret string) []corev1.EnvVar {
 	envs := []corev1.EnvVar{
 		{
 			Name:  "BRT_STORAGE_REGION",
@@ -202,15 +206,19 @@ func (o BackupOperator) prepareEnvs(storageEndpoint, bucket, objectKey, fileStor
 		},
 		{
 			Name:  "BRT_STORAGE_BUCKET",
-			Value: bucket,
+			Value: dataRes.Bucket,
 		},
 		{
 			Name:  "BRT_STORAGE_ENDPOINT",
-			Value: storageEndpoint,
+			Value: endpoint,
+		},
+		{
+			Name:  "BRT_STORAGE_PATH_PREFIX",
+			Value: dataRes.PathPrefix,
 		},
 		{
 			Name:  "BRT_STORAGE_OBJECT_KEY",
-			Value: objectKey,
+			Value: dataRes.ObjectKey,
 		},
 		{
 			Name:      "BRT_DATABASE",

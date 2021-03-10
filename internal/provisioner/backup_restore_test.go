@@ -45,7 +45,7 @@ func TestOperator_TriggerBackup(t *testing.T) {
 	}{
 		{
 			description:          "s3 installation",
-			installation:         &model.Installation{ID: "installation-1", Filestore: model.InstallationFilestoreMultiTenantAwsS3},
+			installation:         &model.Installation{ID: "installation-1", Filestore: model.InstallationFilestoreAwsS3},
 			expectedFileStoreURL: "filestore.com",
 		},
 		{
@@ -53,6 +53,7 @@ func TestOperator_TriggerBackup(t *testing.T) {
 			installation:         &model.Installation{ID: "installation-1", Filestore: model.InstallationFilestoreBifrost},
 			expectedFileStoreURL: "bifrost.bifrost:80",
 			extraEnvs: map[string]string{
+				"BRT_STORAGE_PATH_PREFIX": "installation-1",
 				"BRT_STORAGE_TLS":  "false",
 				"BRT_STORAGE_TYPE": "bifrost",
 			},

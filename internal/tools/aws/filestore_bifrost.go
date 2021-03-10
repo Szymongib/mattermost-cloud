@@ -117,7 +117,6 @@ func (f *BifrostFilestore) GenerateFilestoreSpecAndSecret(store model.Installati
 		},
 	}
 
-	// TODO: change it to bifrost?
 	S3RegionURL := S3URL
 	awsRegion := *f.awsClient.config.Region
 	if awsRegion != "" && awsRegion != "us-east-1" {
