@@ -14,39 +14,40 @@ import (
 	"github.com/mattermost/mattermost-cloud/model"
 )
 
-type KopsProvisionerConfig struct {
+type ProvisioningParams struct {
 	S3StateStore            string
 	AllowCIDRRangeList      []string
 	VpnCIDRList             []string
 	Owner                   string
 	UseExistingAWSResources bool
-	BackupOperator          *BackupOperator // TODO: maybe store image and region? And initialize Operator on the fly?
 }
 
 // KopsProvisioner provisions clusters using kops+terraform.
 type KopsProvisioner struct {
-	KopsProvisionerConfig
-	resourceUtil *utils.ResourceUtil
-	logger       log.FieldLogger
-	store        model.InstallationDatabaseStoreInterface
-	kopsCache    map[string]*kops.Cmd
+	params         ProvisioningParams
+	resourceUtil   *utils.ResourceUtil
+	logger         log.FieldLogger
+	store          model.InstallationDatabaseStoreInterface
+	backupOperator *BackupOperator
+	kopsCache      map[string]*kops.Cmd
 }
 
 // NewKopsProvisioner creates a new KopsProvisioner.
 func NewKopsProvisioner(
-	kopsProvisionerConfig KopsProvisionerConfig,
+	provisioningParams ProvisioningParams,
 	resourceUtil *utils.ResourceUtil,
 	logger log.FieldLogger,
-	store model.InstallationDatabaseStoreInterface) *KopsProvisioner {
-
+	store model.InstallationDatabaseStoreInterface,
+	backupOperator *BackupOperator) *KopsProvisioner {
 	logger = logger.WithField("provisioner", "kops")
 
 	return &KopsProvisioner{
-		KopsProvisionerConfig: kopsProvisionerConfig,
-		logger:                logger,
-		resourceUtil:          resourceUtil,
-		store:                 store,
-		kopsCache:             make(map[string]*kops.Cmd),
+		params:         provisioningParams,
+		logger:         logger,
+		resourceUtil:   resourceUtil,
+		store:          store,
+		backupOperator: backupOperator,
+		kopsCache:      make(map[string]*kops.Cmd),
 	}
 }
 
@@ -78,7 +79,7 @@ func (provisioner *KopsProvisioner) getCachedKopsClient(name string, logger log.
 	}
 
 	logger.Debugf("Building kops client cache for %s", name)
-	kopsClient, err := kops.New(provisioner.S3StateStore, logger)
+	kopsClient, err := kops.New(provisioner.params.S3StateStore, logger)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to create kops wrapper")
 	}

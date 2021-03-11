@@ -233,13 +233,12 @@ var serverCmd = &cobra.Command{
 
 		resourceUtil := utils.NewResourceUtil(instanceID, awsClient)
 
-		kopsProvisionerConf := provisioner.KopsProvisionerConfig{
+		kopsProvisionerConf := provisioner.ProvisioningParams{
 			S3StateStore:            s3StateStore,
 			AllowCIDRRangeList:      allowListCIDRRange,
 			VpnCIDRList:             vpnListCIDR,
 			Owner:                   owner,
 			UseExistingAWSResources: useExistingResources,
-			BackupOperator:          provisioner.NewBackupOperator(backupRestoreToolImage, awsRegion, backupJobTTL),
 		}
 
 		// Setup the provisioner for actually effecting changes to clusters.
@@ -248,6 +247,7 @@ var serverCmd = &cobra.Command{
 			resourceUtil,
 			logger,
 			sqlStore,
+			provisioner.NewBackupOperator(backupRestoreToolImage, awsRegion, backupJobTTL),
 		)
 		defer kopsProvisioner.Teardown()
 

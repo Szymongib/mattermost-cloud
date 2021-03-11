@@ -45,7 +45,7 @@ func (provisioner *KopsProvisioner) TriggerBackup(backup *model.InstallationBack
 
 	jobsClient := k8sClient.Clientset.BatchV1().Jobs(installation.ID)
 
-	return provisioner.BackupOperator.TriggerBackup(jobsClient, backup, installation, filestoreCfg, dbSecret.Name, logger)
+	return provisioner.backupOperator.TriggerBackup(jobsClient, backup, installation, filestoreCfg, dbSecret.Name, logger)
 }
 
 // CheckBackupStatus checks status of running backup job,
@@ -66,7 +66,7 @@ func (provisioner *KopsProvisioner) CheckBackupStatus(backup *model.Installation
 
 	jobsClient := k8sClient.Clientset.BatchV1().Jobs(backup.InstallationID)
 
-	return provisioner.BackupOperator.CheckBackupStatus(jobsClient, backup, logger)
+	return provisioner.backupOperator.CheckBackupStatus(jobsClient, backup, logger)
 }
 
 // CleanupBackup deletes backup job from the cluster if it exists.
@@ -86,5 +86,5 @@ func (provisioner *KopsProvisioner) CleanupBackup(backup *model.InstallationBack
 
 	jobsClient := k8sClient.Clientset.BatchV1().Jobs(backup.InstallationID)
 
-	return provisioner.BackupOperator.CleanupBackup(jobsClient, backup, logger)
+	return provisioner.backupOperator.CleanupBackup(jobsClient, backup, logger)
 }
