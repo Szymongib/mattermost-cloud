@@ -26,7 +26,7 @@ import (
 const (
 	// Run job with only one attempt to avoid possibility of waking up workspace before retry.
 	backupRestoreBackoffLimit int32 = 0
-	backupAction = "backup"
+	backupAction                    = "backup"
 )
 
 // ErrJobBackoffLimitReached indicates that job failed all possible attempts and there is no reason for retrying.

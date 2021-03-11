@@ -6,8 +6,10 @@ package main
 
 import (
 	"github.com/mattermost/mattermost-cloud/model"
+	"github.com/olekukonko/tablewriter"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
+	"os"
 )
 
 func init() {
@@ -19,9 +21,10 @@ func init() {
 
 	backupListCmd.Flags().String("installation", "", "The installation id for which the backups should be listed.")
 	backupListCmd.Flags().String("state", "", "The state to filter backups by.")
-	backupListCmd.Flags().Int("page", 0, "The page of installations to fetch, starting at 0.")
-	backupListCmd.Flags().Int("per-page", 100, "The number of installations to fetch per page.")
-	backupListCmd.Flags().Bool("include-deleted", false, "Whether to include deleted installations.")
+	backupListCmd.Flags().Int("page", 0, "The page of backups to fetch, starting at 0.")
+	backupListCmd.Flags().Int("per-page", 100, "The number of backups to fetch per page.")
+	backupListCmd.Flags().Bool("include-deleted", false, "Whether to include deleted backups.")
+	backupListCmd.Flags().Bool("table", false, "Whether to display the returned backup list in a table or not.")
 
 	backupGetCmd.Flags().String("backup", "", "The id of the backup to get.")
 	backupGetCmd.MarkFlagRequired("backup")
@@ -58,7 +61,7 @@ var backupRequestCmd = &cobra.Command{
 
 var backupListCmd = &cobra.Command{
 	Use:   "list",
-	Short: "List backups metadata.",
+	Short: "List installation backups.",
 	RunE: func(command *cobra.Command, args []string) error {
 		command.SilenceUsage = true
 
@@ -81,14 +84,26 @@ var backupListCmd = &cobra.Command{
 			IncludeDeleted:        includeDeleted,
 		}
 
-		// TODO: dry run
-
-		backupMetadata, err := client.GetInstallationBackups(request)
+		backups, err := client.GetInstallationBackups(request)
 		if err != nil {
 			return errors.Wrap(err, "failed to get backup")
 		}
 
-		err = printJSON(backupMetadata)
+		outputToTable, _ := command.Flags().GetBool("table")
+		if outputToTable {
+			table := tablewriter.NewWriter(os.Stdout)
+			table.SetAlignment(tablewriter.ALIGN_LEFT)
+			table.SetHeader([]string{"ID", "INSTALLATION ID", "STATE", "CLUSTER INSTALLATION ID"})
+
+			for _, backup := range backups {
+				table.Append([]string{backup.ID, backup.InstallationID, string(backup.State), backup.ClusterInstallationID})
+			}
+			table.Render()
+
+			return nil
+		}
+
+		err = printJSON(backups)
 		if err != nil {
 			return err
 		}
@@ -99,7 +114,7 @@ var backupListCmd = &cobra.Command{
 
 var backupGetCmd = &cobra.Command{
 	Use:   "get",
-	Short: "Get backup.",
+	Short: "Get installation backup.",
 	RunE: func(command *cobra.Command, args []string) error {
 		command.SilenceUsage = true
 
@@ -108,12 +123,12 @@ var backupGetCmd = &cobra.Command{
 
 		backupID, _ := command.Flags().GetString("backup")
 
-		backupMetadata, err := client.GetInstallationBackup(backupID)
+		backup, err := client.GetInstallationBackup(backupID)
 		if err != nil {
 			return errors.Wrap(err, "failed to get backup")
 		}
 
-		err = printJSON(backupMetadata)
+		err = printJSON(backup)
 		if err != nil {
 			return err
 		}
