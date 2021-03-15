@@ -5,9 +5,10 @@
 package api
 
 import (
-	"errors"
 	"net/http"
 	"time"
+
+	"github.com/pkg/errors"
 
 	"github.com/mattermost/mattermost-cloud/internal/store"
 
@@ -23,6 +24,8 @@ func initInstallation(apiRouter *mux.Router, context *Context) {
 	}
 
 	installationsRouter := apiRouter.PathPrefix("/installations").Subrouter()
+	initInstallationBackup(installationsRouter, context)
+
 	installationsRouter.Handle("", addContext(handleGetInstallations)).Methods("GET")
 	installationsRouter.Handle("", addContext(handleCreateInstallation)).Methods("POST")
 	installationsRouter.Handle("/count", addContext(handleGetNumberOfInstallations)).Methods("GET")
