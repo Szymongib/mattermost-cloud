@@ -257,6 +257,10 @@ func (a *mockAWS) S3EnsureBucketDeleted(bucketName string, logger log.FieldLogge
 	return nil
 }
 
+func (a *mockAWS) S3EnsureObjectDeleted(bucketName, path string) error {
+	return nil
+}
+
 func (a *mockAWS) GetAndClaimVpcResources(clusterID, owner string, logger log.FieldLogger) (aws.ClusterResources, error) {
 	return aws.ClusterResources{}, nil
 }

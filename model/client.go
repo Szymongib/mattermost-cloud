@@ -644,6 +644,23 @@ func (c *Client) GetInstallationBackup(backupID string) (*InstallationBackup, er
 	}
 }
 
+// DeleteInstallationBackup deletes given backup for the given installation.
+func (c *Client) DeleteInstallationBackup(backupID string) error {
+	resp, err := c.doDelete(c.buildURL("/api/installations/backup/%s", backupID))
+	if err != nil {
+		return err
+	}
+	defer closeBody(resp)
+
+	switch resp.StatusCode {
+	case http.StatusAccepted:
+		return nil
+
+	default:
+		return errors.Errorf("failed with status code %d", resp.StatusCode)
+	}
+}
+
 // GetClusterInstallation fetches the specified cluster installation from the configured provisioning server.
 func (c *Client) GetClusterInstallation(clusterInstallationID string) (*ClusterInstallation, error) {
 	resp, err := c.doGet(c.buildURL("/api/cluster_installation/%s", clusterInstallationID))

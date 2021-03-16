@@ -5,16 +5,16 @@
 package main
 
 import (
+	"os"
+
 	"github.com/mattermost/mattermost-cloud/model"
 	"github.com/olekukonko/tablewriter"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
-	"os"
 )
 
 func init() {
 	backupCmd.PersistentFlags().String("server", defaultLocalServerAPI, "The provisioning server whose API will be queried.")
-	backupCmd.PersistentFlags().Bool("dry-run", false, "When set to true, only print the API request without sending it.")
 
 	backupRequestCmd.Flags().String("installation", "", "The installation id to be backed up.")
 	backupRequestCmd.MarkFlagRequired("installation")
@@ -29,9 +29,13 @@ func init() {
 	backupGetCmd.Flags().String("backup", "", "The id of the backup to get.")
 	backupGetCmd.MarkFlagRequired("backup")
 
+	backupDeleteCmd.Flags().String("backup", "", "The id of the backup to delete.")
+	backupDeleteCmd.MarkFlagRequired("backup")
+
 	backupCmd.AddCommand(backupRequestCmd)
 	backupCmd.AddCommand(backupListCmd)
 	backupCmd.AddCommand(backupGetCmd)
+	backupCmd.AddCommand(backupDeleteCmd)
 }
 
 var backupCmd = &cobra.Command{
@@ -131,6 +135,26 @@ var backupGetCmd = &cobra.Command{
 		err = printJSON(backup)
 		if err != nil {
 			return err
+		}
+
+		return nil
+	},
+}
+
+var backupDeleteCmd = &cobra.Command{
+	Use:   "delete",
+	Short: "Delete installation backup.",
+	RunE: func(command *cobra.Command, args []string) error {
+		command.SilenceUsage = true
+
+		serverAddress, _ := command.Flags().GetString("server")
+		client := model.NewClient(serverAddress)
+
+		backupID, _ := command.Flags().GetString("backup")
+
+		err := client.DeleteInstallationBackup(backupID)
+		if err != nil {
+			return errors.Wrap(err, "failed to delete backup")
 		}
 
 		return nil

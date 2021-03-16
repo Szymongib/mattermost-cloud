@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"path/filepath"
 	"strings"
 
 	"github.com/pkg/errors"
@@ -39,6 +40,10 @@ type S3DataResidence struct {
 	ObjectKey  string
 }
 
+func (dr S3DataResidence) FullPath() string {
+	return filepath.Join(dr.PathPrefix, dr.ObjectKey)
+}
+
 // InstallationBackupState represents the state of backup.
 type InstallationBackupState string
 
@@ -53,10 +58,10 @@ const (
 	InstallationBackupStateBackupFailed InstallationBackupState = "backup-failed"
 	// InstallationBackupStateDeletionRequested is a backup marked for deletion.
 	InstallationBackupStateDeletionRequested InstallationBackupState = "deletion-requested"
-	// InstallationBackupStateDeletionInProgress is a backup marked for deletion.
-	InstallationBackupStateDeletionInProgress InstallationBackupState = "deletion-in-progress"
 	// InstallationBackupStateDeleted is a deleted backup.
 	InstallationBackupStateDeleted InstallationBackupState = "deleted"
+	// InstallationBackupStateDeletionFailed is a backup which deletion failed.
+	InstallationBackupStateDeletionFailed InstallationBackupState = "deletion-failed"
 )
 
 // AllInstallationBackupStatesPendingWork is a list of all backup states that
@@ -65,7 +70,6 @@ var AllInstallationBackupStatesPendingWork = []InstallationBackupState{
 	InstallationBackupStateBackupRequested,
 	InstallationBackupStateBackupInProgress,
 	InstallationBackupStateDeletionRequested,
-	InstallationBackupStateDeletionInProgress,
 }
 
 // InstallationBackupFilter describes the parameters used to constrain a set of backup.

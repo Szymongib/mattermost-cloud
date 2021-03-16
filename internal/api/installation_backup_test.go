@@ -5,6 +5,10 @@
 package api_test
 
 import (
+	"net/http/httptest"
+	"testing"
+	"time"
+
 	"github.com/gorilla/mux"
 	"github.com/mattermost/mattermost-cloud/internal/api"
 	"github.com/mattermost/mattermost-cloud/internal/store"
@@ -13,14 +17,9 @@ import (
 	"github.com/mattermost/mattermost-cloud/model"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"net/http/httptest"
-	"testing"
-	"time"
 )
 
-// TODO: tests for delete
-
-func TestInstallationBackup(t *testing.T) {
+func TestRequestInstallationBackup(t *testing.T) {
 	logger := testlib.MakeLogger(t)
 	sqlStore := store.MakeTestSQLStore(t, logger)
 	defer store.CloseConnection(t, sqlStore)
@@ -232,6 +231,64 @@ func TestGetInstallationBackup(t *testing.T) {
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "404")
 	})
+}
+
+func TestDeleteInstallationBackup(t *testing.T) {
+	logger := testlib.MakeLogger(t)
+	sqlStore := store.MakeTestSQLStore(t, logger)
+	defer store.CloseConnection(t, sqlStore)
+
+	router := mux.NewRouter()
+	api.Register(router, &api.Context{
+		Store:      sqlStore,
+		Supervisor: &mockSupervisor{},
+		Logger:     logger,
+	})
+
+	ts := httptest.NewServer(router)
+	client := model.NewClient(ts.URL)
+
+	installation1 := testutil.CreateBackupCompatibleInstallation(t, sqlStore)
+
+	backup, err := client.RequestInstallationBackup(installation1.ID)
+	require.NoError(t, err)
+	assert.NotEmpty(t, backup.ID)
+
+	t.Run("unknown backup", func(t *testing.T) {
+		err = client.DeleteInstallationBackup(model.NewID())
+		require.Error(t, err)
+	})
+
+	t.Run("while locked", func(t *testing.T) {
+		_, err = sqlStore.LockInstallationBackup(backup.ID, "locker")
+		require.NoError(t, err)
+		defer func() {
+			_, err = sqlStore.UnlockInstallationBackup(backup.ID, "locker", true)
+			require.NoError(t, err)
+		}()
+
+		err = client.DeleteInstallationBackup(backup.ID)
+		require.Error(t, err)
+	})
+
+	t.Run("while api-security-locked", func(t *testing.T) {
+		err = sqlStore.LockInstallationBackupAPI(backup.ID)
+		require.NoError(t, err)
+		defer func() {
+			err = sqlStore.UnlockInstallationBackupAPI(backup.ID)
+			require.NoError(t, err)
+		}()
+
+		err = client.DeleteInstallationBackup(backup.ID)
+		require.Error(t, err)
+	})
+
+	err = client.DeleteInstallationBackup(backup.ID)
+	require.NoError(t, err)
+
+	fetchedBackup, err := client.GetInstallationBackup(backup.ID)
+	require.NoError(t, err)
+	assert.Equal(t, model.InstallationBackupStateDeletionRequested, fetchedBackup.State)
 }
 
 func TestBackupAPILock(t *testing.T) {
