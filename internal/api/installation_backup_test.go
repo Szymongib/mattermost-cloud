@@ -18,6 +18,8 @@ import (
 	"time"
 )
 
+// TODO: tests for delete
+
 func TestInstallationBackup(t *testing.T) {
 	logger := testlib.MakeLogger(t)
 	sqlStore := store.MakeTestSQLStore(t, logger)

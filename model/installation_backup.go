@@ -51,6 +51,12 @@ const (
 	InstallationBackupStateBackupSucceeded InstallationBackupState = "backup-succeeded"
 	// InstallationBackupStateBackupFailed if a backup that have failed.
 	InstallationBackupStateBackupFailed InstallationBackupState = "backup-failed"
+	// InstallationBackupStateDeletionRequested is a backup marked for deletion.
+	InstallationBackupStateDeletionRequested InstallationBackupState = "deletion-requested"
+	// InstallationBackupStateDeletionInProgress is a backup marked for deletion.
+	InstallationBackupStateDeletionInProgress InstallationBackupState = "deletion-in-progress"
+	// InstallationBackupStateDeleted is a deleted backup.
+	InstallationBackupStateDeleted InstallationBackupState = "deleted"
 )
 
 // AllInstallationBackupStatesPendingWork is a list of all backup states that
@@ -58,6 +64,8 @@ const (
 var AllInstallationBackupStatesPendingWork = []InstallationBackupState{
 	InstallationBackupStateBackupRequested,
 	InstallationBackupStateBackupInProgress,
+	InstallationBackupStateDeletionRequested,
+	InstallationBackupStateDeletionInProgress,
 }
 
 // InstallationBackupFilter describes the parameters used to constrain a set of backup.

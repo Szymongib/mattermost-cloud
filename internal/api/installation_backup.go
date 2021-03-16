@@ -24,7 +24,7 @@ func initInstallationBackup(apiRouter *mux.Router, context *Context) {
 
 	backupRouter := apiRouter.PathPrefix("/backup/{backup:[A-Za-z0-9]{26}}").Subrouter()
 	backupRouter.Handle("", addContext(handleGetInstallationBackup)).Methods("GET")
-	// TODO: delete backup
+	backupRouter.Handle("", addContext(handleDeleteInstallationBackup)).Methods("DELETE")
 }
 
 // handleRequestInstallationBackup responds to POST /api/installations/backups,
@@ -61,7 +61,7 @@ func handleRequestInstallationBackup(c *Context, w http.ResponseWriter, r *http.
 		return
 	}
 	if backupRunning {
-		c.Logger.Error("InstallationBackup for the installation is already requested or in progress")
+		c.Logger.Error("Backup for the installation is already requested or in progress")
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
@@ -73,7 +73,7 @@ func handleRequestInstallationBackup(c *Context, w http.ResponseWriter, r *http.
 
 	err = c.Store.CreateInstallationBackup(backup)
 	if err != nil {
-		c.Logger.Error("Failed to create backup")
+		c.Logger.Error("Failed to create backup metadata")
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
@@ -150,4 +150,39 @@ func handleGetInstallationBackup(c *Context, w http.ResponseWriter, r *http.Requ
 	outputJSON(c, w, backupMetadata)
 }
 
-// TODO: delete
+// handleDeleteInstallationBackup responds to DELETE /api/installations/backup/{backup},
+// returns metadata of specified backup.
+func handleDeleteInstallationBackup(c *Context, w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	backupID := vars["backup"]
+	c.Logger = c.Logger.
+		WithField("backup", backupID).
+		WithField("action", "delete-installation-backup")
+
+	backup, status, unlockOnce := lockInstallationBackup(c, backupID)
+	if status != 0 {
+		w.WriteHeader(status)
+		return
+	}
+	defer unlockOnce()
+
+	if backup.APISecurityLock {
+		logSecurityLockConflict("backup", c.Logger)
+		w.WriteHeader(http.StatusForbidden)
+		return
+	}
+
+	backup.State = model.InstallationBackupStateDeletionRequested
+
+	err := c.Store.UpdateInstallationBackupState(backup)
+	if err != nil {
+		c.Logger.WithError(err).Error("Failed to delete backup metadata")
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	unlockOnce()
+	c.Supervisor.Do()
+
+	w.WriteHeader(http.StatusAccepted)
+}

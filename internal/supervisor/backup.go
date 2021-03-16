@@ -5,6 +5,7 @@
 package supervisor
 
 import (
+	"github.com/pkg/errors"
 	"time"
 
 	"github.com/mattermost/mattermost-cloud/internal/provisioner"
@@ -248,6 +249,7 @@ func (s *BackupSupervisor) triggerBackup(backup *model.InstallationBackup, insta
 }
 
 func (s *BackupSupervisor) monitorBackup(backup *model.InstallationBackup, instanceID string, logger log.FieldLogger) model.InstallationBackupState {
+	// TODO: use get cluster for backup
 	backupCI, err := s.store.GetClusterInstallation(backup.ClusterInstallationID)
 	if err != nil {
 		logger.WithError(err).Error("Failed to get cluster installations")
@@ -284,4 +286,48 @@ func (s *BackupSupervisor) monitorBackup(backup *model.InstallationBackup, insta
 	}
 
 	return model.InstallationBackupStateBackupSucceeded
+}
+
+func (s *BackupSupervisor) deleteBackup(backupMetadata *model.InstallationBackup, instanceID string, logger log.FieldLogger) model.InstallationBackupState {
+	installation, err := s.store.GetInstallation(backupMetadata.InstallationID, false, false)
+	if err != nil {
+		logger.WithError(err).Error("Failed to get installations")
+		return backupMetadata.State
+	}
+	// TODO: Do I lock? - I think not?
+
+
+	cluster, err := s.getClusterForBackup(backupMetadata)
+	if err != nil {
+		logger.WithError(err).Error("Failed to get cluster for backup")
+		return backupMetadata.State
+	}
+
+	err = s.backupOperator.CleanupBackup(backupMetadata, cluster)
+	if err != nil {
+		logger.WithError(err).Error("Failed to cleanup backup from cluster")
+		return backupMetadata.State
+	}
+
+	err = s.ResourceUtil.GetFilestore(installation).DeleteBackup(backupMetadata.ID)
+	if err != nil {
+		logger.WithError(err).Error("Failed to cleanup backup from file store")
+		return backupMetadata.State
+	}
+
+	return model.InstallationBackupStateDeleted
+}
+
+func (s *BackupSupervisor) getClusterForBackup(backupMetadata *model.InstallationBackup) (*model.Cluster, error) {
+	backupCI, err := s.store.GetClusterInstallation(backupMetadata.ClusterInstallationID)
+	if err != nil {
+		return nil, errors.Wrap(err, "Failed to get cluster installations")
+	}
+
+	cluster, err := s.store.GetCluster(backupCI.ClusterID)
+	if err != nil {
+		return nil, errors.Wrap(err, "Failed to get cluster")
+	}
+
+	return cluster, nil
 }
