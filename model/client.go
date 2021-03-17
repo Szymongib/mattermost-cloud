@@ -586,8 +586,8 @@ func (c *Client) DeleteInstallationAnnotation(installationID string, annotationN
 	}
 }
 
-// RequestInstallationBackup triggers backup for the given installation.
-func (c *Client) RequestInstallationBackup(installationID string) (*InstallationBackup, error) {
+// CreateInstallationBackup triggers backup for the given installation.
+func (c *Client) CreateInstallationBackup(installationID string) (*InstallationBackup, error) {
 	resp, err := c.doPost(c.buildURL("/api/installations/backups"), &InstallationBackupRequest{InstallationID: installationID})
 	if err != nil {
 		return nil, err

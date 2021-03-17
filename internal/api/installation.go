@@ -624,6 +624,22 @@ func handleDeleteInstallation(c *Context, w http.ResponseWriter, r *http.Request
 		return
 	}
 
+	runningBackups, err := c.Store.GetInstallationBackups(&model.InstallationBackupFilter{
+		InstallationID: installationID,
+		States:         model.AllInstallationBackupsStatesRunning,
+		PerPage:        model.AllPerPage,
+	})
+	if err != nil {
+		c.Logger.WithError(err).Error("failed to get list of running backups")
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	if len(runningBackups) > 0 {
+		c.Logger.Error("there are running backups for the installation, cannot delete")
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
 	newState := model.InstallationStateDeletionRequested
 
 	if !installationDTO.ValidTransitionState(newState) {

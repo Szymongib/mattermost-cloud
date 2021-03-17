@@ -16,8 +16,8 @@ import (
 func init() {
 	backupCmd.PersistentFlags().String("server", defaultLocalServerAPI, "The provisioning server whose API will be queried.")
 
-	backupRequestCmd.Flags().String("installation", "", "The installation id to be backed up.")
-	backupRequestCmd.MarkFlagRequired("installation")
+	backupCreateCmd.Flags().String("installation", "", "The installation id to be backed up.")
+	backupCreateCmd.MarkFlagRequired("installation")
 
 	backupListCmd.Flags().String("installation", "", "The installation id for which the backups should be listed.")
 	backupListCmd.Flags().String("state", "", "The state to filter backups by.")
@@ -32,7 +32,7 @@ func init() {
 	backupDeleteCmd.Flags().String("backup", "", "The id of the backup to delete.")
 	backupDeleteCmd.MarkFlagRequired("backup")
 
-	backupCmd.AddCommand(backupRequestCmd)
+	backupCmd.AddCommand(backupCreateCmd)
 	backupCmd.AddCommand(backupListCmd)
 	backupCmd.AddCommand(backupGetCmd)
 	backupCmd.AddCommand(backupDeleteCmd)
@@ -43,8 +43,8 @@ var backupCmd = &cobra.Command{
 	Short: "Manipulate installation backups managed by the provisioning server.",
 }
 
-var backupRequestCmd = &cobra.Command{
-	Use:   "request",
+var backupCreateCmd = &cobra.Command{
+	Use:   "create",
 	Short: "Request an installation backup.",
 	RunE: func(command *cobra.Command, args []string) error {
 		command.SilenceUsage = true
@@ -54,7 +54,7 @@ var backupRequestCmd = &cobra.Command{
 
 		installationID, _ := command.Flags().GetString("installation")
 
-		backup, err := client.RequestInstallationBackup(installationID)
+		backup, err := client.CreateInstallationBackup(installationID)
 		if err != nil {
 			return errors.Wrap(err, "failed to request installation backup")
 		}

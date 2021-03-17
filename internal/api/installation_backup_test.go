@@ -45,7 +45,7 @@ func TestRequestInstallationBackup(t *testing.T) {
 	require.NoError(t, err)
 
 	t.Run("fail for not hibernated installation1", func(t *testing.T) {
-		_, err = client.RequestInstallationBackup(installation1.ID)
+		_, err = client.CreateInstallationBackup(installation1.ID)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "400")
 	})
@@ -54,12 +54,12 @@ func TestRequestInstallationBackup(t *testing.T) {
 	err = sqlStore.UpdateInstallation(installation1.Installation)
 	require.NoError(t, err)
 
-	backupMeta, err := client.RequestInstallationBackup(installation1.ID)
+	backupMeta, err := client.CreateInstallationBackup(installation1.ID)
 	require.NoError(t, err)
 	assert.NotEmpty(t, backupMeta.ID)
 
 	t.Run("fail to request multiple backups for same installation1", func(t *testing.T) {
-		_, err = client.RequestInstallationBackup(installation1.ID)
+		_, err = client.CreateInstallationBackup(installation1.ID)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "400")
 	})
@@ -80,7 +80,7 @@ func TestRequestInstallationBackup(t *testing.T) {
 		err = sqlStore.UpdateInstallation(installation2.Installation)
 		require.NoError(t, err)
 
-		backupMeta2, err := client.RequestInstallationBackup(installation2.ID)
+		backupMeta2, err := client.CreateInstallationBackup(installation2.ID)
 		require.NoError(t, err)
 		assert.NotEmpty(t, backupMeta2.ID)
 	})
@@ -218,7 +218,7 @@ func TestGetInstallationBackup(t *testing.T) {
 
 	installation1 := testutil.CreateBackupCompatibleInstallation(t, sqlStore)
 
-	backupMeta, err := client.RequestInstallationBackup(installation1.ID)
+	backupMeta, err := client.CreateInstallationBackup(installation1.ID)
 	require.NoError(t, err)
 	assert.NotEmpty(t, backupMeta.ID)
 
@@ -228,8 +228,7 @@ func TestGetInstallationBackup(t *testing.T) {
 
 	t.Run("return 404 if backup not found", func(t *testing.T) {
 		_, err = client.GetInstallationBackup("not-real")
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "404")
+		require.EqualError(t, err, "failed with status code 404")
 	})
 }
 
@@ -250,13 +249,13 @@ func TestDeleteInstallationBackup(t *testing.T) {
 
 	installation1 := testutil.CreateBackupCompatibleInstallation(t, sqlStore)
 
-	backup, err := client.RequestInstallationBackup(installation1.ID)
+	backup, err := client.CreateInstallationBackup(installation1.ID)
 	require.NoError(t, err)
 	assert.NotEmpty(t, backup.ID)
 
 	t.Run("unknown backup", func(t *testing.T) {
 		err = client.DeleteInstallationBackup(model.NewID())
-		require.Error(t, err)
+		require.EqualError(t, err, "failed with status code 404")
 	})
 
 	t.Run("while locked", func(t *testing.T) {
@@ -268,7 +267,7 @@ func TestDeleteInstallationBackup(t *testing.T) {
 		}()
 
 		err = client.DeleteInstallationBackup(backup.ID)
-		require.Error(t, err)
+		require.EqualError(t, err, "failed with status code 409")
 	})
 
 	t.Run("while api-security-locked", func(t *testing.T) {
@@ -280,7 +279,7 @@ func TestDeleteInstallationBackup(t *testing.T) {
 		}()
 
 		err = client.DeleteInstallationBackup(backup.ID)
-		require.Error(t, err)
+		require.EqualError(t, err, "failed with status code 403")
 	})
 
 	err = client.DeleteInstallationBackup(backup.ID)
@@ -308,7 +307,7 @@ func TestBackupAPILock(t *testing.T) {
 
 	installation1 := testutil.CreateBackupCompatibleInstallation(t, sqlStore)
 
-	backupMeta, err := client.RequestInstallationBackup(installation1.ID)
+	backupMeta, err := client.CreateInstallationBackup(installation1.ID)
 	require.NoError(t, err)
 	assert.NotEmpty(t, backupMeta.ID)
 

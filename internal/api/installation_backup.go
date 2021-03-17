@@ -101,11 +101,15 @@ func handleGetInstallationBackups(c *Context, w http.ResponseWriter, r *http.Req
 	installationID := r.URL.Query().Get("installation")
 	clusterInstallationID := r.URL.Query().Get("cluster_installation")
 	state := r.URL.Query().Get("state")
+	var states []model.InstallationBackupState
+	if state != "" {
+		states = append(states, model.InstallationBackupState(state))
+	}
 
 	filter := &model.InstallationBackupFilter{
 		InstallationID:        installationID,
 		ClusterInstallationID: clusterInstallationID,
-		State:                 model.InstallationBackupState(state),
+		States:                states,
 		Page:                  page,
 		PerPage:               perPage,
 		IncludeDeleted:        includeDeleted,

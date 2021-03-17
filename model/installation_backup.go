@@ -72,11 +72,19 @@ var AllInstallationBackupStatesPendingWork = []InstallationBackupState{
 	InstallationBackupStateDeletionRequested,
 }
 
+// AllInstallationBackupsStatesRunning is a list of all backup states that are
+// currently running.
+var AllInstallationBackupsStatesRunning = []InstallationBackupState{
+	InstallationBackupStateBackupRequested,
+	InstallationBackupStateBackupInProgress,
+}
+
 // InstallationBackupFilter describes the parameters used to constrain a set of backup.
 type InstallationBackupFilter struct {
+	IDs                   []string // TODO: implement
 	InstallationID        string
 	ClusterInstallationID string
-	State                 InstallationBackupState
+	States                []InstallationBackupState
 	Page                  int
 	PerPage               int
 	IncludeDeleted        bool

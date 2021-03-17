@@ -24,8 +24,8 @@ type installationBackupStore interface {
 	UpdateInstallationBackupSchedulingData(backupMeta *model.InstallationBackup) error
 	UpdateInstallationBackupStartTime(backupMeta *model.InstallationBackup) error
 
-	LockInstallationBackup(installationID, lockerID string) (bool, error)
-	UnlockInstallationBackup(installationID, lockerID string, force bool) (bool, error)
+	LockInstallationBackups(backupIDs []string, lockerID string) (bool, error)
+	UnlockInstallationBackups(backupIDs []string, lockerID string, force bool) (bool, error)
 
 	GetInstallation(installationID string, includeGroupConfig, includeGroupConfigOverrides bool) (*model.Installation, error)
 	LockInstallation(installationID, lockerID string) (bool, error)
@@ -292,7 +292,7 @@ func (s *BackupSupervisor) deleteBackup(backup *model.InstallationBackup, instan
 		return backup.State
 	}
 
-	err = s.backupOperator.CleanupBackup(backup, cluster)
+	err = s.backupOperator.CleanupBackupJob(backup, cluster)
 	if err != nil {
 		logger.WithError(err).Error("Failed to cleanup backup from cluster")
 		return backup.State

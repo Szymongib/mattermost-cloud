@@ -53,11 +53,11 @@ func (s mockBackupStore) UpdateInstallationBackupStartTime(backupMeta *model.Ins
 	panic("implement me")
 }
 
-func (s mockBackupStore) LockInstallationBackup(installationID, lockerID string) (bool, error) {
+func (s mockBackupStore) LockInstallationBackups(backupIDs []string, lockerID string) (bool, error) {
 	return true, nil
 }
 
-func (s *mockBackupStore) UnlockInstallationBackup(installationID, lockerID string, force bool) (bool, error) {
+func (s *mockBackupStore) UnlockInstallationBackups(backupIDs []string, lockerID string, force bool) (bool, error) {
 	if s.UnlockChan != nil {
 		close(s.UnlockChan)
 	}
