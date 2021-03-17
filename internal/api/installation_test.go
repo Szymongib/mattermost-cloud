@@ -1256,8 +1256,8 @@ func TestDeleteInstallation(t *testing.T) {
 	})
 
 	t.Run("while backup is running", func(t *testing.T) {
-		backup2 := &model.InstallationBackup{InstallationID: installation1.ID, State: model.InstallationBackupStateBackupRequested}
-		backup1 := &model.InstallationBackup{InstallationID: installation1.ID, State: model.InstallationBackupStateBackupSucceeded}
+		backup1 := &model.InstallationBackup{InstallationID: installation1.ID, State: model.InstallationBackupStateBackupRequested}
+		backup2 := &model.InstallationBackup{InstallationID: installation1.ID, State: model.InstallationBackupStateBackupSucceeded}
 		err = sqlStore.CreateInstallationBackup(backup1)
 		require.NoError(t, err)
 		err = sqlStore.CreateInstallationBackup(backup2)
