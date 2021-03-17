@@ -81,7 +81,7 @@ var AllInstallationBackupsStatesRunning = []InstallationBackupState{
 
 // InstallationBackupFilter describes the parameters used to constrain a set of backup.
 type InstallationBackupFilter struct {
-	IDs                   []string // TODO: implement
+	IDs                   []string
 	InstallationID        string
 	ClusterInstallationID string
 	States                []InstallationBackupState
