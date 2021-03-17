@@ -113,7 +113,7 @@ func (b *mockBackupProvisioner) CheckBackupStatus(backup *model.InstallationBack
 	return b.BackupStartTime, b.err
 }
 
-func (b *mockBackupProvisioner) CleanupBackup(backup *model.InstallationBackup, cluster *model.Cluster) error {
+func (b *mockBackupProvisioner) CleanupBackupJob(backup *model.InstallationBackup, cluster *model.Cluster) error {
 	return nil
 }
 

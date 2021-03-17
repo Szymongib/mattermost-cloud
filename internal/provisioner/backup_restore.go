@@ -152,8 +152,8 @@ func (o BackupOperator) CheckBackupStatus(jobsClient v1.JobInterface, backup *mo
 	return -1, nil
 }
 
-// CleanupBackup removes backup job from the cluster if it exists.
-func (o BackupOperator) CleanupBackup(jobsClient v1.JobInterface, backup *model.InstallationBackup, logger log.FieldLogger) error {
+// CleanupBackupJob removes backup job from the cluster if it exists.
+func (o BackupOperator) CleanupBackupJob(jobsClient v1.JobInterface, backup *model.InstallationBackup, logger log.FieldLogger) error {
 	backupJobName := jobName(backupAction, backup.ID)
 
 	ctx := context.Background()
