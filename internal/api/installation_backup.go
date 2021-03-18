@@ -6,6 +6,9 @@ package api
 
 import (
 	"net/http"
+	"time"
+
+	"github.com/mattermost/mattermost-cloud/internal/webhook"
 
 	"github.com/gorilla/mux"
 	"github.com/mattermost/mattermost-cloud/model"
@@ -77,6 +80,8 @@ func handleRequestInstallationBackup(c *Context, w http.ResponseWriter, r *http.
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
+
+	sendInstallationBackupWebhook(c, backup, "n/a")
 
 	c.Supervisor.Do()
 
@@ -176,17 +181,44 @@ func handleDeleteInstallationBackup(c *Context, w http.ResponseWriter, r *http.R
 		return
 	}
 
-	backup.State = model.InstallationBackupStateDeletionRequested
+	newState := model.InstallationBackupStateDeletionRequested
 
-	err := c.Store.UpdateInstallationBackupState(backup)
-	if err != nil {
-		c.Logger.WithError(err).Error("Failed to delete backup metadata")
-		w.WriteHeader(http.StatusInternalServerError)
+	if !backup.ValidTransitionState(newState) {
+		c.Logger.Warnf("unable to delete backup installation while in state %s", backup.State)
+		w.WriteHeader(http.StatusBadRequest)
 		return
+	}
+
+	if backup.State != newState {
+		oldState := backup.State
+		backup.State = newState
+		err := c.Store.UpdateInstallationBackupState(backup)
+		if err != nil {
+			c.Logger.WithError(err).Error("Failed to delete installation backup")
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+
+		sendInstallationBackupWebhook(c, backup, string(oldState))
 	}
 
 	unlockOnce()
 	c.Supervisor.Do()
 
 	w.WriteHeader(http.StatusAccepted)
+}
+
+func sendInstallationBackupWebhook(c *Context, backup *model.InstallationBackup, oldState string) {
+	webhookPayload := &model.WebhookPayload{
+		Type:      model.TypeInstallationBackup,
+		ID:        backup.ID,
+		NewState:  string(backup.State),
+		OldState:  oldState,
+		Timestamp: time.Now().UnixNano(),
+		ExtraData: map[string]string{"Installation": backup.InstallationID, "Environment": c.Environment},
+	}
+	err := webhook.SendToAllWebhooks(c.Store, webhookPayload, c.Logger.WithField("webhookEvent", webhookPayload.NewState))
+	if err != nil {
+		c.Logger.WithError(err).Error("Unable to process and send webhooks")
+	}
 }

@@ -118,7 +118,7 @@ func TestGetInstallationBackupsMetadata(t *testing.T) {
 		time.Sleep(1 * time.Millisecond) // Ensure RequestAt is different for all installations.
 	}
 
-	err = sqlStore.DeleteBackup(backupsMeta[2].ID)
+	err = sqlStore.DeleteInstallationBackup(backupsMeta[2].ID)
 	require.NoError(t, err)
 
 	for _, testCase := range []struct {

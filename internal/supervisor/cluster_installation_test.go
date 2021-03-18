@@ -212,7 +212,7 @@ func TestClusterInstallationSupervisorSupervise(t *testing.T) {
 
 		backup := &model.InstallationBackup{
 			ClusterInstallationID: clusterInstallation.ID,
-			State: model.InstallationBackupStateBackupRequested,
+			State:                 model.InstallationBackupStateBackupRequested,
 		}
 		err = sqlStore.CreateInstallationBackup(backup)
 		require.NoError(t, err)

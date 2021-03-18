@@ -5,6 +5,7 @@
 package main
 
 import (
+	"github.com/mattermost/mattermost-cloud/internal/tools/utils"
 	"os"
 
 	"github.com/mattermost/mattermost-cloud/model"
@@ -97,10 +98,16 @@ var backupListCmd = &cobra.Command{
 		if outputToTable {
 			table := tablewriter.NewWriter(os.Stdout)
 			table.SetAlignment(tablewriter.ALIGN_LEFT)
-			table.SetHeader([]string{"ID", "INSTALLATION ID", "STATE", "CLUSTER INSTALLATION ID"})
+			table.SetHeader([]string{"ID", "INSTALLATION ID", "STATE", "CLUSTER INSTALLATION ID", "REQUEST AT"})
 
 			for _, backup := range backups {
-				table.Append([]string{backup.ID, backup.InstallationID, string(backup.State), backup.ClusterInstallationID})
+				table.Append([]string{
+					backup.ID,
+					backup.InstallationID,
+					string(backup.State),
+					backup.ClusterInstallationID,
+					utils.TimeFromMillis(backup.RequestAt).Format("2006-01-02 15:04:05 -0700 MST"),
+				})
 			}
 			table.Render()
 

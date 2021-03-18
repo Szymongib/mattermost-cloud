@@ -217,9 +217,9 @@ func (sqlStore *SQLStore) UpdateInstallationBackupState(backup *model.Installati
 		})
 }
 
-// DeleteBackup marks the given backup as deleted, but does not remove
+// DeleteInstallationBackup marks the given backup as deleted, but does not remove
 // the record from the database.
-func (sqlStore *SQLStore) DeleteBackup(id string) error {
+func (sqlStore *SQLStore) DeleteInstallationBackup(id string) error {
 	_, err := sqlStore.execBuilder(sqlStore.db, sq.
 		Update(backupTable).
 		Set("DeleteAt", GetMillis()).

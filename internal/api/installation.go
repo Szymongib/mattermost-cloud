@@ -624,6 +624,14 @@ func handleDeleteInstallation(c *Context, w http.ResponseWriter, r *http.Request
 		return
 	}
 
+	newState := model.InstallationStateDeletionRequested
+
+	if !installationDTO.ValidTransitionState(newState) {
+		c.Logger.Warnf("unable to delete installation while in state %s", installationDTO.State)
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
 	runningBackups, err := c.Store.GetInstallationBackups(&model.InstallationBackupFilter{
 		InstallationID: installationID,
 		States:         model.AllInstallationBackupsStatesRunning,
@@ -636,14 +644,6 @@ func handleDeleteInstallation(c *Context, w http.ResponseWriter, r *http.Request
 	}
 	if len(runningBackups) > 0 {
 		c.Logger.Error("there are running backups for the installation, cannot delete")
-		w.WriteHeader(http.StatusBadRequest)
-		return
-	}
-
-	newState := model.InstallationStateDeletionRequested
-
-	if !installationDTO.ValidTransitionState(newState) {
-		c.Logger.Warnf("unable to delete installation while in state %s", installationDTO.State)
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}

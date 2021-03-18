@@ -137,7 +137,7 @@ func TestGetInstallationBackups(t *testing.T) {
 	deletedMeta := &model.InstallationBackup{InstallationID: "deleted"}
 	err := sqlStore.CreateInstallationBackup(deletedMeta)
 	require.NoError(t, err)
-	err = sqlStore.DeleteBackup(deletedMeta.ID)
+	err = sqlStore.DeleteInstallationBackup(deletedMeta.ID)
 	require.NoError(t, err)
 	deletedMeta, err = sqlStore.GetInstallationBackup(deletedMeta.ID)
 
@@ -288,6 +288,15 @@ func TestDeleteInstallationBackup(t *testing.T) {
 	fetchedBackup, err := client.GetInstallationBackup(backup.ID)
 	require.NoError(t, err)
 	assert.Equal(t, model.InstallationBackupStateDeletionRequested, fetchedBackup.State)
+
+	t.Run("cannot deleted already deleted", func(t *testing.T) {
+		backup.State = model.InstallationBackupStateDeleted
+		err = sqlStore.UpdateInstallationBackupState(backup)
+		require.NoError(t, err)
+
+		err = client.DeleteInstallationBackup(backup.ID)
+		require.EqualError(t, err, "failed with status code 400")
+	})
 }
 
 func TestBackupAPILock(t *testing.T) {

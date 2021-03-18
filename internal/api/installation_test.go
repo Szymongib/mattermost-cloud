@@ -1265,8 +1265,8 @@ func TestDeleteInstallation(t *testing.T) {
 
 		err = client.DeleteInstallation(installation1.ID)
 		require.EqualError(t, err, "failed with status code 400")
-		
-		err = sqlStore.DeleteBackup(backup1.ID)
+
+		err = sqlStore.DeleteInstallationBackup(backup1.ID)
 		require.NoError(t, err)
 	})
 
