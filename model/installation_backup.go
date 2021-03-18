@@ -40,6 +40,7 @@ type S3DataResidence struct {
 	ObjectKey  string
 }
 
+// FullPath returns joined path of object in the file store.
 func (dr S3DataResidence) FullPath() string {
 	return filepath.Join(dr.PathPrefix, dr.ObjectKey)
 }

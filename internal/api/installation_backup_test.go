@@ -54,9 +54,9 @@ func TestRequestInstallationBackup(t *testing.T) {
 	err = sqlStore.UpdateInstallation(installation1.Installation)
 	require.NoError(t, err)
 
-	backupMeta, err := client.CreateInstallationBackup(installation1.ID)
+	backup, err := client.CreateInstallationBackup(installation1.ID)
 	require.NoError(t, err)
-	assert.NotEmpty(t, backupMeta.ID)
+	assert.NotEmpty(t, backup.ID)
 
 	t.Run("fail to request multiple backups for same installation1", func(t *testing.T) {
 		_, err = client.CreateInstallationBackup(installation1.ID)
@@ -80,9 +80,9 @@ func TestRequestInstallationBackup(t *testing.T) {
 		err = sqlStore.UpdateInstallation(installation2.Installation)
 		require.NoError(t, err)
 
-		backupMeta2, err := client.CreateInstallationBackup(installation2.ID)
+		backup2, err := client.CreateInstallationBackup(installation2.ID)
 		require.NoError(t, err)
-		assert.NotEmpty(t, backupMeta2.ID)
+		assert.NotEmpty(t, backup2.ID)
 	})
 }
 
@@ -104,7 +104,7 @@ func TestGetInstallationBackups(t *testing.T) {
 	installation1 := testutil.CreateBackupCompatibleInstallation(t, sqlStore)
 	installation2 := testutil.CreateBackupCompatibleInstallation(t, sqlStore)
 
-	backupMeta := []*model.InstallationBackup{
+	backup := []*model.InstallationBackup{
 		{
 			InstallationID: installation1.ID,
 			State:          model.InstallationBackupStateBackupRequested,
@@ -129,8 +129,8 @@ func TestGetInstallationBackups(t *testing.T) {
 		},
 	}
 
-	for i := range backupMeta {
-		err := sqlStore.CreateInstallationBackup(backupMeta[i])
+	for i := range backup {
+		err := sqlStore.CreateInstallationBackup(backup[i])
 		require.NoError(t, err)
 		time.Sleep(1 * time.Millisecond)
 	}
@@ -149,37 +149,37 @@ func TestGetInstallationBackups(t *testing.T) {
 		{
 			description: "all",
 			filter:      model.GetInstallationBackupsRequest{PerPage: model.AllPerPage, IncludeDeleted: true},
-			found:       append(backupMeta, deletedMeta),
+			found:       append(backup, deletedMeta),
 		},
 		{
 			description: "all not deleted",
 			filter:      model.GetInstallationBackupsRequest{PerPage: model.AllPerPage, IncludeDeleted: false},
-			found:       backupMeta,
+			found:       backup,
 		},
 		{
 			description: "1 per page",
 			filter:      model.GetInstallationBackupsRequest{PerPage: 1},
-			found:       []*model.InstallationBackup{backupMeta[4]},
+			found:       []*model.InstallationBackup{backup[4]},
 		},
 		{
 			description: "2nd page",
 			filter:      model.GetInstallationBackupsRequest{PerPage: 1, Page: 1},
-			found:       []*model.InstallationBackup{backupMeta[3]},
+			found:       []*model.InstallationBackup{backup[3]},
 		},
 		{
 			description: "filter by installation ID",
 			filter:      model.GetInstallationBackupsRequest{PerPage: model.AllPerPage, InstallationID: installation1.ID},
-			found:       []*model.InstallationBackup{backupMeta[0], backupMeta[1]},
+			found:       []*model.InstallationBackup{backup[0], backup[1]},
 		},
 		{
 			description: "filter by cluster installation ID",
 			filter:      model.GetInstallationBackupsRequest{PerPage: model.AllPerPage, ClusterInstallationID: "ci1"},
-			found:       []*model.InstallationBackup{backupMeta[3], backupMeta[4]},
+			found:       []*model.InstallationBackup{backup[3], backup[4]},
 		},
 		{
 			description: "filter by state",
 			filter:      model.GetInstallationBackupsRequest{PerPage: model.AllPerPage, State: string(model.InstallationBackupStateBackupRequested)},
-			found:       []*model.InstallationBackup{backupMeta[0], backupMeta[2], backupMeta[3]},
+			found:       []*model.InstallationBackup{backup[0], backup[2], backup[3]},
 		},
 		{
 			description: "no results",
@@ -218,13 +218,13 @@ func TestGetInstallationBackup(t *testing.T) {
 
 	installation1 := testutil.CreateBackupCompatibleInstallation(t, sqlStore)
 
-	backupMeta, err := client.CreateInstallationBackup(installation1.ID)
+	backup, err := client.CreateInstallationBackup(installation1.ID)
 	require.NoError(t, err)
-	assert.NotEmpty(t, backupMeta.ID)
+	assert.NotEmpty(t, backup.ID)
 
-	fetchedMeta, err := client.GetInstallationBackup(backupMeta.ID)
+	fetchedMeta, err := client.GetInstallationBackup(backup.ID)
 	require.NoError(t, err)
-	assert.Equal(t, backupMeta, fetchedMeta)
+	assert.Equal(t, backup, fetchedMeta)
 
 	t.Run("return 404 if backup not found", func(t *testing.T) {
 		_, err = client.GetInstallationBackup("not-real")
@@ -316,19 +316,19 @@ func TestBackupAPILock(t *testing.T) {
 
 	installation1 := testutil.CreateBackupCompatibleInstallation(t, sqlStore)
 
-	backupMeta, err := client.CreateInstallationBackup(installation1.ID)
+	backup, err := client.CreateInstallationBackup(installation1.ID)
 	require.NoError(t, err)
-	assert.NotEmpty(t, backupMeta.ID)
+	assert.NotEmpty(t, backup.ID)
 
-	err = client.LockAPIForBackup(backupMeta.ID)
+	err = client.LockAPIForBackup(backup.ID)
 	require.NoError(t, err)
-	fetchedMeta, err := client.GetInstallationBackup(backupMeta.ID)
+	fetchedMeta, err := client.GetInstallationBackup(backup.ID)
 	require.NoError(t, err)
 	assert.True(t, fetchedMeta.APISecurityLock)
 
-	err = client.UnlockAPIForBackup(backupMeta.ID)
+	err = client.UnlockAPIForBackup(backup.ID)
 	require.NoError(t, err)
-	fetchedMeta, err = client.GetInstallationBackup(backupMeta.ID)
+	fetchedMeta, err = client.GetInstallationBackup(backup.ID)
 	require.NoError(t, err)
 	assert.False(t, fetchedMeta.APISecurityLock)
 }

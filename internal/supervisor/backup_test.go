@@ -375,6 +375,7 @@ func TestBackupMetadataSupervisorSupervise(t *testing.T) {
 		backup, err = sqlStore.GetInstallationBackup(backup.ID)
 		require.NoError(t, err)
 		assert.Equal(t, model.InstallationBackupStateDeleted, backup.State)
+		assert.NotEqualValues(t, 0, backup.DeleteAt)
 	})
 }
 

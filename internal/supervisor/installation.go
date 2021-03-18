@@ -1267,7 +1267,6 @@ func getInstallationBackupsIDs(backups []*model.InstallationBackup) []string {
 	return backupIDs
 }
 
-// getAnnotationsIDs parses slice of annotations to slice of strings containing annotations IDs.
 func getAnnotationsIDs(annotations []*model.Annotation) []string {
 	ids := make([]string, 0, len(annotations))
 	for _, ann := range annotations {

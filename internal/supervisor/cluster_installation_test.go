@@ -188,7 +188,7 @@ func TestClusterInstallationSupervisorSupervise(t *testing.T) {
 		}
 	})
 
-	t.Run("backup is running", func(t *testing.T) {
+	t.Run("cannot delete when backup is running", func(t *testing.T) {
 		logger := testlib.MakeLogger(t)
 		sqlStore := store.MakeTestSQLStore(t, logger)
 		supervisor := supervisor.NewClusterInstallationSupervisor(sqlStore, &mockClusterInstallationProvisioner{}, &mockAWS{}, "instanceID", logger)

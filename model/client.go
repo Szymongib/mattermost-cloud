@@ -603,7 +603,7 @@ func (c *Client) CreateInstallationBackup(installationID string) (*InstallationB
 	}
 }
 
-// GetInstallationBackups returns backups for the given installation.
+// GetInstallationBackups returns list of installation backups.
 func (c *Client) GetInstallationBackups(request *GetInstallationBackupsRequest) ([]*InstallationBackup, error) {
 	u, err := url.Parse(c.buildURL("/api/installations/backups"))
 	if err != nil {
@@ -627,7 +627,7 @@ func (c *Client) GetInstallationBackups(request *GetInstallationBackupsRequest) 
 	}
 }
 
-// GetInstallationBackup returns given backup for the given installation.
+// GetInstallationBackup returns given installation backup.
 func (c *Client) GetInstallationBackup(backupID string) (*InstallationBackup, error) {
 	resp, err := c.doGet(c.buildURL("/api/installations/backup/%s", backupID))
 	if err != nil {
@@ -644,7 +644,7 @@ func (c *Client) GetInstallationBackup(backupID string) (*InstallationBackup, er
 	}
 }
 
-// DeleteInstallationBackup deletes given backup for the given installation.
+// DeleteInstallationBackup deletes given installation backup.
 func (c *Client) DeleteInstallationBackup(backupID string) error {
 	resp, err := c.doDelete(c.buildURL("/api/installations/backup/%s", backupID))
 	if err != nil {
