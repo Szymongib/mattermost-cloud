@@ -20,7 +20,7 @@ var multitenantDatabaseSelect sq.SelectBuilder
 
 func init() {
 	multitenantDatabaseSelect = sq.
-		Select("ID", "VpcID", "DatabaseType", "InstallationsRaw",
+		Select("ID", "VpcID", "DatabaseType", "InstallationsRaw", "MigratedInstallationsRaw",
 			"CreateAt", "DeleteAt", "LockAcquiredBy", "LockAcquiredAt").
 		From("MultitenantDatabase")
 }
@@ -28,6 +28,7 @@ func init() {
 type rawMultitenantDatabase struct {
 	*model.MultitenantDatabase
 	InstallationsRaw []byte
+	MigratedInstallationsRaw []byte
 }
 
 type rawMultitenantDatabases []*rawMultitenantDatabase
@@ -36,6 +37,12 @@ func (r *rawMultitenantDatabase) toMultitenantDatabase() (*model.MultitenantData
 	// We only need to set values that are converted from a raw database format.
 	if r.InstallationsRaw != nil {
 		err := json.Unmarshal(r.InstallationsRaw, &r.MultitenantDatabase.Installations)
+		if err != nil {
+			return nil, err
+		}
+	}
+	if r.MigratedInstallationsRaw != nil {
+		err := json.Unmarshal(r.MigratedInstallationsRaw, &r.MultitenantDatabase.MigratedInstallations)
 		if err != nil {
 			return nil, err
 		}
@@ -147,9 +154,13 @@ func (sqlStore *SQLStore) CreateMultitenantDatabase(multitenantDatabase *model.M
 
 	multitenantDatabase.CreateAt = GetMillis()
 
-	envJSON, err := json.Marshal(multitenantDatabase.Installations)
+	installationsJSON, err := json.Marshal(multitenantDatabase.Installations)
 	if err != nil {
 		return errors.Wrap(err, "unable to marshal installation IDs")
+	}
+	migratedInstallationsJSON, err := json.Marshal(multitenantDatabase.MigratedInstallations)
+	if err != nil {
+		return errors.Wrap(err, "unable to marshal migrated installation IDs")
 	}
 
 	_, err = sqlStore.execBuilder(sqlStore.db, sq.
@@ -158,7 +169,8 @@ func (sqlStore *SQLStore) CreateMultitenantDatabase(multitenantDatabase *model.M
 			"ID":               multitenantDatabase.ID,
 			"VpcID":            multitenantDatabase.VpcID,
 			"DatabaseType":     multitenantDatabase.DatabaseType,
-			"InstallationsRaw": []byte(envJSON),
+			"InstallationsRaw": installationsJSON,
+			"MigratedInstallationsRaw": migratedInstallationsJSON,
 			"LockAcquiredBy":   nil,
 			"LockAcquiredAt":   0,
 			"CreateAt":         multitenantDatabase.CreateAt,
@@ -174,15 +186,24 @@ func (sqlStore *SQLStore) CreateMultitenantDatabase(multitenantDatabase *model.M
 
 // UpdateMultitenantDatabase updates a already existent multitenant database in the datastore.
 func (sqlStore *SQLStore) UpdateMultitenantDatabase(multitenantDatabase *model.MultitenantDatabase) error {
-	envJSON, err := json.Marshal(multitenantDatabase.Installations)
+	return sqlStore.updateMultitenantDatabase(sqlStore.db, multitenantDatabase)
+}
+
+func (sqlStore *SQLStore) updateMultitenantDatabase(db execer, multitenantDatabase *model.MultitenantDatabase) error {
+	installationsJSON, err := json.Marshal(multitenantDatabase.Installations)
+	if err != nil {
+		return errors.Wrap(err, "unable to marshal installation IDs")
+	}
+	migratedInstallationsJSON, err := json.Marshal(multitenantDatabase.MigratedInstallations)
 	if err != nil {
 		return errors.Wrap(err, "unable to marshal installation IDs")
 	}
 
-	_, err = sqlStore.execBuilder(sqlStore.db, sq.
+	_, err = sqlStore.execBuilder(db, sq.
 		Update("MultitenantDatabase").
 		SetMap(map[string]interface{}{
-			"InstallationsRaw": []byte(envJSON),
+			"InstallationsRaw": []byte(installationsJSON),
+			"MigratedInstallationsRaw": []byte(migratedInstallationsJSON),
 		}).
 		Where(sq.Eq{"ID": multitenantDatabase.ID}),
 	)
@@ -192,6 +213,65 @@ func (sqlStore *SQLStore) UpdateMultitenantDatabase(multitenantDatabase *model.M
 
 	return nil
 }
+
+func (sqlStore *SQLStore) SwitchInstallationDatabase(installationID, newDBID string) error {
+
+	// Do I assume that DBs are locked by this provisioner? - not sure what isolation level I need
+
+	// TODO: decide if get needs to be inside transaction
+
+	oldDB, err := sqlStore.GetMultitenantDatabaseForInstallationID(installationID)
+	if err != nil {
+		return errors.Wrapf(err, "failed to get multitenant database for installation %q", installationID)
+	}
+
+	newDB, err := sqlStore.GetMultitenantDatabase(newDBID)
+	if err != nil {
+		return errors.Wrap(err, "failed to get multitenant database by id")
+	}
+	if newDB == nil {
+		return errors.Errorf("multitenant database %q not found", newDBID)
+	}
+
+	//// TODO: should we check if database have enough capacity? Or do it on the top level?
+	//totalWeight, err := sqlStore.GetInstallationsTotalDatabaseWeight(newDB.Installations)
+	//if err != nil {
+	//	return errors.Wrap(err, "failed to calculate total weight for database")
+	//}
+	//
+	//if int(math.Ceil(totalWeight)) < filter.MaxInstallationsLimit {
+	//	filteredDatabases = append(filteredDatabases, database)
+	//}
+
+	tx, err := sqlStore.beginTransaction(sqlStore.db)
+	if err != nil {
+		return errors.Wrap(err, "failed to begin transaction")
+	}
+	defer tx.RollbackUnlessCommitted()
+
+	oldDB.Installations.Remove(installationID)
+	oldDB.MigratedInstallations.Add(installationID)
+
+	newDB.Installations.Add(installationID)
+
+	err = sqlStore.updateMultitenantDatabase(tx, oldDB)
+	if err != nil {
+		return errors.Wrap(err, "failed to update multitenant db")
+	}
+
+	err = sqlStore.updateMultitenantDatabase(tx, newDB)
+	if err != nil {
+		return errors.Wrap(err, "failed to update multitenant db")
+	}
+
+	err = tx.Commit()
+	if err != nil {
+		return errors.Wrap(err, "failed to commit transaction switching multitenant databases")
+	}
+
+	return nil
+}
+
 
 // LockMultitenantDatabase marks the database cluster as locked for exclusive use by the caller.
 func (sqlStore *SQLStore) LockMultitenantDatabase(multitenantDatabaseID, lockerID string) (bool, error) {

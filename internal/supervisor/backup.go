@@ -206,25 +206,9 @@ func (s *BackupSupervisor) triggerBackup(backup *model.InstallationBackup, insta
 		return backup.State
 	}
 
-	clusterInstallationFilter := &model.ClusterInstallationFilter{
-		InstallationID: installation.ID,
-		Paging:         model.AllPagesNotDeleted(),
-	}
-	clusterInstallations, err := s.store.GetClusterInstallations(clusterInstallationFilter)
+	backupCI, ciLock, err := claimClusterInstallation(s.store, installation, instanceID, logger)
 	if err != nil {
-		logger.WithError(err).Error("Failed to get cluster installations")
-		return backup.State
-	}
-
-	if len(clusterInstallations) == 0 {
-		logger.WithError(err).Error("Expected at least one cluster installation to run backup but found none")
-		return backup.State
-	}
-
-	backupCI := clusterInstallations[0]
-	ciLock := newClusterInstallationLock(backupCI.ID, instanceID, s.store, logger)
-	if !ciLock.TryLock() {
-		logger.Errorf("Failed to lock cluster installation %s", backupCI.ID)
+		logger.WithError(err).Error("Failed to claim Cluster Installation for backup")
 		return backup.State
 	}
 	defer ciLock.Unlock()
@@ -332,3 +316,4 @@ func (s *BackupSupervisor) getClusterForBackup(backup *model.InstallationBackup)
 
 	return cluster, nil
 }
+

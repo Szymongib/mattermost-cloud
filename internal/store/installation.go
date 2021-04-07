@@ -22,7 +22,7 @@ func init() {
 			"Installation.ID", "OwnerID", "Version", "Image", "DNS", "Database", "Filestore", "Size",
 			"Affinity", "GroupID", "GroupSequence", "State", "License",
 			"MattermostEnvRaw", "SingleTenantDatabaseConfigRaw", "CreateAt", "DeleteAt",
-			"APISecurityLock", "LockAcquiredBy", "LockAcquiredAt", "CRVersion",
+			"APISecurityLock", "LockAcquiredBy", "LockAcquiredAt", "CRVersion","RestorationMetadataRaw",
 		).
 		From("Installation")
 }
@@ -31,6 +31,7 @@ type rawInstallation struct {
 	*model.Installation
 	MattermostEnvRaw              []byte
 	SingleTenantDatabaseConfigRaw []byte
+	RestorationMetadataRaw []byte
 }
 
 type rawInstallations []*rawInstallation
@@ -54,6 +55,16 @@ func (r *rawInstallation) toInstallation() (*model.Installation, error) {
 			return nil, err
 		}
 		r.Installation.SingleTenantDatabaseConfig = singleTenantDBConfig
+	}
+
+	/// TODO add test for that
+	if r.RestorationMetadataRaw != nil {
+		restorationMeta := &model.InstallationDBRestoration{}
+		err = json.Unmarshal(r.RestorationMetadataRaw, restorationMeta)
+		if err != nil {
+			return nil, err
+		}
+		r.Installation.RestorationMetadata = restorationMeta
 	}
 
 	return r.Installation, nil
@@ -353,6 +364,7 @@ func (sqlStore *SQLStore) createInstallation(db execer, installation *model.Inst
 		"LockAcquiredBy":   nil,
 		"LockAcquiredAt":   0,
 		"CRVersion":        installation.CRVersion,
+		"RestorationMetadataRaw": nil,
 	}
 
 	singleTenantDBConfJSON, err := installation.SingleTenantDatabaseConfig.ToJSON()
@@ -386,6 +398,11 @@ func (sqlStore *SQLStore) UpdateInstallation(installation *model.Installation) e
 		return errors.Wrap(err, "unable to marshal MattermostEnv")
 	}
 
+	restorationJSON, err := json.Marshal(installation.RestorationMetadata)
+	if err != nil {
+		return errors.Wrap(err, "unable to marshal RestorationMetadata")
+	}
+
 	_, err = sqlStore.execBuilder(sqlStore.db, sq.
 		Update("Installation").
 		SetMap(map[string]interface{}{
@@ -403,6 +420,7 @@ func (sqlStore *SQLStore) UpdateInstallation(installation *model.Installation) e
 			"MattermostEnvRaw": []byte(envJSON),
 			"State":            installation.State,
 			"CRVersion":        installation.CRVersion,
+			"RestorationMetadataRaw": restorationJSON,
 		}).
 		Where("ID = ?", installation.ID),
 	)
@@ -462,6 +480,28 @@ func (sqlStore *SQLStore) UpdateInstallationCRVersion(installationID, crVersion 
 	)
 	if err != nil {
 		return errors.Wrap(err, "failed to update installation")
+	}
+
+	return nil
+}
+
+// TODO: test? Or just use Instsallation update?
+// UpdateInstallationCRVersion updates the given installation RestorationMetadata.
+func (sqlStore *SQLStore) UpdateInstallationRestorationMetadata(installation *model.Installation) error {
+	restorationJSON, err := json.Marshal(installation.RestorationMetadata)
+	if err != nil {
+		return errors.Wrap(err, "unable to marshal RestorationMetadata")
+	}
+
+	_, err = sqlStore.execBuilder(sqlStore.db, sq.
+		Update("Installation").
+		SetMap(map[string]interface{}{
+			"RestorationMetadataRaw": restorationJSON,
+		}).
+		Where("ID = ?", installation.ID),
+	)
+	if err != nil {
+		return errors.Wrap(err, "failed to update installation restoration metadata")
 	}
 
 	return nil

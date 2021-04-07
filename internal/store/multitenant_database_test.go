@@ -344,3 +344,50 @@ func TestGetMultitenantDatabases_WeightCalculation(t *testing.T) {
 		})
 	}
 }
+
+func TestSQLStore_SwitchInstallationDatabase(t *testing.T) {
+	sqlStore := MakeTestSQLStore(t, testlib.MakeLogger(t))
+	defer CloseConnection(t, sqlStore)
+
+	installation := &model.Installation{
+		DNS: "test0.com",
+	}
+
+	err := sqlStore.CreateInstallation(installation, nil)
+	require.NoError(t, err)
+
+	installationIDs := model.MultitenantDatabaseInstallations{installation.ID}
+
+	database1 := &model.MultitenantDatabase{
+		ID:            "database_id0",
+		VpcID:         "vpc_id0",
+		Installations: installationIDs,
+	}
+	err = sqlStore.CreateMultitenantDatabase(database1)
+	require.NoError(t, err)
+
+	database2 := &model.MultitenantDatabase{
+		ID:            "database_id1",
+		VpcID:         "vpc_id0",
+	}
+	err = sqlStore.CreateMultitenantDatabase(database2)
+	require.NoError(t, err)
+
+	t.Run("new db not found", func(t *testing.T) {
+		err = sqlStore.SwitchInstallationDatabase(installation.ID, "not-id")
+		require.Error(t, err)
+	})
+
+	err = sqlStore.SwitchInstallationDatabase(installation.ID, database2.ID)
+	require.NoError(t, err)
+
+	oldDB, err := sqlStore.GetMultitenantDatabase(database1.ID)
+	require.NoError(t, err)
+	assert.NotContains(t, oldDB.Installations, installation.ID)
+	assert.Contains(t, oldDB.MigratedInstallations, installation.ID)
+
+	newDB, err := sqlStore.GetMultitenantDatabase(database2.ID)
+	require.NoError(t, err)
+	assert.Contains(t, newDB.Installations, installation.ID)
+	assert.NotContains(t, newDB.MigratedInstallations, installation.ID)
+}

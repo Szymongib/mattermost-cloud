@@ -189,6 +189,8 @@ func (provisioner *kopsCIBeta) UpdateClusterInstallation(cluster *model.Cluster,
 		mattermost.Spec.Image = installation.Image
 	}
 
+	// TODO: here put logic if in migrating state - do not apply size, or apply 0 size
+
 	// A few notes on installation sizing changes:
 	//  - Resizing currently ignores the installation scheduling algorithm.
 	//    There is no good interface to determine if the new installation
@@ -214,6 +216,7 @@ func (provisioner *kopsCIBeta) UpdateClusterInstallation(cluster *model.Cluster,
 		}
 	}
 
+	// TODO: or move this to separate method
 	err = provisioner.ensureFilestoreAndDatabase(mattermost, installation, clusterInstallation, k8sClient, logger)
 	if err != nil {
 		return errors.Wrap(err, "failed to ensure database and filestore")
@@ -230,6 +233,60 @@ func (provisioner *kopsCIBeta) UpdateClusterInstallation(cluster *model.Cluster,
 	}
 
 	logger.Info("Updated cluster installation")
+
+	return nil
+}
+
+func (provisioner *kopsCIBeta) MigrateDatabase(cluster *model.Cluster, installation *model.Installation, clusterInstallation *model.ClusterInstallation) error {
+	logger := provisioner.logger.WithFields(log.Fields{
+		"cluster":      clusterInstallation.ClusterID,
+		"installation": clusterInstallation.InstallationID,
+	})
+	logger.Info("Migrating cluster installation to use new database")
+
+	configLocation, err := provisioner.getCachedKopsClusterKubecfg(cluster.ProvisionerMetadataKops.Name, logger)
+	if err != nil {
+		return errors.Wrap(err, "failed to get kops config from cache")
+	}
+	defer provisioner.invalidateCachedKopsClientOnError(err, cluster.ProvisionerMetadataKops.Name, logger)
+
+	k8sClient, err := k8s.NewFromFile(configLocation, logger)
+	if err != nil {
+		return errors.Wrap(err, "failed to create k8s client from file")
+	}
+
+	installationName := makeClusterInstallationName(clusterInstallation)
+
+	ctx := context.TODO()
+
+	mattermost, err := k8sClient.MattermostClientsetV1Beta.MattermostV1beta1().Mattermosts(clusterInstallation.Namespace).Get(ctx, installationName, metav1.GetOptions{})
+	if err != nil {
+		return errors.Wrapf(err, "failed to get mattermost installation %s", clusterInstallation.ID)
+	}
+
+	mmClient := k8sClient.MattermostClientsetV1Beta.MattermostV1beta1().Mattermosts(clusterInstallation.Namespace)
+
+	// Make sure installation is scaled down
+	mattermost.Spec.Replicas = int32Ptr(0)
+	mattermost.Spec.IngressAnnotations = getHibernatingIngressAnnotations()
+	mattermost, err = mmClient.Update(ctx, mattermost, metav1.UpdateOptions{})
+	if err != nil {
+		return errors.Wrapf(err, "failed to update cluster installation %s", clusterInstallation.ID)
+	}
+
+	// TODO: Delete old secrets?
+
+	err = provisioner.ensureFilestoreAndDatabase(mattermost, installation, clusterInstallation, k8sClient, logger)
+	if err != nil {
+		return errors.Wrap(err, "failed to ensure database and filestore")
+	}
+
+	_, err = mmClient.Update(ctx, mattermost, metav1.UpdateOptions{})
+	if err != nil {
+		return errors.Wrapf(err, "failed to update cluster installation %s", clusterInstallation.ID)
+	}
+
+	logger.Info("Setup new database and file store for the installation")
 
 	return nil
 }

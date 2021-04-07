@@ -43,6 +43,30 @@ const (
 	InstallationStateUpdateInProgress = "update-in-progress"
 	// InstallationStateUpdateFailed is an installation that failed to update.
 	InstallationStateUpdateFailed = "update-failed"
+
+	// InstallationStateRestorationRequested is an installation that is waiting for database restored.
+	InstallationStateRestorationRequested = "restoration-requested"
+	// InstallationStateRestorationInvalid indicates that the restoration cannot be performed.
+	InstallationStateRestorationInvalid = "restoration-invalid"
+	// InstallationStateDBRestorationInProgress is an installation that is being restored from backup.
+	InstallationStateDBRestorationInProgress = "db-restoration-in-progress"
+
+
+	InstallationStateRestorationFailed = "restoration-failed"
+
+	// TODO: comments
+	InstallationStateDBMigrationRequested = "db-migration-requested"
+	InstallationStateDBMigrationDatabaseBackup = "db-migration-database-backup"
+	InstallationStateDBMigrationDatabaseBackupInProgress = "db-migration-database-backup-in-progress"
+	// If new VPC is different here we could migrate to different cluster
+	InstallationStateDBMigrationSwitchingDatabase = "db-migration-switching-database"
+	InstallationStateDBMigrationPreparingDatabase = "db-migration-provision-database"
+	InstallationStateDBMigrationDatabaseRestore = "db-migration-database-restore"
+	InstallationStateDBMigrationDatabaseRestoreInProgress = "db-migration-database-restore-in-progress"
+	InstallationStateDBMigrationCleanup = "db-migration-cleanup"
+
+
+
 	// InstallationStateDeletionRequested is an installation to be deleted.
 	InstallationStateDeletionRequested = "deletion-requested"
 	// InstallationStateDeletionInProgress is an installation being deleted.
@@ -106,6 +130,9 @@ var AllInstallationStatesPendingWork = []string{
 	InstallationStateDeletionRequested,
 	InstallationStateDeletionInProgress,
 	InstallationStateDeletionFinalCleanup,
+
+	InstallationStateRestorationRequested,
+	InstallationStateDBRestorationInProgress,
 }
 
 // AllInstallationRequestStates is a list of all states that an installation can

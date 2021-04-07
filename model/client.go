@@ -551,6 +551,26 @@ func (c *Client) DeleteInstallation(installationID string) error {
 	}
 }
 
+// TODO: comments
+func (c *Client) RestoreInstallationDatabase(installationID, backupID string) (*InstallationDTO, error) {
+	resp, err := c.doPost(c.buildURL("/api/installation/%s/database/restore", installationID),
+		InstallationDBRestorationRequest{BackupID: backupID},
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer closeBody(resp)
+
+	switch resp.StatusCode {
+	case http.StatusAccepted:
+		return InstallationDTOFromReader(resp.Body)
+
+	default:
+		return nil, errors.Errorf("failed with status code %d", resp.StatusCode)
+	}
+}
+
+
 // AddInstallationAnnotations adds annotations to the given installation.
 func (c *Client) AddInstallationAnnotations(installationID string, annotationsRequest *AddAnnotationsRequest) (*InstallationDTO, error) {
 	resp, err := c.doPost(c.buildURL("/api/installation/%s/annotations", installationID), annotationsRequest)

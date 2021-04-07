@@ -16,6 +16,7 @@ type MultitenantDatabase struct {
 	VpcID          string
 	DatabaseType   string
 	Installations  MultitenantDatabaseInstallations
+	MigratedInstallations MultitenantDatabaseInstallations
 	CreateAt       int64
 	DeleteAt       int64
 	LockAcquiredBy *string
