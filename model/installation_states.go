@@ -149,23 +149,9 @@ var AllInstallationRequestStates = []string{
 // ValidTransitionState returns whether an installation can be transitioned into
 // the new state or not based on its current state.
 func (i *Installation) ValidTransitionState(newState string) bool {
-<<<<<<< HEAD
 	validStates, found := validInstallationTransitions[newState]
 	if !found {
 		return false
-=======
-	switch newState {
-	case InstallationStateCreationRequested:
-		return validTransitionToInstallationStateCreationRequested(i.State)
-	case InstallationStateHibernationRequested:
-		return validTransitionToInstallationStateHibernationRequested(i.State)
-	case InstallationStateWakeUpRequested:
-		return validTransitionToInstallationStateWakeUpRequested(i.State)
-	case InstallationStateUpdateRequested:
-		return validTransitionToInstallationStateUpdateRequested(i.State)
-	case InstallationStateDeletionRequested:
-		return validTransitionToInstallationStateDeletionRequested(i.State)
->>>>>>> wip
 	}
 
 	return contains(validStates, i.State)
