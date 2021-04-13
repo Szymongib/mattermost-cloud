@@ -49,10 +49,6 @@ type Installation struct {
 	GroupOverrides             map[string]string           `json:"GroupOverrides,omitempty"`
 	SingleTenantDatabaseConfig *SingleTenantDatabaseConfig `json:"SingleTenantDatabaseConfig,omitempty"`
 
-	// TODO decide about it
-	// RestorationMetadata is
-	RestorationMetadata *InstallationDBRestoration `json:"RestorationMetadata,omitempty"`
-
 	// configconfigMergedWithGroup is set when the installation configuration
 	// has been overridden with group configuration. This value can then be
 	// checked later to determine whether the installation is safe to save or

@@ -87,7 +87,10 @@ func init() {
 	installationCmd.AddCommand(installationShowStateReport)
 	installationCmd.AddCommand(installationAnnotationCmd)
 	installationCmd.AddCommand(installationsGetStatuses)
+
+	// TODO: move those
 	installationCmd.AddCommand(installationDatabaseRestoreCmd)
+	installationCmd.AddCommand(installationDBRestorationsListCmd)
 	installationCmd.AddCommand(backupCmd)
 }
 
@@ -450,6 +453,34 @@ var installationDatabaseRestoreCmd = &cobra.Command{
 		}
 
 		err = printJSON(installationDTO)
+		if err != nil {
+			return err
+		}
+
+		return nil
+	},
+}
+
+// TODO: maybe as a separate subcommand
+var installationDBRestorationsListCmd = &cobra.Command{
+	Use:   "restorations-list",
+	Short: "List installation database restoration operations",
+	RunE: func(command *cobra.Command, args []string) error {
+		command.SilenceUsage = true
+
+		serverAddress, _ := command.Flags().GetString("server")
+		client := model.NewClient(serverAddress)
+
+
+		//installationID, _ := command.Flags().GetString("installation")
+		//backupID, _ := command.Flags().GetString("backup")
+
+		dbRestorationOperations, err := client.GetInstallationDBRestorationOperations()
+		if err != nil {
+			return errors.Wrap(err, "failed to request installation database restoration")
+		}
+
+		err = printJSON(dbRestorationOperations)
 		if err != nil {
 			return err
 		}

@@ -19,7 +19,7 @@ func TestInstallationDBRestoration(t *testing.T) {
 	dbRestoration := &model.InstallationDBRestorationOperation{
 		InstallationID:        installation.ID,
 		BackupID:              "test",
-		State:                 model.InstallationDBRestorationStateStateRequested,
+		State:                 model.InstallationDBRestorationStateRequested,
 		ClusterInstallationID: "",
 		CompleteAt:            0,
 	}
@@ -53,11 +53,11 @@ func TestGetInstallationDBRestorations(t *testing.T) {
 	require.NoError(t, err)
 
 	dbRestorations := []*model.InstallationDBRestorationOperation{
-		{InstallationID: installation1.ID, State: model.InstallationDBRestorationStateStateRequested, ClusterInstallationID: clusterInstallation.ID},
-		{InstallationID: installation1.ID, State: model.InstallationDBRestorationStateStateInProgress, ClusterInstallationID: clusterInstallation.ID},
-		{InstallationID: installation1.ID, State: model.InstallationDBRestorationStateStateFailed},
-		{InstallationID: installation2.ID, State: model.InstallationDBRestorationStateStateRequested},
-		{InstallationID: installation2.ID, State: model.InstallationDBRestorationStateStateInProgress},
+		{InstallationID: installation1.ID, State: model.InstallationDBRestorationStateRequested, ClusterInstallationID: clusterInstallation.ID},
+		{InstallationID: installation1.ID, State: model.InstallationDBRestorationStateInProgress, ClusterInstallationID: clusterInstallation.ID},
+		{InstallationID: installation1.ID, State: model.InstallationDBRestorationStateFailed},
+		{InstallationID: installation2.ID, State: model.InstallationDBRestorationStateRequested},
+		{InstallationID: installation2.ID, State: model.InstallationDBRestorationStateInProgress},
 	}
 
 	for i := range dbRestorations {
@@ -88,7 +88,7 @@ func TestGetInstallationDBRestorations(t *testing.T) {
 		},
 		{
 			description: "fetch requested installations",
-			filter:      &model.InstallationDBRestorationFilter{States: []model.InstallationDBRestorationState{model.InstallationDBRestorationStateStateRequested}, Paging: model.AllPagesNotDeleted()},
+			filter:      &model.InstallationDBRestorationFilter{States: []model.InstallationDBRestorationState{model.InstallationDBRestorationStateRequested}, Paging: model.AllPagesNotDeleted()},
 			fetchedIds:  []string{dbRestorations[3].ID, dbRestorations[0].ID},
 		},
 		{
@@ -118,7 +118,7 @@ func TestGetUnlockedInstallationDBRestorationsPendingWork(t *testing.T) {
 
 	dbRestoration1 := &model.InstallationDBRestorationOperation{
 		InstallationID: installation.ID,
-		State:          model.InstallationDBRestorationStateStateRequested,
+		State:          model.InstallationDBRestorationStateRequested,
 	}
 
 	err := sqlStore.CreateInstallationDBRestoration(dbRestoration1)
@@ -127,7 +127,7 @@ func TestGetUnlockedInstallationDBRestorationsPendingWork(t *testing.T) {
 
 	dbRestoration2 := &model.InstallationDBRestorationOperation{
 		InstallationID: installation.ID,
-		State:          model.InstallationDBRestorationStateStateSucceeded,
+		State:          model.InstallationDBRestorationStateSucceeded,
 	}
 
 	err = sqlStore.CreateInstallationDBRestoration(dbRestoration2)
@@ -157,7 +157,7 @@ func TestUpdateInstallationDBRestoration(t *testing.T) {
 
 	dbRestoration := &model.InstallationDBRestorationOperation{
 		InstallationID: installation.ID,
-		State:          model.InstallationDBRestorationStateStateRequested,
+		State:          model.InstallationDBRestorationStateRequested,
 	}
 
 	err := sqlStore.CreateInstallationDBRestoration(dbRestoration)
@@ -165,7 +165,7 @@ func TestUpdateInstallationDBRestoration(t *testing.T) {
 	assert.NotEmpty(t, dbRestoration.ID)
 
 	t.Run("update state only", func(t *testing.T) {
-		dbRestoration.State = model.InstallationDBRestorationStateStateSucceeded
+		dbRestoration.State = model.InstallationDBRestorationStateSucceeded
 		dbRestoration.CompleteAt = -1
 
 		err = sqlStore.UpdateInstallationDBRestorationState(dbRestoration)
@@ -173,7 +173,7 @@ func TestUpdateInstallationDBRestoration(t *testing.T) {
 
 		fetched, err := sqlStore.GetInstallationDBRestoration(dbRestoration.ID)
 		require.NoError(t, err)
-		assert.Equal(t, model.InstallationDBRestorationStateStateSucceeded, fetched.State)
+		assert.Equal(t, model.InstallationDBRestorationStateSucceeded, fetched.State)
 		assert.Equal(t, int64(0), fetched.CompleteAt)         // Assert complete time not updated
 		assert.Equal(t, "", fetched.ClusterInstallationID) // Assert CI ID not updated
 	})
@@ -181,13 +181,13 @@ func TestUpdateInstallationDBRestoration(t *testing.T) {
 	t.Run("full update", func(t *testing.T) {
 		dbRestoration.ClusterInstallationID = "test"
 		dbRestoration.CompleteAt = 100
-		dbRestoration.State = model.InstallationDBRestorationStateStateFailed
+		dbRestoration.State = model.InstallationDBRestorationStateFailed
 		err = sqlStore.UpdateInstallationDBRestoration(dbRestoration)
 		require.NoError(t, err)
 
 		fetched, err := sqlStore.GetInstallationDBRestoration(dbRestoration.ID)
 		require.NoError(t, err)
-		assert.Equal(t, model.InstallationDBRestorationStateStateFailed, fetched.State)
+		assert.Equal(t, model.InstallationDBRestorationStateFailed, fetched.State)
 		assert.Equal(t, "test", fetched.ClusterInstallationID)
 		assert.Equal(t, int64(100), fetched.CompleteAt)
 	})

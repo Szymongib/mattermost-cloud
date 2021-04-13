@@ -1217,6 +1217,7 @@ var migrations = []migration{
 
 		return nil
 	}},
+	// TODO: cleanup all of this
 	//{semver.MustParse("0.25.0"), semver.MustParse("0.26.0"), func(e execer) error {
 	//	// Add InstallationDBRestoration table.
 	//	_, err := e.Exec(`
@@ -1239,15 +1240,15 @@ var migrations = []migration{
 	// TODO: decide on this based of migrations
 	{semver.MustParse("0.25.0"), semver.MustParse("0.26.0"), func(e execer) error {
 		// TODO: note changes
+		//_, err := e.Exec(`
+		//	ALTER TABLE Installation ADD COLUMN RestorationMetadataRaw BYTEA NULL;
+		//	`)
+		//if err != nil {
+		//	return err
+		//}
+
+
 		_, err := e.Exec(`
-			ALTER TABLE Installation ADD COLUMN RestorationMetadataRaw BYTEA NULL;
-			`)
-		if err != nil {
-			return err
-		}
-
-
-		_, err = e.Exec(`
 			CREATE TABLE InstallationDBRestorationOperation (
 				ID TEXT PRIMARY KEY,
 				InstallationID TEXT NOT NULL,
@@ -1266,8 +1267,30 @@ var migrations = []migration{
 			return err
 		}
 
+		return nil
+	}},
+	{semver.MustParse("0.26.0"), semver.MustParse("0.27.0"), func(e execer) error {
 
-		// TODO: this probably can go to next migration
+		_, err := e.Exec(`
+			CREATE TABLE InstallationDBMigrationOperation (
+				ID TEXT PRIMARY KEY,
+				InstallationID TEXT NOT NULL,
+				RequestAt BIGINT NOT NULL,
+
+				State TEXT NOT NULL,
+				BackupID TEXT NOT NULL,
+
+				CompleteAt BIGINT NOT NULL,
+
+				DeleteAt BIGINT NOT NULL,
+				LockAcquiredBy TEXT NULL,
+				LockAcquiredAt BIGINT NOT NULL
+			);
+		`)
+		if err != nil {
+			return err
+		}
+
 		_, err = e.Exec(`ALTER TABLE MultitenantDatabase RENAME TO MultitenantDatabaseTemp;`)
 		if err != nil {
 			return err
@@ -1304,7 +1327,7 @@ var migrations = []migration{
 			LockAcquiredAt
 		FROM
 		MultitenantDatabaseTemp;
-	`)
+		`)
 		if err != nil {
 			return err
 		}
@@ -1313,8 +1336,6 @@ var migrations = []migration{
 		if err != nil {
 			return err
 		}
-
-
 
 		return nil
 	}},

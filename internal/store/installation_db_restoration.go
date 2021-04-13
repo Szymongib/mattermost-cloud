@@ -48,7 +48,7 @@ func (sqlStore *SQLStore) CreateInstallationDBRestoration(dbRestoration *model.I
 			"BackupID": dbRestoration.BackupID,
 			"State": dbRestoration.State,
 			"RequestAt": dbRestoration.RequestAt,
-			"TargetInstallationState": "",
+			"TargetInstallationState": dbRestoration.TargetInstallationState,
 			"ClusterInstallationID": dbRestoration.ClusterInstallationID,
 			"CompleteAt": dbRestoration.CompleteAt,
 			"DeleteAt": 0,
@@ -116,6 +116,7 @@ func (sqlStore *SQLStore) GetUnlockedInstallationDBRestorationsPendingWork() ([]
 // UpdateInstallationDBRestorationState updates the given installation db restoration state.
 func (sqlStore *SQLStore) UpdateInstallationDBRestorationState(dbRestoration *model.InstallationDBRestorationOperation) error {
 	return sqlStore.updateInstallationDBRestorationFields(
+		sqlStore.db,
 		dbRestoration.ID, map[string]interface{}{
 			"State": dbRestoration.State,
 		})
@@ -123,7 +124,12 @@ func (sqlStore *SQLStore) UpdateInstallationDBRestorationState(dbRestoration *mo
 
 // UpdateInstallationDBRestoration updates the given installation db restoration.
 func (sqlStore *SQLStore) UpdateInstallationDBRestoration(dbRestoration *model.InstallationDBRestorationOperation) error {
+	return sqlStore.updateInstallationDBRestoration(sqlStore.db, dbRestoration)
+}
+
+func (sqlStore *SQLStore) updateInstallationDBRestoration(db execer, dbRestoration *model.InstallationDBRestorationOperation) error {
 	return sqlStore.updateInstallationDBRestorationFields(
+		db,
 		dbRestoration.ID, map[string]interface{}{
 			"State": dbRestoration.State,
 			"TargetInstallationState": dbRestoration.TargetInstallationState,
@@ -132,8 +138,8 @@ func (sqlStore *SQLStore) UpdateInstallationDBRestoration(dbRestoration *model.I
 		})
 }
 
-func (sqlStore *SQLStore) updateInstallationDBRestorationFields(id string, fields map[string]interface{}) error {
-	_, err := sqlStore.execBuilder(sqlStore.db, sq.
+func (sqlStore *SQLStore) updateInstallationDBRestorationFields(db execer, id string, fields map[string]interface{}) error {
+	_, err := sqlStore.execBuilder(db, sq.
 		Update(installationDBRestorationTable).
 		SetMap(fields).
 		Where("ID = ?", id))
@@ -144,17 +150,36 @@ func (sqlStore *SQLStore) updateInstallationDBRestorationFields(id string, field
 	return nil
 }
 
-// TODO: probably remove
-//// UpdateInstallationAndRestoration updates installation and installation db restoration in a single transaction.
-//func (sqlStore *SQLStore) UpdateInstallationAndRestoration(installation *model.Installation, dbRestoration *model.InstallationDBRestorationOperation) error {
-//
-//	// Begin transaction
-//	// Update Installation
-//	// Update DBRestore
-//	// Commit
-//
-//	return nil
-//}
+// TODO: tests
+// UpdateInstallationRestorationResources updates installation, installation backup and installation db restoration in a single transaction.
+func (sqlStore *SQLStore) UpdateInstallationRestorationResources(installation *model.Installation, backup *model.InstallationBackup, dbRestoration *model.InstallationDBRestorationOperation) error {
+	tx, err := sqlStore.beginTransaction(sqlStore.db)
+	if err != nil {
+		return errors.Wrap(err, "failed to start transaction")
+	}
+	defer tx.RollbackUnlessCommitted()
+
+	err = sqlStore.updateInstallationDBRestoration(tx, dbRestoration)
+	if err != nil {
+		return errors.Wrap(err, "failed to update installation db restoration")
+	}
+
+	err = sqlStore.updateInstallation(tx, installation)
+	if err != nil {
+		return errors.Wrap(err, "failed to update installation")
+	}
+
+	err = sqlStore.updateInstallationBackupState(tx, backup)
+	if err != nil {
+		return errors.Wrap(err, "failed to update installation backup")
+	}
+
+	err = tx.Commit()
+	if err != nil {
+		return errors.Wrap(err, "failed to commit transaction")
+	}
+	return nil
+}
 
 // LockInstallationDBRestoration marks the InstallationDBRestoration as locked for exclusive use by the caller.
 func (sqlStore *SQLStore) LockInstallationDBRestoration(id, lockerID string) (bool, error) {

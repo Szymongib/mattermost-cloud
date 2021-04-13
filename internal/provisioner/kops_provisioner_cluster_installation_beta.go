@@ -298,7 +298,7 @@ func (provisioner *kopsCIBeta) ensureFilestoreAndDatabase(
 	k8sClient *k8s.KubeClient,
 	logger log.FieldLogger) error {
 
-	databaseSecret, err := provisioner.resourceUtil.GetDatabase(installation).GenerateDatabaseSecret(provisioner.store, logger)
+	databaseSecret, err := provisioner.resourceUtil.GetDatabaseForInstallation(installation).GenerateDatabaseSecret(provisioner.store, logger)
 	if err != nil {
 		return errors.Wrap(err, "failed to generate database configuration")
 	}

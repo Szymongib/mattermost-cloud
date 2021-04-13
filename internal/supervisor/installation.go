@@ -30,8 +30,7 @@ type installationStore interface {
 	GetClusters(clusterFilter *model.ClusterFilter) ([]*model.Cluster, error)
 	GetCluster(id string) (*model.Cluster, error)
 	UpdateCluster(cluster *model.Cluster) error
-	LockCluster(clusterID, lockerID string) (bool, error)
-	UnlockCluster(clusterID string, lockerID string, force bool) (bool, error)
+	clusterLockStore
 
 	GetInstallation(installationID string, includeGroupConfig, includeGroupConfigOverrides bool) (*model.Installation, error)
 	GetUnlockedInstallationsPendingWork() ([]*model.Installation, error)
@@ -39,9 +38,8 @@ type installationStore interface {
 	UpdateInstallationGroupSequence(installation *model.Installation) error
 	UpdateInstallationState(*model.Installation) error
 	UpdateInstallationCRVersion(installationID, crVersion string) error
-	LockInstallation(installationID, lockerID string) (bool, error)
-	UnlockInstallation(installationID, lockerID string, force bool) (bool, error)
 	DeleteInstallation(installationID string) error
+	installationLockStore
 
 	CreateClusterInstallation(clusterInstallation *model.ClusterInstallation) error
 	GetClusterInstallation(clusterInstallationID string) (*model.ClusterInstallation, error)
@@ -67,10 +65,8 @@ type installationStore interface {
 	GetAnnotationsForInstallation(installationID string) ([]*model.Annotation, error)
 
 	GetInstallationBackups(filter *model.InstallationBackupFilter) ([]*model.InstallationBackup, error)
-	GetInstallationBackup(backupID string) (*model.InstallationBackup, error)
 	UpdateInstallationBackupState(backup *model.InstallationBackup) error
-	LockInstallationBackups(backupIDs []string, lockerID string) (bool, error)
-	UnlockInstallationBackups(backupIDs []string, lockerID string, force bool) (bool, error)
+	installationBackupLockStore
 
 	GetWebhooks(filter *model.WebhookFilter) ([]*model.Webhook, error)
 }
@@ -113,7 +109,6 @@ type InstallationSupervisorSchedulingOptions struct {
 func NewInstallationSupervisor(
 	store installationStore,
 	installationProvisioner installationProvisioner,
-	restoreOperator restoreOperator,
 	aws aws.AWS,
 	instanceID string,
 	keepDatabaseData,
@@ -126,7 +121,6 @@ func NewInstallationSupervisor(
 	return &InstallationSupervisor{
 		store:             store,
 		provisioner:       installationProvisioner,
-		restoreOperator: restoreOperator,
 		aws:               aws,
 		instanceID:        instanceID,
 		keepDatabaseData:  keepDatabaseData,
@@ -295,12 +289,6 @@ func (s *InstallationSupervisor) transitionInstallation(installation *model.Inst
 
 	case model.InstallationStateDeletionFinalCleanup:
 		return s.finalDeletionCleanup(installation, instanceID, logger)
-
-	case model.InstallationStateRestorationRequested:
-		return s.triggerRestoration(installation, instanceID, logger)
-
-	case model.InstallationStateDBRestorationInProgress:
-		return s.checkRestorationStatus(installation, logger)
 
 	default:
 		logger.Warnf("Found installation pending work in unexpected state %s", installation.State)
@@ -615,7 +603,7 @@ func (s *InstallationSupervisor) installationCanBeScheduledOnCluster(cluster *mo
 }
 
 func (s *InstallationSupervisor) preProvisionInstallation(installation *model.Installation, instanceID string, logger log.FieldLogger) string {
-	err := s.resourceUtil.GetDatabase(installation).Provision(s.store, logger)
+	err := s.resourceUtil.GetDatabaseForInstallation(installation).Provision(s.store, logger)
 	if err != nil {
 		logger.WithError(err).Error("Failed to provision installation database")
 		return model.InstallationStateCreationPreProvisioning
@@ -882,7 +870,7 @@ func (s *InstallationSupervisor) hibernateInstallation(installation *model.Insta
 		return installation.State
 	}
 
-	err = s.resourceUtil.GetDatabase(installation).RefreshResourceMetadata(s.store, logger)
+	err = s.resourceUtil.GetDatabaseForInstallation(installation).RefreshResourceMetadata(s.store, logger)
 	if err != nil {
 		logger.WithError(err).Warn("Failed to update database resource metadata")
 		return installation.State
@@ -974,7 +962,7 @@ func (s *InstallationSupervisor) waitForHibernationStable(installation *model.In
 }
 
 func (s *InstallationSupervisor) wakeUpInstallation(installation *model.Installation, instanceID string, logger log.FieldLogger) string {
-	err := s.resourceUtil.GetDatabase(installation).RefreshResourceMetadata(s.store, logger)
+	err := s.resourceUtil.GetDatabaseForInstallation(installation).RefreshResourceMetadata(s.store, logger)
 	if err != nil {
 		logger.WithError(err).Warn("Failed to update database resource metadata")
 		return installation.State
@@ -1103,7 +1091,7 @@ func (s *InstallationSupervisor) finalDeletionCleanup(installation *model.Instal
 		}
 	}
 
-	err = s.resourceUtil.GetDatabase(installation).Teardown(s.store, s.keepDatabaseData, logger)
+	err = s.resourceUtil.GetDatabaseForInstallation(installation).Teardown(s.store, s.keepDatabaseData, logger)
 	if err != nil {
 		logger.WithError(err).Error("Failed to delete database")
 		return model.InstallationStateDeletionFinalCleanup
@@ -1214,96 +1202,6 @@ func (s *InstallationSupervisor) finalCreationTasks(installation *model.Installa
 	s.metrics.InstallationCreationDurationHist.Observe(elapsedTimeInSeconds(installation.CreateAt))
 	return model.InstallationStateStable
 }
-
-func (s *InstallationSupervisor) triggerRestoration(installation *model.Installation, instanceID string, logger log.FieldLogger) string {
-
-	// TODO: check if restoration meta ok?
-
-	backup, err := s.store.GetInstallationBackup(installation.RestorationMetadata.BackupID)
-	if err != nil {
-		logger.WithError(err).Error("failed to get backup")
-		return installation.State
-	}
-	// TODO: this checks as a backup function
-	if backup == nil {
-		logger.Error("Restoration cannot be performed, backup not found")
-		return model.InstallationStateRestorationInvalid
-	}
-	if backup.State != model.InstallationBackupStateBackupSucceeded {
-		logger.Error("Restoration cannot be performed, backup is not in Succeeded state, state: %q", backup.State)
-		return model.InstallationStateRestorationInvalid
-	}
-
-	restoreCI, ciLock, err := claimClusterInstallation(s.store, installation, instanceID, logger)
-	if err != nil {
-		logger.WithError(err).Error("Failed to claim Cluster Installation for restoration")
-		return installation.State
-	}
-	defer ciLock.Unlock()
-
-	cluster, err := s.store.GetCluster(restoreCI.ClusterID)
-	if err != nil {
-		logger.WithError(err).Error("Failed to get cluster for restoration")
-		return installation.State
-	}
-
-	installation.RestorationMetadata.ClusterInstallationID = restoreCI.ClusterID
-	err = s.store.UpdateInstallation(installation)
-	if err != nil {
-		logger.WithError(err).Error("Failed to update restoration metadata")
-		return installation.State
-	}
-
-	err = s.restoreOperator.TriggerRestore(installation,backup, cluster)
-	if err != nil {
-		logger.WithError(err).Error("Failed to trigger restoration job")
-		return installation.State
-	}
-
-	return model.InstallationStateDBRestorationInProgress
-}
-
-func (s *InstallationSupervisor) checkRestorationStatus(installation *model.Installation, logger log.FieldLogger) string {
-
-	// TODO: check if restoration meta ok?
-
-	// Get Restoration
-	//restorationCfg := model.InstallationDBRestoration{}
-	backup, err := s.store.GetInstallationBackup(installation.RestorationMetadata.BackupID)
-	if err != nil {
-		logger.WithError(err).Error("failed to get backup")
-		return installation.State
-	}
-	// TODO: check if backup ok
-
-	cluster, err := s.store.GetCluster(installation.RestorationMetadata.ClusterInstallationID)
-	if err != nil {
-		logger.WithError(err).Error("Failed to get cluster for restoration")
-		return installation.State
-	}
-
-	completeAt, err := s.restoreOperator.CheckRestoreStatus(backup, cluster)
-	if err != nil {
-		logger.WithError(err).Error("Failed to check if restoration is running")
-		return installation.State
-	}
-	if completeAt <= 0 {
-		logger.Info("Database restoration still in progress")
-		return installation.State
-	}
-
-	// TODO: change to complete time
-	installation.RestorationMetadata.CompleteAt = completeAt
-	err = s.store.UpdateInstallation(installation)
-	if err != nil {
-		logger.WithError(err).Error("Failed to update restoration metadata")
-		return installation.State
-	}
-
-	// TODO: based on if this is migration or not differnet status
-	return model.InstallationStateHibernating
-}
-
 
 // Helper funcs
 

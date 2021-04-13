@@ -262,7 +262,7 @@ var serverCmd = &cobra.Command{
 		}
 		if installationSupervisor {
 			scheduling := supervisor.NewInstallationSupervisorSchedulingOptions(balancedInstallationScheduling, clusterResourceThreshold, clusterResourceThresholdScaleValue)
-			multiDoer = append(multiDoer, supervisor.NewInstallationSupervisor(sqlStore, kopsProvisioner, kopsProvisioner, awsClient, instanceID, keepDatabaseData, keepFilestoreData, scheduling, resourceUtil, logger, cloudMetrics, forceCRUpgrade))
+			multiDoer = append(multiDoer, supervisor.NewInstallationSupervisor(sqlStore, kopsProvisioner, awsClient, instanceID, keepDatabaseData, keepFilestoreData, scheduling, resourceUtil, logger, cloudMetrics, forceCRUpgrade))
 		}
 		if clusterInstallationSupervisor {
 			multiDoer = append(multiDoer, supervisor.NewClusterInstallationSupervisor(sqlStore, kopsProvisioner, awsClient, instanceID, logger))
@@ -270,6 +270,8 @@ var serverCmd = &cobra.Command{
 		if backupSupervisor {
 			multiDoer = append(multiDoer, supervisor.NewBackupSupervisor(sqlStore, kopsProvisioner, awsClient, instanceID, logger))
 		}
+		// if installationDBRestorationSupervisor {
+		multiDoer = append(multiDoer, supervisor.NewInstallationDBRestorationSupervisor(sqlStore, awsClient, kopsProvisioner, instanceID, logger))
 
 		// Setup the supervisor to effect any requested changes. It is wrapped in a
 		// scheduler to trigger it periodically in addition to being poked by the API

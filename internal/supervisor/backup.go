@@ -16,26 +16,29 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+// TODO: not sure if I like it
+type installationBackupCommonStore interface {
+	GetInstallationBackup(id string) (*model.InstallationBackup, error)
+	UpdateInstallationBackupState(backupMeta *model.InstallationBackup) error
+}
+
 // installationBackupStore abstracts the database operations required to query installations backup.
 type installationBackupStore interface {
+	installationBackupCommonStore
+	installationBackupLockStore
+
 	GetUnlockedInstallationBackupPendingWork() ([]*model.InstallationBackup, error)
-	GetInstallationBackup(id string) (*model.InstallationBackup, error)
 	UpdateInstallationBackupState(backupMeta *model.InstallationBackup) error
 	UpdateInstallationBackupSchedulingData(backupMeta *model.InstallationBackup) error
 	UpdateInstallationBackupStartTime(backupMeta *model.InstallationBackup) error
 	DeleteInstallationBackup(id string) error
 
-	LockInstallationBackups(backupIDs []string, lockerID string) (bool, error)
-	UnlockInstallationBackups(backupIDs []string, lockerID string, force bool) (bool, error)
-
 	GetInstallation(installationID string, includeGroupConfig, includeGroupConfigOverrides bool) (*model.Installation, error)
-	LockInstallation(installationID, lockerID string) (bool, error)
-	UnlockInstallation(installationID, lockerID string, force bool) (bool, error)
+	installationLockStore
 
 	GetClusterInstallations(*model.ClusterInstallationFilter) ([]*model.ClusterInstallation, error)
 	GetClusterInstallation(clusterInstallationID string) (*model.ClusterInstallation, error)
-	LockClusterInstallations(clusterInstallationID []string, lockerID string) (bool, error)
-	UnlockClusterInstallations(clusterInstallationID []string, lockerID string, force bool) (bool, error)
+	clusterInstallationLockStore
 
 	GetCluster(id string) (*model.Cluster, error)
 

@@ -195,6 +195,7 @@ func (sqlStore *SQLStore) UpdateInstallationBackupSchedulingData(backup *model.I
 	}
 
 	return sqlStore.updateBackupFields(
+		sqlStore.db,
 		backup.ID, map[string]interface{}{
 			"DataResidenceRaw":      data,
 			"ClusterInstallationID": backup.ClusterInstallationID,
@@ -204,6 +205,7 @@ func (sqlStore *SQLStore) UpdateInstallationBackupSchedulingData(backup *model.I
 // UpdateInstallationBackupStartTime updates the given backup start time.
 func (sqlStore *SQLStore) UpdateInstallationBackupStartTime(backup *model.InstallationBackup) error {
 	return sqlStore.updateBackupFields(
+		sqlStore.db,
 		backup.ID, map[string]interface{}{
 			"StartAt": backup.StartAt,
 		})
@@ -211,7 +213,12 @@ func (sqlStore *SQLStore) UpdateInstallationBackupStartTime(backup *model.Instal
 
 // UpdateInstallationBackupState updates the given backup to a new state.
 func (sqlStore *SQLStore) UpdateInstallationBackupState(backup *model.InstallationBackup) error {
+	return sqlStore.updateInstallationBackupState(sqlStore.db, backup)
+}
+
+func (sqlStore *SQLStore) updateInstallationBackupState(db execer, backup *model.InstallationBackup) error {
 	return sqlStore.updateBackupFields(
+		db,
 		backup.ID, map[string]interface{}{
 			"State": backup.State,
 		})
@@ -232,8 +239,8 @@ func (sqlStore *SQLStore) DeleteInstallationBackup(id string) error {
 	return nil
 }
 
-func (sqlStore *SQLStore) updateBackupFields(id string, fields map[string]interface{}) error {
-	_, err := sqlStore.execBuilder(sqlStore.db, sq.
+func (sqlStore *SQLStore) updateBackupFields(db execer, id string, fields map[string]interface{}) error {
+	_, err := sqlStore.execBuilder(db, sq.
 		Update(backupTable).
 		SetMap(fields).
 		Where("ID = ?", id))
@@ -288,6 +295,7 @@ func (sqlStore *SQLStore) applyInstallationBackupFilter(builder sq.SelectBuilder
 // LockInstallationBackupAPI locks updates to the backup from the API.
 func (sqlStore *SQLStore) LockInstallationBackupAPI(backupID string) error {
 	return sqlStore.updateBackupFields(
+		sqlStore.db,
 		backupID, map[string]interface{}{
 			"APISecurityLock": true,
 		})
@@ -296,6 +304,7 @@ func (sqlStore *SQLStore) LockInstallationBackupAPI(backupID string) error {
 // UnlockInstallationBackupAPI unlocks updates to the backup from the API.
 func (sqlStore *SQLStore) UnlockInstallationBackupAPI(backupID string) error {
 	return sqlStore.updateBackupFields(
+		sqlStore.db,
 		backupID, map[string]interface{}{
 			"APISecurityLock": false,
 		})

@@ -10,7 +10,7 @@ import (
 
 // TODO: decide on naming - should we stick to operation?
 type InstallationDBRestorationOperation struct {
-	ID string // TODO: remove if you leave it inline
+	ID string
 	InstallationID string
 	BackupID string
 	RequestAt int64
@@ -25,42 +25,38 @@ type InstallationDBRestorationOperation struct {
 	LockAcquiredBy             *string
 	LockAcquiredAt             int64
 	//Lock
-	Paging
 }
 
 // InstallationDBRestorationState represents the state of backup.
 type InstallationDBRestorationState string
 
 const (
-	// InstallationDBRestorationStateStateRequested is a requested installation db restoration that was not yet started.
-	InstallationDBRestorationStateStateRequested InstallationDBRestorationState = "installation-db-restoration-requested"
-
-	// InstallationDBRestorationStateStateTriggeringRestoration is an installation db restoration that is currently being started.
-	InstallationDBRestorationStateStateTriggeringRestoration InstallationDBRestorationState = "installation-db-restoration-triggering"
-
-	// InstallationDBRestorationStateStateInProgress is an installation db restoration that is currently running.
-	InstallationDBRestorationStateStateInProgress InstallationDBRestorationState = "installation-db-restoration-in-progress"
-
-	// InstallationDBRestorationStateStateFinishing is an installation db restoration that is finalizing restoration.
-	InstallationDBRestorationStateStateFinishing InstallationDBRestorationState = "installation-db-restoration-finishing"
-
-	// TODO: will need more states probably
-
-	// InstallationDBRestorationStateStateSucceeded is an installation db restoration that have finished with success.
-	InstallationDBRestorationStateStateSucceeded InstallationDBRestorationState = "installation-db-restoration-succeeded"
-	// InstallationDBRestorationStateStateFailed if an installation db restoration that have failed.
-	InstallationDBRestorationStateStateFailed InstallationDBRestorationState = "installation-db-restoration-failed"
+	// InstallationDBRestorationStateRequested is a requested installation db restoration that was not yet started.
+	InstallationDBRestorationStateRequested InstallationDBRestorationState = "installation-db-restoration-requested"
+	// InstallationDBRestorationStateBeginning is an installation db restoration that is ready to be started.
+	InstallationDBRestorationStateBeginning InstallationDBRestorationState = "installation-db-restoration-beginning"
+	// InstallationDBRestorationStateInProgress is an installation db restoration that is currently running.
+	InstallationDBRestorationStateInProgress InstallationDBRestorationState = "installation-db-restoration-in-progress"
+	// InstallationDBRestorationStateFinalizing is an installation db restoration that is finalizing restoration.
+	InstallationDBRestorationStateFinalizing InstallationDBRestorationState = "installation-db-restoration-finishing"
+	// InstallationDBRestorationStateSucceeded is an installation db restoration that have finished with success.
+	InstallationDBRestorationStateSucceeded InstallationDBRestorationState = "installation-db-restoration-succeeded"
+	// InstallationDBRestorationStateFailed is an installation db restoration that have failed.
+	InstallationDBRestorationStateFailed InstallationDBRestorationState = "installation-db-restoration-failed"
+	// InstallationDBRestorationStateInvalid is an installation db restoration that is invalid.
+	InstallationDBRestorationStateInvalid InstallationDBRestorationState = "installation-db-restoration-invalid"
 )
 
 // AllInstallationBackupStatesPendingWork is a list of all backup states that
 // the supervisor will attempt to transition towards stable on the next "tick".
 var AllInstallationDBRestorationStatesPendingWork = []InstallationDBRestorationState{
-	InstallationDBRestorationStateStateRequested,
-	InstallationDBRestorationStateStateTriggeringRestoration,
-	InstallationDBRestorationStateStateInProgress,
-	InstallationDBRestorationStateStateFinishing,
+	InstallationDBRestorationStateRequested,
+	InstallationDBRestorationStateBeginning,
+	InstallationDBRestorationStateInProgress,
+	InstallationDBRestorationStateFinalizing,
 }
 
+// TODO: add include finished or something
 // InstallationDBRestorationFilter describes the parameters used to constrain a set of installation-db-restoration.
 type InstallationDBRestorationFilter struct {
 	Paging
@@ -70,11 +66,24 @@ type InstallationDBRestorationFilter struct {
 	States                []InstallationDBRestorationState
 }
 
-func EnsureReadyForDBRestoration(installation *Installation) error {
+func EnsureReadyForDBRestoration(installation *Installation, backup *InstallationBackup) error {
+	if installation.ID != backup.InstallationID {
+		return errors.New("Backup belongs to different installation")
+	}
+	if backup.State != InstallationBackupStateBackupSucceeded {
+		return errors.Errorf("Only backups in succeeded state can be restored, the state is %q", backup.State)
+	}
+	if backup.DeleteAt > 0 {
+		return errors.New("Backup files are deleted")
+	}
+
+	return EnsureInstallationReadyForDBRestoration(installation)
+}
+
+func EnsureInstallationReadyForDBRestoration(installation *Installation) error {
 	var errs []string
 
-	if installation.State != InstallationStateHibernating &&
-		installation.State != InstallationStateDBRestorationInProgress {
+	if installation.State != InstallationStateHibernating && installation.State != InstallationStateDBMigrationInProgress {
 		errs = append(errs, fmt.Sprintf("invalid installation state, only hibernated installations can be restored, state is %q", installation.State))
 	}
 
@@ -103,34 +112,15 @@ func DetermineRestorationTargetState(installation *Installation) (string, error)
 }
 
 
-type InstallationDBRestoration struct {
-	ID string // TODO: remove if you leave it inline
-	InstallationID string
-	BackupID string
-	RequestAt int64
-
-	ClusterInstallationID string
-
-	CompleteAt int64
-
-	/// States? Original? Finished?
-}
-
-type InstallationDBRestorationRequest struct {
-	BackupID string
-}
-
-
 // TODO: test
-// NewInstallationDBRestorationRequestFromReader will create a InstallationDBRestorationRequest from an
+// NewInstallationDBRestorationOperationsFromReader will create a []*InstallationDBRestorationOperation from an
 // io.Reader with JSON data.
-func NewInstallationDBRestorationRequestFromReader(reader io.Reader) (*InstallationDBRestorationRequest, error) {
-	var restoreRequest InstallationDBRestorationRequest
-	err := json.NewDecoder(reader).Decode(&restoreRequest)
+func NewInstallationDBRestorationOperationsFromReader(reader io.Reader) ([]*InstallationDBRestorationOperation, error) {
+	var restorations []*InstallationDBRestorationOperation
+	err := json.NewDecoder(reader).Decode(&restorations)
 	if err != nil && err != io.EOF {
-		return nil, errors.Wrap(err, "failed to decode installation db restore request")
+		return nil, errors.Wrap(err, "failed to decode installation db restore operation")
 	}
 
-	return &restoreRequest, nil
+	return restorations, nil
 }
-

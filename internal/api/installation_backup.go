@@ -5,6 +5,7 @@
 package api
 
 import (
+	"github.com/mattermost/mattermost-cloud/internal/components"
 	"net/http"
 	"time"
 
@@ -51,33 +52,16 @@ func handleRequestInstallationBackup(c *Context, w http.ResponseWriter, r *http.
 	}
 	defer unlockOnce()
 
-	if err := model.EnsureBackupCompatible(installationDTO.Installation); err != nil {
-		c.Logger.WithError(err).Error("installation cannot be backed up")
+	if installationDTO.State != model.InstallationStateHibernating {
+		c.Logger.Error("Cannot request backup for not hibernating installation")
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
 
-	backupRunning, err := c.Store.IsInstallationBackupRunning(installationDTO.ID)
+	backup, err := components.TriggerInstallationBackup(c.Store, installationDTO.Installation)
 	if err != nil {
-		c.Logger.WithError(err).Error("Failed to check if backup is running for Installation")
-		w.WriteHeader(http.StatusInternalServerError)
-		return
-	}
-	if backupRunning {
-		c.Logger.Error("Backup for the installation is already requested or in progress")
-		w.WriteHeader(http.StatusBadRequest)
-		return
-	}
-
-	backup := &model.InstallationBackup{
-		InstallationID: installationDTO.ID,
-		State:          model.InstallationBackupStateBackupRequested,
-	}
-
-	err = c.Store.CreateInstallationBackup(backup)
-	if err != nil {
-		c.Logger.Error("Failed to create backup metadata")
-		w.WriteHeader(http.StatusInternalServerError)
+		c.Logger.WithError(err).Error("Failed to trigger installation backup")
+		w.WriteHeader(components.ErrToStatus(err))
 		return
 	}
 

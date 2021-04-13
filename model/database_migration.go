@@ -21,10 +21,6 @@ type DBMigrationRequest struct {
 	DestinationMultitenantDatabaseID string
 }
 
-type DestinationMultiTenantDB struct {
-	DatabaseID string
-}
-
 type DestinationSingleTenantDB struct {
 	DatabaseID string
 }
@@ -49,15 +45,6 @@ type DBMigration struct {
 
 
 }
-
-type DBMigrationState string
-
-const (
-	DMMigrationStateRequested DBMigrationState = "migration-requested"
-	DMMigrationStateInProgress DBMigrationState = "migration-in-progress"
-	DMMigrationStateSucceeded DBMigrationState = "succeeded"
-	DMMigrationStateFailed DBMigrationState = "failed"
-)
 
 // Validation
 /*

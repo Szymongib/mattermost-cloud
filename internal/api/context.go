@@ -83,6 +83,10 @@ type Store interface {
 	UnlockInstallationBackup(backupMetadataID, lockerID string, force bool) (bool, error)
 	LockInstallationBackupAPI(backupID string) error
 	UnlockInstallationBackupAPI(backupID string) error
+
+	CreateInstallationDBRestoration(dbRestoration *model.InstallationDBRestorationOperation) error
+	GetInstallationDBRestoration(id string) (*model.InstallationDBRestorationOperation, error)
+	GetInstallationDBRestorations(filter *model.InstallationDBRestorationFilter) ([]*model.InstallationDBRestorationOperation, error)
 }
 
 // Provisioner describes the interface required to communicate with the Kubernetes cluster.

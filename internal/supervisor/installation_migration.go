@@ -77,7 +77,7 @@ package supervisor
 //	}
 //
 //	// Provision new databse
-//	err := s.resourceUtil.GetDatabase(installation).Provision(s.store, logger)
+//	err := s.resourceUtil.GetDatabaseForInstallation(installation).Provision(s.store, logger)
 //	if err != nil {
 //		return
 //	}

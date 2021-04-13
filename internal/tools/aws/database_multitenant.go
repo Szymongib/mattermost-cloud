@@ -324,6 +324,152 @@ func (d *RDSMultitenantDatabase) Teardown(store model.InstallationDatabaseStoreI
 	return nil
 }
 
+func (d *RDSMultitenantDatabase) MigrateOut(store model.InstallationDatabaseStoreInterface, dbMigration *model.DBMigrationOperation, logger log.FieldLogger) error {
+	installationDatabaseName := MattermostRDSDatabaseName(d.installationID)
+
+	logger = logger.WithFields(log.Fields{
+		"multitenant-rds-database": installationDatabaseName,
+		"database-type":            d.databaseType,
+	})
+
+	unlock, err := d.lockMultitenantDatabase(dbMigration.SourceMultiTenant.DatabaseID, store, logger)
+	if err != nil {
+		return errors.Wrap(err, "failed to lock multitenant database")
+	}
+	defer unlock()
+
+	database, err := store.GetMultitenantDatabase(dbMigration.SourceMultiTenant.DatabaseID)
+	if err != nil {
+		return errors.Wrap(err, "failed to query for the multitenant database")
+	}
+
+	database.Installations.Remove(d.installationID)
+
+	if !contains(database.MigratedInstallations, d.installationID) {
+		database.MigratedInstallations.Add(d.installationID)
+	}
+
+	err = store.UpdateMultitenantDatabase(database)
+	if err != nil {
+		return errors.Wrap(err, "failed to update multitenant db")
+	}
+
+	rdsCluster, err := d.describeRDSCluster(database.ID)
+	if err != nil {
+		return errors.Wrapf(err, "failed to describe the multitenant RDS cluster ID %s", database.ID)
+	}
+	err = d.updateCounterTagWithCurrentWeight(database, rdsCluster, store, logger)
+	if err != nil {
+		return errors.Wrap(err, "failed to update counter tag with current weight")
+	}
+
+	logger.Infof("Installation %s migrated out of multitenant database %s", d.installationID, database.ID)
+
+	return nil
+}
+
+func (d *RDSMultitenantDatabase) MigrateTo(store model.InstallationDatabaseStoreInterface, dbMigration *model.DBMigrationOperation, logger log.FieldLogger) error {
+	installationDatabaseName := MattermostRDSDatabaseName(d.installationID)
+
+	logger = logger.WithFields(log.Fields{
+		"multitenant-rds-database": installationDatabaseName,
+		"database-type":            d.databaseType,
+	})
+
+	unlock, err := d.lockMultitenantDatabase(dbMigration.DestinationMultiTenant.DatabaseID, store, logger)
+	if err != nil {
+		return errors.Wrap(err, "failed to lock multitenant database")
+	}
+	defer unlock()
+	database, err := store.GetMultitenantDatabase(dbMigration.DestinationMultiTenant.DatabaseID)
+	if err != nil {
+		return errors.Wrap(err, "failed to query for the multitenant database")
+	}
+
+	// TODO: check if can add
+	// TODO: check if installation not already added - idempotency
+	// TODO: check if installation not in migratedInstallations - needs to cleanup first
+
+	err = d.migrateInstallationToDB(store, database)
+	if err != nil {
+		return errors.Wrap(err, "failed to migrate installation to multitenant db")
+	}
+
+	vpc, err := getVPCForInstallation(d.installationID, store, d.client)
+	if err != nil {
+		return errors.Wrap(err, "failed to find cluster installation VPC")
+	}
+
+	rdsCluster, err := d.describeRDSCluster(database.ID)
+	if err != nil {
+		return errors.Wrapf(err, "failed to describe the multitenant RDS cluster ID %s", database.ID)
+	}
+	if *rdsCluster.Status != DefaultRDSStatusAvailable {
+		return errors.Errorf("multitenant RDS cluster ID %s is not available (status: %s)", database.ID, *rdsCluster.Status)
+	}
+
+	rdsID := *rdsCluster.DBClusterIdentifier
+	logger = logger.WithField("rds-cluster-id", rdsID)
+
+	err = d.runProvisionSQLCommands(installationDatabaseName, *vpc.VpcId, rdsCluster, logger)
+	if err != nil {
+		return errors.Wrap(err, "failed to run provisioning sql commands")
+	}
+
+	err = d.updateCounterTagWithCurrentWeight(database, rdsCluster, store, logger)
+	if err != nil {
+		return errors.Wrap(err, "failed to update counter tag with current weight")
+	}
+
+	logger.Infof("Installation %s migrated to multitenant database %s", d.installationID, database.ID)
+
+	return nil
+}
+
+// TODO: pull this validation logic to some func?
+func (d *RDSMultitenantDatabase)  migrateInstallationToDB(store model.InstallationDatabaseStoreInterface, database *model.MultitenantDatabase) error {
+	// To make migration idempotent we check if installation is already in db.
+	if contains(database.Installations, d.installationID) {
+		return nil
+	}
+
+	if contains(database.MigratedInstallations, d.installationID) {
+		return errors.Errorf("installation %q still exists in migrated installations for %q database, clean it up before migration", d.installationID, database.ID)
+	}
+
+	installationsWeight, err := store.GetInstallationsTotalDatabaseWeight(database.Installations)
+	if err != nil {
+		return errors.Wrap(err, "failed to calculate weight of installations in DB")
+	}
+
+	if int(installationsWeight) >= d.MaxSupportedDatabases() {
+		return errors.Errorf("cannot migrate Installation to %q database, supported databases limit exceeded", database.ID)
+	}
+
+	database.Installations.Add(d.installationID)
+	err = store.UpdateMultitenantDatabase(database)
+	if err != nil {
+		return errors.Wrap(err, "failed to add installation to multitenant db")
+	}
+
+	return nil
+}
+
+// TODO: it already exists somewhere
+func contains(collection []string, toFind string) bool {
+	for _, elem := range collection{
+		if toFind == elem {
+			return true
+		}
+	}
+	return false
+}
+
+// TODO: decide with this
+//func (d *RDSMultitenantDatabase) setupLogicalDBForInstallation(store model.InstallationDatabaseStoreInterface, database *model.MultitenantDatabase, dbName string, logger log.FieldLogger) (error) {
+//}
+
+
 // Helpers
 
 // getAssignedMultitenantDatabaseResources returns the assigned multitenant

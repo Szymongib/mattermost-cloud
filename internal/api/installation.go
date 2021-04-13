@@ -26,6 +26,11 @@ func initInstallation(apiRouter *mux.Router, context *Context) {
 	installationsRouter := apiRouter.PathPrefix("/installations").Subrouter()
 	initInstallationBackup(installationsRouter, context)
 
+	// TODO: not sure about routes
+	installationsRouter.Handle("/database/restore", addContext(handleInstallationDatabaseRestore)).Methods("POST")
+	installationsRouter.Handle("/database/restorations", addContext(handleGetInstallationDatabaseRestorationOperations)).Methods("GET")
+
+
 	installationsRouter.Handle("", addContext(handleGetInstallations)).Methods("GET")
 	installationsRouter.Handle("", addContext(handleCreateInstallation)).Methods("POST")
 	installationsRouter.Handle("/count", addContext(handleGetNumberOfInstallations)).Methods("GET")
@@ -42,8 +47,6 @@ func initInstallation(apiRouter *mux.Router, context *Context) {
 	installationRouter.Handle("", addContext(handleDeleteInstallation)).Methods("DELETE")
 	installationRouter.Handle("/annotations", addContext(handleAddInstallationAnnotations)).Methods("POST")
 	installationRouter.Handle("/annotation/{annotation-name}", addContext(handleDeleteInstallationAnnotation)).Methods("DELETE")
-
-	installationRouter.Handle("/database/restore", addContext(handleInstallationDatabaseRestore)).Methods("POST")
 }
 
 // handleGetInstallation responds to GET /api/installation/{installation}, returning the installation in question.
@@ -626,62 +629,6 @@ func handleDeleteInstallationAnnotation(c *Context, w http.ResponseWriter, r *ht
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusNoContent)
-}
-
-// TODO: comments + tests
-func handleInstallationDatabaseRestore(c *Context,w http.ResponseWriter, r *http.Request) {
-	vars := mux.Vars(r)
-	installationID := vars["installation"]
-	c.Logger = c.Logger.
-		WithField("installation", installationID).
-		WithField("action", "restore-installation-database")
-
-	restoreRequest, err := model.NewInstallationDBRestorationRequestFromReader(r.Body)
-	if err != nil {
-		c.Logger.WithError(err).Error("failed to decode request")
-		w.WriteHeader(http.StatusBadRequest)
-		return
-	}
-
-	newState := model.InstallationStateRestorationRequested
-
-	installationDTO, status, unlockOnce := getInstallationForTransition(c, installationID, newState)
-	if status != 0 {
-		w.WriteHeader(status)
-		return
-	}
-	defer unlockOnce()
-
-	// TODO: handle this in status checks
-	if installationDTO.State != model.InstallationStateHibernating {
-		c.Logger.Error("only hibernated installation can be restored")
-		w.WriteHeader(400)
-		return
-	}
-
-	installationDTO.RestorationMetadata = &model.InstallationDBRestoration{
-		InstallationID:        installationID,
-		BackupID:              restoreRequest.BackupID,
-		//RequestAt:             , // TODO
-	}
-	//err = c.Store.UpdateInstallation(installationDTO.Installation)
-	//if err != nil {
-	//
-	//}
-
-	// TODO: this should not be like that
-	err = updateInstallationState(c, installationDTO, newState)
-	if err != nil {
-		c.Logger.WithError(err).Errorf("failed to update installation state to %q", newState)
-		w.WriteHeader(http.StatusInternalServerError)
-		return
-	}
-
-	unlockOnce()
-	c.Supervisor.Do()
-
-	w.WriteHeader(http.StatusAccepted)
-	outputJSON(c, w, installationDTO)
 }
 
 // updateInstallationState updates installation state in database and sends appropriate webhook.

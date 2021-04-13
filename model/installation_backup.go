@@ -63,6 +63,9 @@ const (
 	InstallationBackupStateDeleted InstallationBackupState = "deleted"
 	// InstallationBackupStateDeletionFailed is a backup which deletion failed.
 	InstallationBackupStateDeletionFailed InstallationBackupState = "deletion-failed"
+
+	// InstallationBackupStateRestorationInProgress is a backup currently used for restoration.
+	InstallationBackupStateRestorationInProgress InstallationBackupState = "restoration-in-progress"
 )
 
 // AllInstallationBackupStatesPendingWork is a list of all backup states that
@@ -117,8 +120,8 @@ func NewInstallationBackupsFromReader(reader io.Reader) ([]*InstallationBackup, 
 func EnsureBackupCompatible(installation *Installation) error {
 	var errs []string
 
-	if installation.State != InstallationStateHibernating {
-		errs = append(errs, fmt.Sprintf("invalid installation state, only hibernated installations can be backed up, state is %q", installation.State))
+	if installation.State != InstallationStateHibernating && installation.State != InstallationStateDBMigrationInProgress {
+		errs = append(errs, fmt.Sprintf("invalid installation state, only hibernated or migrating installations can be backed up, state is %q", installation.State))
 	}
 
 	if installation.Database != InstallationDatabaseMultiTenantRDSPostgres &&

@@ -44,17 +44,17 @@ const (
 	// InstallationStateUpdateFailed is an installation that failed to update.
 	InstallationStateUpdateFailed = "update-failed"
 
-	// InstallationStateRestorationRequested is an installation that is waiting for database restored.
-	InstallationStateRestorationRequested = "restoration-requested"
-	// InstallationStateRestorationInvalid indicates that the restoration cannot be performed.
-	InstallationStateRestorationInvalid = "restoration-invalid"
 	// InstallationStateDBRestorationInProgress is an installation that is being restored from backup.
 	InstallationStateDBRestorationInProgress = "db-restoration-in-progress"
 
+	// TODO: comments
+	InstallationStateDBMigrationInProgress  = "db-migration-in-progress"
 
 	InstallationStateRestorationFailed = "restoration-failed"
+	InstallationStateDBMigrationFailed = "db-migration-failed"
 
-	// TODO: comments
+
+	// TODO: remove
 	InstallationStateDBMigrationRequested = "db-migration-requested"
 	InstallationStateDBMigrationDatabaseBackup = "db-migration-database-backup"
 	InstallationStateDBMigrationDatabaseBackupInProgress = "db-migration-database-backup-in-progress"
@@ -130,8 +130,6 @@ var AllInstallationStatesPendingWork = []string{
 	InstallationStateDeletionRequested,
 	InstallationStateDeletionInProgress,
 	InstallationStateDeletionFinalCleanup,
-
-	InstallationStateRestorationRequested,
 	InstallationStateDBRestorationInProgress,
 }
 
@@ -151,9 +149,23 @@ var AllInstallationRequestStates = []string{
 // ValidTransitionState returns whether an installation can be transitioned into
 // the new state or not based on its current state.
 func (i *Installation) ValidTransitionState(newState string) bool {
+<<<<<<< HEAD
 	validStates, found := validInstallationTransitions[newState]
 	if !found {
 		return false
+=======
+	switch newState {
+	case InstallationStateCreationRequested:
+		return validTransitionToInstallationStateCreationRequested(i.State)
+	case InstallationStateHibernationRequested:
+		return validTransitionToInstallationStateHibernationRequested(i.State)
+	case InstallationStateWakeUpRequested:
+		return validTransitionToInstallationStateWakeUpRequested(i.State)
+	case InstallationStateUpdateRequested:
+		return validTransitionToInstallationStateUpdateRequested(i.State)
+	case InstallationStateDeletionRequested:
+		return validTransitionToInstallationStateDeletionRequested(i.State)
+>>>>>>> wip
 	}
 
 	return contains(validStates, i.State)
