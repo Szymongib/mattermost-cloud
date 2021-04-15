@@ -1,11 +1,13 @@
 package supervisor_test
 
 import (
+	"fmt"
 	"github.com/mattermost/mattermost-cloud/internal/provisioner"
 	"github.com/mattermost/mattermost-cloud/internal/store"
 	"github.com/mattermost/mattermost-cloud/internal/supervisor"
 	"github.com/mattermost/mattermost-cloud/internal/testlib"
 	"github.com/mattermost/mattermost-cloud/model"
+	"github.com/pborman/uuid"
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -176,54 +178,23 @@ func TestInstallationDBRestorationSupervisor_Supervise(t *testing.T) {
 			InstallationID:          installation.ID,
 			BackupID:                backup.ID,
 			State:                   model.InstallationDBRestorationStateRequested,
+			TargetInstallationState: model.InstallationStateHibernating,
 		}
 		err := sqlStore.CreateInstallationDBRestoration(restorationOp)
 		require.NoError(t, err)
 
-		backupSupervisor := supervisor.NewInstallationDBRestorationSupervisor(sqlStore, &mockAWS{}, mockRestoreOp, "instanceID", logger)
-		backupSupervisor.Supervise(restorationOp)
-
-		// Assert
-		restorationOp, err = sqlStore.GetInstallationDBRestoration(restorationOp.ID)
-		require.NoError(t, err)
-		assert.Equal(t, model.InstallationDBRestorationStateBeginning, restorationOp.State)
-		assert.Equal(t, clusterInstallation.ID, restorationOp.ClusterInstallationID)
-		assert.Equal(t, model.InstallationStateHibernating, restorationOp.TargetInstallationState)
-
-		installation, err = sqlStore.GetInstallation(installation.ID, false,false)
-		require.NoError(t, err)
-		assert.Equal(t, model.InstallationStateDBRestorationInProgress, installation.State)
-
-		backup, err = sqlStore.GetInstallationBackup(backup.ID)
-		require.NoError(t, err)
-		assert.Equal(t, model.InstallationBackupStateRestorationInProgress, backup.State)
-	})
-
-	t.Run("trigger restoration", func(t *testing.T) {
-		logger := testlib.MakeLogger(t)
-		sqlStore := store.MakeTestSQLStore(t, logger)
-		defer store.CloseConnection(t, sqlStore)
-
-		mockRestoreOp := &mockRestoreProvisioner{}
-
-		installation, clusterInstallation, backup := setupRestoreRequiredResources(t, sqlStore)
-
-		restorationOp := &model.InstallationDBRestorationOperation{
-			InstallationID:          installation.ID,
-			BackupID:                backup.ID,
-			ClusterInstallationID:   clusterInstallation.ID,
-			State:                   model.InstallationDBRestorationStateBeginning,
-		}
-		err := sqlStore.CreateInstallationDBRestoration(restorationOp)
-		require.NoError(t, err)
-
-		backupSupervisor := supervisor.NewInstallationDBRestorationSupervisor(sqlStore, &mockAWS{}, mockRestoreOp, "instanceID", logger)
-		backupSupervisor.Supervise(restorationOp)
+		restorationSupervisor := supervisor.NewInstallationDBRestorationSupervisor(sqlStore, &mockAWS{}, mockRestoreOp, "instanceID", logger)
+		restorationSupervisor.Supervise(restorationOp)
 
 		// Assert
 		restorationOp, err = sqlStore.GetInstallationDBRestoration(restorationOp.ID)
 		require.NoError(t, err)
 		assert.Equal(t, model.InstallationDBRestorationStateInProgress, restorationOp.State)
+		assert.Equal(t, clusterInstallation.ID, restorationOp.ClusterInstallationID)
+
+		installation, err = sqlStore.GetInstallation(installation.ID, false,false)
+		require.NoError(t, err)
+		assert.Equal(t, model.InstallationStateDBRestorationInProgress, installation.State)
 	})
 
 	t.Run("check restoration status", func(t *testing.T) {
@@ -269,8 +240,8 @@ func TestInstallationDBRestorationSupervisor_Supervise(t *testing.T) {
 				err := sqlStore.CreateInstallationDBRestoration(restorationOp)
 				require.NoError(t, err)
 
-				backupSupervisor := supervisor.NewInstallationDBRestorationSupervisor(sqlStore, &mockAWS{}, testCase.mockRestoreOp, "instanceID", logger)
-				backupSupervisor.Supervise(restorationOp)
+				restorationSupervisor := supervisor.NewInstallationDBRestorationSupervisor(sqlStore, &mockAWS{}, testCase.mockRestoreOp, "instanceID", logger)
+				restorationSupervisor.Supervise(restorationOp)
 
 				// Assert
 				restorationOp, err = sqlStore.GetInstallationDBRestoration(restorationOp.ID)
@@ -301,8 +272,8 @@ func TestInstallationDBRestorationSupervisor_Supervise(t *testing.T) {
 		err := sqlStore.CreateInstallationDBRestoration(restorationOp)
 		require.NoError(t, err)
 
-		backupSupervisor := supervisor.NewInstallationDBRestorationSupervisor(sqlStore, &mockAWS{}, mockRestoreOp, "instanceID", logger)
-		backupSupervisor.Supervise(restorationOp)
+		restorationSupervisor := supervisor.NewInstallationDBRestorationSupervisor(sqlStore, &mockAWS{}, mockRestoreOp, "instanceID", logger)
+		restorationSupervisor.Supervise(restorationOp)
 
 		// Assert
 		restorationOp, err = sqlStore.GetInstallationDBRestoration(restorationOp.ID)
@@ -312,8 +283,6 @@ func TestInstallationDBRestorationSupervisor_Supervise(t *testing.T) {
 		installation, err = sqlStore.GetInstallation(installation.ID, false,false)
 		require.NoError(t, err)
 		assert.Equal(t, model.InstallationStateHibernating, installation.State)
-
-		// TODO: check backup state if you decide to change it - set back to succeeded
 	})
 
 
@@ -447,13 +416,28 @@ func TestInstallationDBRestorationSupervisor_Supervise(t *testing.T) {
 }
 
 func setupRestoreRequiredResources(t *testing.T, sqlStore *store.SQLStore) (*model.Installation, *model.ClusterInstallation, *model.InstallationBackup) {
-	installation, clusterInstallation := setupBackupRequiredResources(t, sqlStore)
+	installation := &model.Installation{
+		Database:  model.InstallationDatabaseMultiTenantRDSPostgres,
+		Filestore: model.InstallationFilestoreBifrost,
+		State:     model.InstallationStateDBRestorationInProgress,
+		DNS:       fmt.Sprintf("dns-%s", uuid.NewRandom().String()[:6]),
+	}
+	err := sqlStore.CreateInstallation(installation, nil)
+	require.NoError(t, err)
+
+	cluster := &model.Cluster{}
+	err = sqlStore.CreateCluster(cluster, nil)
+	require.NoError(t, err)
+
+	clusterInstallation := &model.ClusterInstallation{InstallationID: installation.ID, ClusterID: cluster.ID}
+	err = sqlStore.CreateClusterInstallation(clusterInstallation)
+	require.NoError(t, err)
 
 	backup := &model.InstallationBackup{
 		InstallationID: installation.ID,
 		State:          model.InstallationBackupStateBackupSucceeded,
 	}
-	err := sqlStore.CreateInstallationBackup(backup)
+	err = sqlStore.CreateInstallationBackup(backup)
 	require.NoError(t, err)
 
 	return installation, clusterInstallation, backup

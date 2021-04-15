@@ -24,28 +24,14 @@ func handleInstallationDatabaseRestore(c *Context,w http.ResponseWriter, r *http
 		WithField("installation", restoreRequest.InstallationID).
 		WithField("backup", restoreRequest.BackupID)
 
-	installationDTO, status, unlockOnce := lockInstallation(c, restoreRequest.InstallationID)
+	newState := model.InstallationStateDBRestorationInProgress
+
+	installationDTO, status, unlockOnce := getInstallationForTransition(c, restoreRequest.InstallationID, newState)
 	if status != 0 {
-		if status == http.StatusNotFound {
-			status = http.StatusInternalServerError
-		}
 		w.WriteHeader(status)
 		return
 	}
 	defer unlockOnce()
-
-	// TODO: handle this better here and in backup case
-	if installationDTO.State != model.InstallationStateHibernating {
-		c.Logger.Errorf("installation needs to be hibernated to start restoration")
-		w.WriteHeader(http.StatusBadRequest)
-		return
-	}
-
-	if installationDTO.APISecurityLock {
-		logSecurityLockConflict("installation", c.Logger)
-		w.WriteHeader(http.StatusForbidden)
-		return
-	}
 
 	backup, err := c.Store.GetInstallationBackup(restoreRequest.BackupID)
 	if err != nil {

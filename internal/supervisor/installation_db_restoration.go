@@ -171,9 +171,6 @@ func (s *InstallationDBRestorationSupervisor) Supervise(restoration *model.Insta
 func (s *InstallationDBRestorationSupervisor) transitionRestoration(restoration *model.InstallationDBRestorationOperation, instanceID string, logger log.FieldLogger) model.InstallationDBRestorationState {
 	switch restoration.State {
 	case model.InstallationDBRestorationStateRequested:
-		return s.transitionToRestoration(restoration, instanceID, logger)
-
-	case model.InstallationDBRestorationStateBeginning:
 		return s.triggerRestoration(restoration, instanceID, logger)
 
 	case model.InstallationDBRestorationStateInProgress:
@@ -188,59 +185,6 @@ func (s *InstallationDBRestorationSupervisor) transitionRestoration(restoration 
 	}
 }
 
-func (s *InstallationDBRestorationSupervisor) transitionToRestoration(restoration *model.InstallationDBRestorationOperation, instanceID string, logger log.FieldLogger) model.InstallationDBRestorationState  {
-	installation, lock, err := getAndLockInstallation(s.store, restoration.InstallationID, instanceID, logger)
-	if err != nil {
-		logger.WithError(err).Error("failed to get and lock installation")
-		return restoration.State
-	}
-	defer lock.Unlock()
-
-	backup, backupLock, err := s.getAndLockBackup(restoration.BackupID, instanceID, logger)
-	if err != nil {
-		logger.WithError(err).Error("failed to get and lock backup")
-		return restoration.State
-	}
-	defer backupLock.Unlock()
-
-	err = model.EnsureReadyForDBRestoration(installation, backup)
-	if err != nil {
-		logger.WithError(err).Error("Installation cannot be restored")
-		return model.InstallationDBRestorationStateInvalid
-	}
-
-	restoreCI, ciLock, err := claimClusterInstallation(s.store, installation, instanceID, logger)
-	if err != nil {
-		logger.WithError(err).Error("Failed to claim Cluster Installation for restoration")
-		return restoration.State
-	}
-	defer ciLock.Unlock()
-
-	targetState := restoration.TargetInstallationState
-	if targetState == "" {
-		targetState, err = model.DetermineRestorationTargetState(installation)
-		if err != nil {
-			logger.WithError(err).Errorf("failed to determine target state of installation")
-			return model.InstallationDBRestorationStateInvalid
-		}
-	}
-
-	// TODO: remove this backup state and just do check on delete?
-
-	restoration.ClusterInstallationID = restoreCI.ID
-	restoration.TargetInstallationState = targetState
-	installation.State = model.InstallationStateDBRestorationInProgress
-	backup.State = model.InstallationBackupStateRestorationInProgress
-
-	err = s.store.UpdateInstallationRestorationResources(installation, backup, restoration)
-	if err != nil {
-		logger.WithError(err).Error("failed to set backup to restoration state")
-		return restoration.State
-	}
-
-	return model.InstallationDBRestorationStateBeginning
-}
-
 func (s *InstallationDBRestorationSupervisor) triggerRestoration(restoration *model.InstallationDBRestorationOperation, instanceID string, logger log.FieldLogger) model.InstallationDBRestorationState  {
 	installation, lock, err := getAndLockInstallation(s.store, restoration.InstallationID, instanceID, logger)
 	if err != nil {
@@ -253,6 +197,21 @@ func (s *InstallationDBRestorationSupervisor) triggerRestoration(restoration *mo
 	if err != nil {
 		logger.WithError(err).Error("failed to get backup")
 		return restoration.State
+	}
+
+	if restoration.ClusterInstallationID == "" {
+		restoreCI, ciLock, err := claimClusterInstallation(s.store, installation, instanceID, logger)
+		if err != nil {
+			logger.WithError(err).Error("Failed to claim Cluster Installation for restoration")
+			return restoration.State
+		}
+		defer ciLock.Unlock()
+		restoration.ClusterInstallationID = restoreCI.ID
+		err = s.store.UpdateInstallationDBRestoration(restoration)
+		if err != nil {
+			logger.WithError(err).Errorf("Failed to assign cluster installation to restoration")
+			return restoration.State
+		}
 	}
 
 	cluster, err := s.getClusterForRestoration(restoration)

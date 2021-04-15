@@ -65,6 +65,9 @@ type Store interface {
 	DeleteWebhook(webhookID string) error
 
 	GetMultitenantDatabases(filter *model.MultitenantDatabaseFilter) ([]*model.MultitenantDatabase, error)
+	GetMultitenantDatabase(id string) (*model.MultitenantDatabase, error)
+
+	model.InstallationDatabaseStoreInterface // TODO: remove
 
 	GetOrCreateAnnotations(annotations []*model.Annotation) ([]*model.Annotation, error)
 
@@ -84,9 +87,12 @@ type Store interface {
 	LockInstallationBackupAPI(backupID string) error
 	UnlockInstallationBackupAPI(backupID string) error
 
+	TriggerInstallationRestoration(installation *model.Installation, backup *model.InstallationBackup) (*model.InstallationDBRestorationOperation, error)
 	CreateInstallationDBRestoration(dbRestoration *model.InstallationDBRestorationOperation) error
 	GetInstallationDBRestoration(id string) (*model.InstallationDBRestorationOperation, error)
 	GetInstallationDBRestorations(filter *model.InstallationDBRestorationFilter) ([]*model.InstallationDBRestorationOperation, error)
+
+	CreateInstallationDBMigration(dbMigration *model.DBMigrationOperation) error
 }
 
 // Provisioner describes the interface required to communicate with the Kubernetes cluster.

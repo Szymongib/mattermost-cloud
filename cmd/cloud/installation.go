@@ -77,6 +77,11 @@ func init() {
 	installationDatabaseRestoreCmd.MarkFlagRequired("installation")
 	installationDatabaseRestoreCmd.MarkFlagRequired("backup")
 
+	installationDatabaseMigrationCmd.Flags().String("installation", "", "The id of the installation to be migrated.")
+	installationDatabaseMigrationCmd.Flags().String("multi-tenant-db", "", "The id of the destination multi tenant db.")
+	installationDatabaseMigrationCmd.MarkFlagRequired("installation")
+	installationDatabaseMigrationCmd.MarkFlagRequired("multi-tenant-db")
+
 	installationCmd.AddCommand(installationCreateCmd)
 	installationCmd.AddCommand(installationUpdateCmd)
 	installationCmd.AddCommand(installationDeleteCmd)
@@ -91,6 +96,8 @@ func init() {
 	// TODO: move those
 	installationCmd.AddCommand(installationDatabaseRestoreCmd)
 	installationCmd.AddCommand(installationDBRestorationsListCmd)
+	installationCmd.AddCommand(installationDatabaseMigrationCmd)
+
 	installationCmd.AddCommand(backupCmd)
 }
 
@@ -481,6 +488,39 @@ var installationDBRestorationsListCmd = &cobra.Command{
 		}
 
 		err = printJSON(dbRestorationOperations)
+		if err != nil {
+			return err
+		}
+
+		return nil
+	},
+}
+
+var installationDatabaseMigrationCmd = &cobra.Command{
+	Use:   "migrate",
+	Short: "Migrate database to different DB",
+	RunE: func(command *cobra.Command, args []string) error {
+		command.SilenceUsage = true
+
+		serverAddress, _ := command.Flags().GetString("server")
+		client := model.NewClient(serverAddress)
+
+
+		installationID, _ := command.Flags().GetString("installation")
+		//backupID, _ := command.Flags().GetString("backup")
+
+		dbID, _ := command.Flags().GetString("multi-tenant-db")
+
+		migrationOperation, err := client.MigrateInstallationDatabase(&model.DBMigrationRequest{
+			InstallationID:         installationID,
+			DestinationDatabase:    model.InstallationDatabaseMultiTenantRDSPostgres, // TODO: customize
+			DestinationMultiTenant: &model.MultiTenantDBMigrationData{DatabaseID: dbID},
+		})
+		if err != nil {
+			return errors.Wrap(err, "failed to request installation database migration")
+		}
+
+		err = printJSON(migrationOperation)
 		if err != nil {
 			return err
 		}

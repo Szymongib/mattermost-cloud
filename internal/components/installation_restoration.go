@@ -6,7 +6,7 @@ import (
 )
 
 type installationRestorationStore interface {
-	CreateInstallationDBRestoration(restoration *model.InstallationDBRestorationOperation) error
+	TriggerInstallationRestoration(installation *model.Installation, backup *model.InstallationBackup) (*model.InstallationDBRestorationOperation, error)
 }
 
 func TriggerInstallationDBRestoration(store installationRestorationStore, installation *model.Installation, backup *model.InstallationBackup) (*model.InstallationDBRestorationOperation, error) {
@@ -14,16 +14,12 @@ func TriggerInstallationDBRestoration(store installationRestorationStore, instal
 		return nil, ErrWrap(http.StatusBadRequest, err, "installation cannot be restored")
 	}
 
-	dbRestoration := model.InstallationDBRestorationOperation{
-		InstallationID:          installation.ID,
-		BackupID:                backup.ID,
-		State:                   model.InstallationDBRestorationStateRequested,
-	}
-
-	err := store.CreateInstallationDBRestoration(&dbRestoration)
+	dbRestoration, err := store.TriggerInstallationRestoration(installation, backup)
 	if err != nil {
 		return nil, ErrWrap(http.StatusInternalServerError, err, "failed to create Installation DB restoration operation")
 	}
 
-	return &dbRestoration, nil
+	// TODO: send installation transition webhook
+
+	return dbRestoration, nil
 }

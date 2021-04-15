@@ -563,7 +563,7 @@ func (c *Client) RestoreInstallationDatabase(installationID, backupID string) (*
 
 	switch resp.StatusCode {
 	case http.StatusAccepted:
-		return InstallationDTOFromReader(resp.Body)
+		return InstallationDTOFromReader(resp.Body) // TODO: fix this - operation should be returned
 
 	default:
 		return nil, errors.Errorf("failed with status code %d", resp.StatusCode)
@@ -585,6 +585,24 @@ func (c *Client) GetInstallationDBRestorationOperations() ([]*InstallationDBRest
 	switch resp.StatusCode {
 	case http.StatusOK:
 		return NewInstallationDBRestorationOperationsFromReader(resp.Body)
+
+	default:
+		return nil, errors.Errorf("failed with status code %d", resp.StatusCode)
+	}
+}
+
+
+// TODO: comments
+func (c *Client) MigrateInstallationDatabase(request *DBMigrationRequest) (*DBMigrationOperation, error) {
+	resp, err := c.doPost(c.buildURL("/api/installations/database/migration"), request)
+	if err != nil {
+		return nil, err
+	}
+	defer closeBody(resp)
+
+	switch resp.StatusCode {
+	case http.StatusAccepted:
+		return NewDBMigrationOperationFromReader(resp.Body)
 
 	default:
 		return nil, errors.Errorf("failed with status code %d", resp.StatusCode)

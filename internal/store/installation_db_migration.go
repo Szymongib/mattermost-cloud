@@ -6,6 +6,7 @@ package store
 
 import (
 	"database/sql"
+	"encoding/json"
 	sq "github.com/Masterminds/squirrel"
 	"github.com/mattermost/mattermost-cloud/model"
 	"github.com/pkg/errors"
@@ -15,17 +16,23 @@ const (
 	installationDBMigrationTable = "DBMigrationOperation"
 )
 
-// TODO: implement it
+// TODO: implement it and test
 
 var installationDBMigrationSelect sq.SelectBuilder
 
 func init() {
 	installationDBMigrationSelect = sq.
 		Select("ID",
-
-
-
-
+			"InstallationID",
+			"RequestAt",
+			"State",
+			"SourceDatabase",
+			"DestinationDatabase",
+			"SourceMultiTenantRaw",
+			"DestinationMultiTenantRaw",
+			"BackupID",
+			"InstallationDBRestorationOperationID",
+			"CompleteAt",
 			"DeleteAt",
 			"LockAcquiredBy",
 			"LockAcquiredAt",
@@ -34,23 +41,85 @@ func init() {
 }
 
 
+type rawDBMigrationOperation struct {
+	*model.DBMigrationOperation
+	SourceMultiTenantRaw []byte
+	DestinationMultiTenantRaw []byte
+}
+
+type rawDBMigrationOperations []*rawDBMigrationOperation
+
+func (r *rawDBMigrationOperation) toDBMigrationOperation() (*model.DBMigrationOperation, error) {
+	// We only need to set values that are converted from a raw database format.
+	var err error
+	if len(r.SourceMultiTenantRaw) > 0 {
+		data := model.MultiTenantDBMigrationData{}
+		err = json.Unmarshal(r.SourceMultiTenantRaw, &data)
+		if err != nil {
+			return nil, err
+		}
+		r.DBMigrationOperation.SourceMultiTenant = &data
+	}
+	if len(r.DestinationMultiTenantRaw) > 0 {
+		data := model.MultiTenantDBMigrationData{}
+		err = json.Unmarshal(r.DestinationMultiTenantRaw, &data)
+		if err != nil {
+			return nil, err
+		}
+		r.DBMigrationOperation.DestinationMultiTenant = &data
+	}
+
+	return r.DBMigrationOperation, nil
+}
+
+func (r *rawDBMigrationOperations) toDBMigrationOperations() ([]*model.DBMigrationOperation, error) {
+	if r == nil {
+		return []*model.DBMigrationOperation{}, nil
+	}
+	migrationOperations := make([]*model.DBMigrationOperation, 0, len(*r))
+
+	for _, raw := range *r {
+		operation, err := raw.toDBMigrationOperation()
+		if err != nil {
+			return nil, errors.Wrap(err, "failed to create migration operation from raw")
+		}
+		migrationOperations = append(migrationOperations, operation)
+	}
+	return migrationOperations, nil
+}
+
+
 // CreateInstallationDBMigration records installation db migration to the database, assigning it a unique ID.
 func (sqlStore *SQLStore) CreateInstallationDBMigration(dbMigration *model.DBMigrationOperation) error {
 	dbMigration.ID = model.NewID()
 	dbMigration.RequestAt = GetMillis()
 
-	_, err := sqlStore.execBuilder(sqlStore.db, sq.
+	multiTenantSourceRaw, err := json.Marshal(dbMigration.SourceMultiTenant)
+	if err != nil {
+		return errors.Wrap(err, "failed to marshal source multi tenant db")
+	}
+	multiTenantDestinationRaw, err := json.Marshal(dbMigration.DestinationMultiTenant)
+	if err != nil {
+		return errors.Wrap(err, "failed to marshal destination multi tenant db")
+	}
+
+	_, err = sqlStore.execBuilder(sqlStore.db, sq.
 		Insert(installationDBMigrationTable).
 		SetMap(map[string]interface{}{
-			"ID": dbMigration.ID,
-			"InstallationID": dbMigration.InstallationID,
-
-
-
-
-			"DeleteAt": 0,
-			"LockAcquiredBy": dbMigration.LockAcquiredBy,
-			"LockAcquiredAt": dbMigration.LockAcquiredAt,
+			"ID":                                   dbMigration.ID,
+			"InstallationID":                       dbMigration.InstallationID,
+			"RequestAt":                            dbMigration.RequestAt,
+			"State":                                dbMigration.State,
+			"SourceDatabase":                       dbMigration.SourceDatabase,
+			"DestinationDatabase":                  dbMigration.DestinationDatabase,
+			"SourceMultiTenantRaw":                 multiTenantSourceRaw,
+			"DestinationMultiTenantRaw":            multiTenantDestinationRaw,
+			"BackupID":                             dbMigration.BackupID,
+			"InstallationDBRestorationOperationID": dbMigration.InstallationDBRestorationOperationID,
+			"CompleteAt":                           dbMigration.CompleteAt,
+			"DeleteAt":                             0,
+			"LockAcquiredBy":                       dbMigration.LockAcquiredBy,
+			"LockAcquiredAt":                       dbMigration.LockAcquiredAt,
 		}),
 	)
 	if err != nil {
@@ -65,15 +134,20 @@ func (sqlStore *SQLStore) GetInstallationDBMigration(id string) (*model.DBMigrat
 	builder := installationDBMigrationSelect.
 		Where("ID = ?", id)
 
-	var migrationOp model.DBMigrationOperation
-	err := sqlStore.getBuilder(sqlStore.db, &migrationOp, builder)
+	var migrationOpRaw rawDBMigrationOperation
+	err := sqlStore.getBuilder(sqlStore.db, &migrationOpRaw, builder)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	} else if err != nil {
 		return nil, errors.Wrap(err, "failed to query for installation db migration")
 	}
 
-	return &migrationOp, nil
+	migrationOp, err := migrationOpRaw.toDBMigrationOperation()
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to create migration operation from raw")
+	}
+
+	return migrationOp, nil
 }
 
 // GetInstallationDBMigrations fetches the given page of created installation db migration. The first page is 0.
@@ -82,13 +156,7 @@ func (sqlStore *SQLStore) GetInstallationDBMigrations(filter *model.Installation
 		OrderBy("RequestAt DESC")
 	builder = sqlStore.applyInstallationDBMigrationFilter(builder, filter)
 
-	var migrationOps []*model.DBMigrationOperation
-	err := sqlStore.selectBuilder(sqlStore.db, &migrationOps, builder)
-	if err != nil {
-		return nil, errors.Wrap(err, "failed to query for installation db migrations")
-	}
-
-	return migrationOps, nil
+	return sqlStore.getDBMigrationOperations(builder)
 }
 
 // GetUnlockedInstallationDBMigrationsPendingWork returns unlocked installation db migrations in a pending state.
@@ -100,10 +168,19 @@ func (sqlStore *SQLStore) GetUnlockedInstallationDBMigrationsPendingWork() ([]*m
 		Where("LockAcquiredAt = 0").
 		OrderBy("RequestAt ASC")
 
-	var migrationOps []*model.DBMigrationOperation
-	err := sqlStore.selectBuilder(sqlStore.db, &migrationOps, builder)
+	return sqlStore.getDBMigrationOperations(builder)
+}
+
+func (sqlStore *SQLStore) getDBMigrationOperations(builder builder) ([]*model.DBMigrationOperation, error) {
+	var rawMigrationOps rawDBMigrationOperations
+	err := sqlStore.selectBuilder(sqlStore.db, &rawMigrationOps, builder)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to query for installation db migrations")
+	}
+
+	migrationOps, err := rawMigrationOps.toDBMigrationOperations()
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to create migration operations from raw")
 	}
 
 	return migrationOps, nil
@@ -128,10 +205,10 @@ func (sqlStore *SQLStore) updateInstallationDBMigration(db execer, dbMigration *
 	return sqlStore.updateInstallationDBMigrationFields(
 		db,
 		dbMigration.ID, map[string]interface{}{
-			"State": dbMigration.State,
-			"TargetInstallationState": dbMigration.TargetInstallationState,
-			"ClusterInstallationID": dbMigration.ClusterInstallationID,
-			"CompleteAt": dbMigration.CompleteAt,
+			"State":                                dbMigration.State,
+			"BackupID":                             dbMigration.BackupID,
+			"InstallationDBRestorationOperationID": dbMigration.InstallationDBRestorationOperationID,
+			"CompleteAt":                           dbMigration.CompleteAt,
 		})
 }
 
@@ -147,36 +224,36 @@ func (sqlStore *SQLStore) updateInstallationDBMigrationFields(db execer, id stri
 	return nil
 }
 
-// TODO: tests
-// UpdateInstallationMigrationResources updates installation, installation backup and installation db migration in a single transaction.
-func (sqlStore *SQLStore) UpdateInstallationMigrationResources(installation *model.Installation, backup *model.InstallationBackup, dbMigration *model.DBMigrationOperation) error {
-	tx, err := sqlStore.beginTransaction(sqlStore.db)
-	if err != nil {
-		return errors.Wrap(err, "failed to start transaction")
-	}
-	defer tx.RollbackUnlessCommitted()
-
-	err = sqlStore.updateInstallationDBMigration(tx, dbMigration)
-	if err != nil {
-		return errors.Wrap(err, "failed to update installation db migration")
-	}
-
-	err = sqlStore.updateInstallation(tx, installation)
-	if err != nil {
-		return errors.Wrap(err, "failed to update installation")
-	}
-
-	err = sqlStore.updateInstallationBackupState(tx, backup)
-	if err != nil {
-		return errors.Wrap(err, "failed to update installation backup")
-	}
-
-	err = tx.Commit()
-	if err != nil {
-		return errors.Wrap(err, "failed to commit transaction")
-	}
-	return nil
-}
+//// TODO: tests
+//// UpdateInstallationMigrationResources updates installation, installation backup and installation db migration in a single transaction.
+//func (sqlStore *SQLStore) UpdateInstallationMigrationResources(installation *model.Installation, backup *model.InstallationBackup, dbMigration *model.DBMigrationOperation) error {
+//	tx, err := sqlStore.beginTransaction(sqlStore.db)
+//	if err != nil {
+//		return errors.Wrap(err, "failed to start transaction")
+//	}
+//	defer tx.RollbackUnlessCommitted()
+//
+//	err = sqlStore.updateInstallationDBMigration(tx, dbMigration)
+//	if err != nil {
+//		return errors.Wrap(err, "failed to update installation db migration")
+//	}
+//
+//	err = sqlStore.updateInstallation(tx, installation)
+//	if err != nil {
+//		return errors.Wrap(err, "failed to update installation")
+//	}
+//
+//	err = sqlStore.updateInstallationBackupState(tx, backup)
+//	if err != nil {
+//		return errors.Wrap(err, "failed to update installation backup")
+//	}
+//
+//	err = tx.Commit()
+//	if err != nil {
+//		return errors.Wrap(err, "failed to commit transaction")
+//	}
+//	return nil
+//}
 
 // LockDBMigrationOperation marks the DBMigrationOperation as locked for exclusive use by the caller.
 func (sqlStore *SQLStore) LockDBMigrationOperation(id, lockerID string) (bool, error) {

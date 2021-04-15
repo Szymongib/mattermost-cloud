@@ -171,6 +171,8 @@ func handleDeleteInstallationBackup(c *Context, w http.ResponseWriter, r *http.R
 		return
 	}
 
+	// TODO: make sure there is no InstallationDBRestoration or Migration that is running and currently using this backup
+
 	if backup.State != newState {
 		oldState := backup.State
 		backup.State = newState

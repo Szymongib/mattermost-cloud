@@ -34,7 +34,7 @@ const (
 	// InstallationDBRestorationStateRequested is a requested installation db restoration that was not yet started.
 	InstallationDBRestorationStateRequested InstallationDBRestorationState = "installation-db-restoration-requested"
 	// InstallationDBRestorationStateBeginning is an installation db restoration that is ready to be started.
-	InstallationDBRestorationStateBeginning InstallationDBRestorationState = "installation-db-restoration-beginning"
+	//InstallationDBRestorationStateBeginning InstallationDBRestorationState = "installation-db-restoration-beginning"
 	// InstallationDBRestorationStateInProgress is an installation db restoration that is currently running.
 	InstallationDBRestorationStateInProgress InstallationDBRestorationState = "installation-db-restoration-in-progress"
 	// InstallationDBRestorationStateFinalizing is an installation db restoration that is finalizing restoration.
@@ -51,7 +51,7 @@ const (
 // the supervisor will attempt to transition towards stable on the next "tick".
 var AllInstallationDBRestorationStatesPendingWork = []InstallationDBRestorationState{
 	InstallationDBRestorationStateRequested,
-	InstallationDBRestorationStateBeginning,
+	//InstallationDBRestorationStateBeginning,
 	InstallationDBRestorationStateInProgress,
 	InstallationDBRestorationStateFinalizing,
 }
@@ -103,10 +103,12 @@ func EnsureInstallationReadyForDBRestoration(installation *Installation) error {
 	return nil
 }
 
-func DetermineRestorationTargetState(installation *Installation) (string, error) {
+func DetermineAfterRestorationState(installation *Installation) (string, error) {
 	switch installation.State {
 	case InstallationStateHibernating:
 		return InstallationStateHibernating, nil
+	case InstallationStateDBMigrationInProgress:
+		return InstallationStateDBMigrationInProgress, nil
 	}
 	return "", errors.Errorf("restoration is not supported for installation in state %s", installation.State)
 }

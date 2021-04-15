@@ -8,7 +8,6 @@ import (
 	"github.com/mattermost/mattermost-cloud/internal/components"
 	"github.com/mattermost/mattermost-cloud/internal/provisioner"
 	"github.com/mattermost/mattermost-cloud/internal/tools/aws"
-	"github.com/mattermost/mattermost-cloud/internal/tools/utils"
 	"github.com/mattermost/mattermost-cloud/internal/webhook"
 	"github.com/mattermost/mattermost-cloud/model"
 	log "github.com/sirupsen/logrus"
@@ -36,7 +35,7 @@ type installationDBMigrationStore interface {
 	UpdateInstallationBackupState(backupMeta *model.InstallationBackup) error
 
 	CreateInstallationDBRestoration(restoration *model.InstallationDBRestorationOperation) error
-
+	TriggerInstallationRestoration(installation *model.Installation, backup *model.InstallationBackup) (*model.InstallationDBRestorationOperation, error)
 
 	LockInstallationBackups(backupIDs []string, lockerID string) (bool, error)
 	UnlockInstallationBackups(backupIDs []string, lockerID string, force bool) (bool, error)
@@ -55,8 +54,13 @@ type installationDBMigrationStore interface {
 	GetWebhooks(filter *model.WebhookFilter) ([]*model.Webhook, error)
 }
 
+// TODO: clusterResourceProvisioner / SecretsProvisioner?
 type dbMigrationProvisioner interface {
 	ClusterInstallationProvisioner(version string) provisioner.ClusterInstallationProvisioner
+}
+
+type databaseProvider interface {
+	GetDatabase(installationID, dbType string) model.Database
 }
 
 // DBMigrationSupervisor finds pending work and effects the required changes.
@@ -66,11 +70,11 @@ type dbMigrationProvisioner interface {
 type DBMigrationSupervisor struct {
 	store      installationDBMigrationStore
 	aws               aws.AWS
+	dbProvider      databaseProvider
 	instanceID string
 	logger     log.FieldLogger
-	resourceUtils utils.ResourceUtil
 
-	// TODO: idealy remove:
+	// TODO: idealy remove and use cluster CI supervisor?
 	dbMigrationProvisioner dbMigrationProvisioner
 }
 
@@ -78,13 +82,17 @@ type DBMigrationSupervisor struct {
 func NewInstallationDBMigrationSupervisor(
 	store installationDBMigrationStore,
 	aws aws.AWS,
+	dbProvider      databaseProvider,
 	instanceID string,
+	provisioner dbMigrationProvisioner,
 	logger log.FieldLogger) *DBMigrationSupervisor {
 	return &DBMigrationSupervisor{
 		store:          store,
 		aws: aws,
+		dbProvider: dbProvider,
 		instanceID:     instanceID,
 		logger:         logger,
+		dbMigrationProvisioner: provisioner,
 	}
 }
 
@@ -178,8 +186,6 @@ func (s *DBMigrationSupervisor) Supervise(migration *model.DBMigrationOperation)
 func (s *DBMigrationSupervisor) transitionMigration(dbMigration *model.DBMigrationOperation, instanceID string, logger log.FieldLogger) model.DBMigrationOperationState {
 	switch dbMigration.State {
 	case model.DBMigrationStateRequested:
-		return s.beginMigration(dbMigration, instanceID, logger)
-	case model.DBMigrationStateTriggerInstallationBackup:
 		return s.triggerInstallationBackup(dbMigration, instanceID, logger)
 	case model.DBMigrationStateInstallationBackupInProgress:
 		return s.waitForInstallationBackup(dbMigration, instanceID, logger)
@@ -201,29 +207,30 @@ func (s *DBMigrationSupervisor) transitionMigration(dbMigration *model.DBMigrati
 	}
 }
 
-func (s *DBMigrationSupervisor) beginMigration(dbMigration *model.DBMigrationOperation, instanceID string, logger log.FieldLogger) model.DBMigrationOperationState {
-
-	installation, lock, err := getAndLockInstallation(s.store, dbMigration.InstallationID, instanceID, logger)
-	if err != nil {
-		logger.WithError(err).Error("failed to get and lock installation")
-		return dbMigration.State
-	}
-	defer lock.Unlock()
-
-	if installation.State != model.InstallationStateHibernating {
-		logger.Errorf("Cannot begin database migration, expected installation to be hibernated is in state %q", installation.State)
-		return dbMigration.State
-	}
-
-	installation.State = model.InstallationStateDBMigrationInProgress
-	err = s.store.UpdateInstallation(installation)
-	if err != nil {
-		logger.WithError(err).Error("Failed to update installation state")
-		return dbMigration.State
-	}
-
-	return model.DBMigrationStateTriggerInstallationBackup
-}
+// TODO: This goes to API
+//func (s *DBMigrationSupervisor) beginMigration(dbMigration *model.DBMigrationOperation, instanceID string, logger log.FieldLogger) model.DBMigrationOperationState {
+//
+//	installation, lock, err := getAndLockInstallation(s.store, dbMigration.InstallationID, instanceID, logger)
+//	if err != nil {
+//		logger.WithError(err).Error("failed to get and lock installation")
+//		return dbMigration.State
+//	}
+//	defer lock.Unlock()
+//
+//	if installation.State != model.InstallationStateHibernating {
+//		logger.Errorf("Cannot begin database migration, expected installation to be hibernated is in state %q", installation.State)
+//		return dbMigration.State
+//	}
+//
+//	installation.State = model.InstallationStateDBMigrationInProgress
+//	err = s.store.UpdateInstallation(installation)
+//	if err != nil {
+//		logger.WithError(err).Error("Failed to update installation state")
+//		return dbMigration.State
+//	}
+//
+//	return model.DBMigrationStateTriggerInstallationBackup
+//}
 
 func (s *DBMigrationSupervisor) triggerInstallationBackup(dbMigration *model.DBMigrationOperation, instanceID string, logger log.FieldLogger) model.DBMigrationOperationState {
 
@@ -267,14 +274,10 @@ func (s *DBMigrationSupervisor) waitForInstallationBackup(dbMigration *model.DBM
 	switch backup.State {
 	case model.InstallationBackupStateBackupSucceeded:
 		logger.Info("Backup for migration finished successfully")
-
-		// TODO: trigger backup to state that it is migrating?
-		// TODO: maybe drop this additional states for backup and restore and just block it when trying to delete?
-
 		return model.DBMigrationStateDatabaseSwitch
 	case model.InstallationBackupStateBackupFailed:
 		logger.Error("Backup for migration failed")
-		return model.DBMigrationStateFailed // TODO: failing state to transition installation and stuff
+		return model.DBMigrationStateFailing
 	case model.InstallationBackupStateBackupInProgress, model.InstallationBackupStateBackupRequested:
 		logger.Debug("Backup for migration in progress")
 		return dbMigration.State
@@ -293,11 +296,9 @@ func (s *DBMigrationSupervisor) switchDatabase(dbMigration *model.DBMigrationOpe
 	}
 	defer lock.Unlock()
 
-	// TODO: Do I do it on DB level or here?
+	// Validate migration is ok?
 
-	// Validate migration is ok
-
-	sourceDB := s.resourceUtils.GetDatabase(installation.ID, dbMigration.SourceDatabase)
+	sourceDB := s.dbProvider.GetDatabase(installation.ID, dbMigration.SourceDatabase)
 
 	err = sourceDB.MigrateOut(s.store, dbMigration, logger)
 	if err != nil {
@@ -305,7 +306,7 @@ func (s *DBMigrationSupervisor) switchDatabase(dbMigration *model.DBMigrationOpe
 		return dbMigration.State
 	}
 
-	destinationDB := s.resourceUtils.GetDatabase(installation.ID, dbMigration.DestinationDatabase)
+	destinationDB := s.dbProvider.GetDatabase(installation.ID, dbMigration.DestinationDatabase)
 	err = destinationDB.MigrateTo(s.store, dbMigration, logger)
 	if err != nil {
 		logger.WithError(err).Errorf("Failed to migrate installation to database")
@@ -332,7 +333,7 @@ func (s *DBMigrationSupervisor) refreshCredentials(dbMigration *model.DBMigratio
 
 	// TODO: Simplified version for now
 
-	cis, err := s.store.GetClusterInstallations(&model.ClusterInstallationFilter{InstallationID: installation.ID})
+	cis, err := s.store.GetClusterInstallations(&model.ClusterInstallationFilter{InstallationID: installation.ID, Paging: model.AllPagesNotDeleted()})
 	if err != nil {
 		logger.WithError(err ).Errorf("Failed to get cluster installations")
 		return dbMigration.State
@@ -348,6 +349,7 @@ func (s *DBMigrationSupervisor) refreshCredentials(dbMigration *model.DBMigratio
 
 	// TODO: if I do not want to update then just add method to refresh credentials
 
+	// TODO: you actually wake them up here - need new method
 	err = s.dbMigrationProvisioner.ClusterInstallationProvisioner(installation.CRVersion).
 		UpdateClusterInstallation(cluster, installation, cis[0])
 	if err != nil {
@@ -414,8 +416,8 @@ func (s *DBMigrationSupervisor) waitForInstallationRestoration(dbMigration *mode
 	case model.InstallationDBRestorationStateSucceeded:
 		logger.Info("Restoration for migration finished successfully")
 		return model.DbMigrationStateFinalizing
-	case model.InstallationDBRestorationStateFailed:
-		logger.Error("Restoration for migration failed")
+	case model.InstallationDBRestorationStateFailed, model.InstallationDBRestorationStateInvalid:
+		logger.Error("Restoration for migration failed or is invalid")
 		return model.DBMigrationStateFailing
 	default:
 		logger.Debug("Restoration for migration in progress")
@@ -451,7 +453,6 @@ func (s *DBMigrationSupervisor) finalizeMigration(dbMigration *model.DBMigration
 	return model.DBMigrationStateSucceeded
 }
 
-
 func (s *DBMigrationSupervisor) failMigration(dbMigration *model.DBMigrationOperation, instanceID string, logger log.FieldLogger) model.DBMigrationOperationState {
 
 	installation, lock, err := getAndLockInstallation(s.store, dbMigration.InstallationID, instanceID, logger)
@@ -469,7 +470,7 @@ func (s *DBMigrationSupervisor) failMigration(dbMigration *model.DBMigrationOper
 		return dbMigration.State
 	}
 
-	// TODO: anything eles
+	// TODO: anything eles?
 
 	return model.DBMigrationStateFailed
 }

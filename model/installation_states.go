@@ -54,18 +54,6 @@ const (
 	InstallationStateDBMigrationFailed = "db-migration-failed"
 
 
-	// TODO: remove
-	InstallationStateDBMigrationRequested = "db-migration-requested"
-	InstallationStateDBMigrationDatabaseBackup = "db-migration-database-backup"
-	InstallationStateDBMigrationDatabaseBackupInProgress = "db-migration-database-backup-in-progress"
-	// If new VPC is different here we could migrate to different cluster
-	InstallationStateDBMigrationSwitchingDatabase = "db-migration-switching-database"
-	InstallationStateDBMigrationPreparingDatabase = "db-migration-provision-database"
-	InstallationStateDBMigrationDatabaseRestore = "db-migration-database-restore"
-	InstallationStateDBMigrationDatabaseRestoreInProgress = "db-migration-database-restore-in-progress"
-	InstallationStateDBMigrationCleanup = "db-migration-cleanup"
-
-
 
 	// InstallationStateDeletionRequested is an installation to be deleted.
 	InstallationStateDeletionRequested = "deletion-requested"
@@ -194,6 +182,12 @@ var (
 			InstallationStateDeletionInProgress,
 			InstallationStateDeletionFinalCleanup,
 			InstallationStateDeletionFailed,
+		},
+		InstallationStateDBRestorationInProgress: {
+			InstallationStateHibernating,
+		},
+		InstallationStateDBMigrationInProgress: {
+			InstallationStateHibernating,
 		},
 	}
 )

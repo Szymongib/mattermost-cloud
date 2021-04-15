@@ -34,13 +34,60 @@ func init() {
 		From(installationDBRestorationTable)
 }
 
+// TODO: we should probably create some intermediary layer to not keep this logic in store.
+// For now tho transactions are not accessible outside the store, therefore it is implemented this way.
+
+// TODO: test and comment
+func (sqlStore *SQLStore) TriggerInstallationRestoration(installation *model.Installation, backup *model.InstallationBackup) (*model.InstallationDBRestorationOperation, error) {
+	targetInstallationState, err := model.DetermineAfterRestorationState(installation)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to determine target installation state")
+	}
+
+	dbRestorationOp := &model.InstallationDBRestorationOperation{
+		InstallationID:          installation.ID,
+		BackupID:                backup.ID,
+		State:                   model.InstallationDBRestorationStateRequested,
+		TargetInstallationState: targetInstallationState,
+	}
+
+	tx, err := sqlStore.beginTransaction(sqlStore.db)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to start transaction")
+	}
+	defer tx.RollbackUnlessCommitted()
+
+	err = sqlStore.createInstallationDBRestoration(tx, dbRestorationOp)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to create installation db restoration")
+	}
+
+
+	installation.State = model.InstallationStateDBRestorationInProgress
+	err = sqlStore.updateInstallation(tx, installation)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to update installation")
+	}
+
+	err = tx.Commit()
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to commit transaction")
+	}
+
+	return dbRestorationOp, nil
+}
+
 
 // CreateInstallationDBRestoration records installation db restoration to the database, assigning it a unique ID.
 func (sqlStore *SQLStore) CreateInstallationDBRestoration(dbRestoration *model.InstallationDBRestorationOperation) error {
+	return sqlStore.createInstallationDBRestoration(sqlStore.db, dbRestoration)
+}
+
+func (sqlStore *SQLStore) createInstallationDBRestoration(db execer, dbRestoration *model.InstallationDBRestorationOperation) error {
 	dbRestoration.ID = model.NewID()
 	dbRestoration.RequestAt = GetMillis()
 
-	_, err := sqlStore.execBuilder(sqlStore.db, sq.
+	_, err := sqlStore.execBuilder(db, sq.
 		Insert(installationDBRestorationTable).
 		SetMap(map[string]interface{}{
 			"ID": dbRestoration.ID,
@@ -150,7 +197,7 @@ func (sqlStore *SQLStore) updateInstallationDBRestorationFields(db execer, id st
 	return nil
 }
 
-// TODO: tests
+// TODO: tests / remove
 // UpdateInstallationRestorationResources updates installation, installation backup and installation db restoration in a single transaction.
 func (sqlStore *SQLStore) UpdateInstallationRestorationResources(installation *model.Installation, backup *model.InstallationBackup, dbRestoration *model.InstallationDBRestorationOperation) error {
 	tx, err := sqlStore.beginTransaction(sqlStore.db)

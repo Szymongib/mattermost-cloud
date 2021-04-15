@@ -4,47 +4,10 @@ package model
 // - Can you migrate between different types?
 
 
-type DBMigrationRequest struct {
-	InstallationID string
-
-	BackupID string
-
-	DestinationDatabase string // DB type
-
-	DestinationMultitenant DestinationMultiTenantDB
-
-	//DestinationMultiTenantMultiSchema
-
-	DestinationSingleTenant DestinationSingleTenantDB
-
-
-	DestinationMultitenantDatabaseID string
-}
-
-type DestinationSingleTenantDB struct {
-	DatabaseID string
-}
-
 // RestoreStrategy
 // - DatabaseType
 // - ? BackupType?
 
-type DBMigration struct {
-	ID string
-
-	InstallationID string
-	SourceDatabaseID string
-	DestinationDatabaseID string
-
-	// VPC ID ?
-
-	State string
-
-	// InstallationBackupID is an id of InstallationBackup created as a first step of migration.
-	InstallationBackupID string
-
-
-}
 
 // Validation
 /*

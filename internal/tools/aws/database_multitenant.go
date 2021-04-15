@@ -290,6 +290,7 @@ func (d *RDSMultitenantDatabase) GenerateDatabaseSecret(store model.Installation
 	return databaseSecret, nil
 }
 
+// TODO: Also teardown the migrated
 // Teardown removes all AWS resources related to a RDS multitenant database.
 func (d *RDSMultitenantDatabase) Teardown(store model.InstallationDatabaseStoreInterface, keepData bool, logger log.FieldLogger) error {
 	logger = logger.WithField("rds-multitenant-database", MattermostRDSDatabaseName(d.installationID))
@@ -616,6 +617,7 @@ func (d *RDSMultitenantDatabase) getMultitenantDatabasesFromResourceTags(vpcID s
 
 	var multitenantDatabases []*model.MultitenantDatabase
 
+	// TODO: make command to discover dbs?
 	for _, resource := range resourceNames {
 		resourceARN, err := arn.Parse(*resource.ResourceARN)
 		if err != nil {

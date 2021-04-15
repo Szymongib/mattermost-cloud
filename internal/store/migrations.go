@@ -1272,13 +1272,20 @@ var migrations = []migration{
 	{semver.MustParse("0.26.0"), semver.MustParse("0.27.0"), func(e execer) error {
 
 		_, err := e.Exec(`
-			CREATE TABLE InstallationDBMigrationOperation (
+			CREATE TABLE DBMigrationOperation (
 				ID TEXT PRIMARY KEY,
 				InstallationID TEXT NOT NULL,
 				RequestAt BIGINT NOT NULL,
 
 				State TEXT NOT NULL,
+				SourceDatabase TEXT NOT NULL,
+				DestinationDatabase TEXT NOT NULL,
+				
+				SourceMultiTenantRaw BYTEA NULL,
+				DestinationMultiTenantRaw BYTEA NULL,
+
 				BackupID TEXT NOT NULL,
+				InstallationDBRestorationOperationID TEXT NOT NULL,
 
 				CompleteAt BIGINT NOT NULL,
 
