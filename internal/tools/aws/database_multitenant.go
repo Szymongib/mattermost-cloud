@@ -428,7 +428,7 @@ func (d *RDSMultitenantDatabase) MigrateTo(store model.InstallationDatabaseStore
 }
 
 // TODO: pull this validation logic to some func?
-func (d *RDSMultitenantDatabase)  migrateInstallationToDB(store model.InstallationDatabaseStoreInterface, database *model.MultitenantDatabase) error {
+func (d *RDSMultitenantDatabase) migrateInstallationToDB(store model.InstallationDatabaseStoreInterface, database *model.MultitenantDatabase) error {
 	// To make migration idempotent we check if installation is already in db.
 	if contains(database.Installations, d.installationID) {
 		return nil
@@ -458,7 +458,7 @@ func (d *RDSMultitenantDatabase)  migrateInstallationToDB(store model.Installati
 
 // TODO: it already exists somewhere
 func contains(collection []string, toFind string) bool {
-	for _, elem := range collection{
+	for _, elem := range collection {
 		if toFind == elem {
 			return true
 		}
@@ -469,7 +469,6 @@ func contains(collection []string, toFind string) bool {
 // TODO: decide with this
 //func (d *RDSMultitenantDatabase) setupLogicalDBForInstallation(store model.InstallationDatabaseStoreInterface, database *model.MultitenantDatabase, dbName string, logger log.FieldLogger) (error) {
 //}
-
 
 // Helpers
 

@@ -6,6 +6,7 @@ package store
 
 import (
 	"database/sql"
+
 	sq "github.com/Masterminds/squirrel"
 	"github.com/mattermost/mattermost-cloud/model"
 	"github.com/pkg/errors"
@@ -63,7 +64,6 @@ func (sqlStore *SQLStore) TriggerInstallationRestoration(installation *model.Ins
 		return nil, errors.Wrap(err, "failed to create installation db restoration")
 	}
 
-
 	installation.State = model.InstallationStateDBRestorationInProgress
 	err = sqlStore.updateInstallation(tx, installation)
 	if err != nil {
@@ -90,17 +90,17 @@ func (sqlStore *SQLStore) createInstallationDBRestoration(db execer, dbRestorati
 	_, err := sqlStore.execBuilder(db, sq.
 		Insert(installationDBRestorationTable).
 		SetMap(map[string]interface{}{
-			"ID": dbRestoration.ID,
-			"InstallationID": dbRestoration.InstallationID,
-			"BackupID": dbRestoration.BackupID,
-			"State": dbRestoration.State,
-			"RequestAt": dbRestoration.RequestAt,
+			"ID":                      dbRestoration.ID,
+			"InstallationID":          dbRestoration.InstallationID,
+			"BackupID":                dbRestoration.BackupID,
+			"State":                   dbRestoration.State,
+			"RequestAt":               dbRestoration.RequestAt,
 			"TargetInstallationState": dbRestoration.TargetInstallationState,
-			"ClusterInstallationID": dbRestoration.ClusterInstallationID,
-			"CompleteAt": dbRestoration.CompleteAt,
-			"DeleteAt": 0,
-			"LockAcquiredBy": dbRestoration.LockAcquiredBy,
-			"LockAcquiredAt": dbRestoration.LockAcquiredAt,
+			"ClusterInstallationID":   dbRestoration.ClusterInstallationID,
+			"CompleteAt":              dbRestoration.CompleteAt,
+			"DeleteAt":                0,
+			"LockAcquiredBy":          dbRestoration.LockAcquiredBy,
+			"LockAcquiredAt":          dbRestoration.LockAcquiredAt,
 		}),
 	)
 	if err != nil {
@@ -177,10 +177,10 @@ func (sqlStore *SQLStore) updateInstallationDBRestoration(db execer, dbRestorati
 	return sqlStore.updateInstallationDBRestorationFields(
 		db,
 		dbRestoration.ID, map[string]interface{}{
-			"State": dbRestoration.State,
+			"State":                   dbRestoration.State,
 			"TargetInstallationState": dbRestoration.TargetInstallationState,
-			"ClusterInstallationID": dbRestoration.ClusterInstallationID,
-			"CompleteAt": dbRestoration.CompleteAt,
+			"ClusterInstallationID":   dbRestoration.ClusterInstallationID,
+			"CompleteAt":              dbRestoration.CompleteAt,
 		})
 }
 

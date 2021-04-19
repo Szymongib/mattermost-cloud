@@ -591,7 +591,6 @@ func (c *Client) GetInstallationDBRestorationOperations() ([]*InstallationDBRest
 	}
 }
 
-
 // TODO: comments
 func (c *Client) MigrateInstallationDatabase(request *DBMigrationRequest) (*DBMigrationOperation, error) {
 	resp, err := c.doPost(c.buildURL("/api/installations/database/migration"), request)

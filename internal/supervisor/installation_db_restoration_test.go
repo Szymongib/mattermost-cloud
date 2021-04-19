@@ -2,6 +2,8 @@ package supervisor_test
 
 import (
 	"fmt"
+	"testing"
+
 	"github.com/mattermost/mattermost-cloud/internal/provisioner"
 	"github.com/mattermost/mattermost-cloud/internal/store"
 	"github.com/mattermost/mattermost-cloud/internal/supervisor"
@@ -11,13 +13,12 @@ import (
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"testing"
 )
 
 type mockRestorationStore struct {
 	InstallationRestorationOperation *model.InstallationDBRestorationOperation
 	RestorationPending               []*model.InstallationDBRestorationOperation
-	Installation *model.Installation
+	Installation                     *model.Installation
 	UnlockChan                       chan interface{}
 
 	UpdateRestorationOperationCalls int
@@ -106,7 +107,7 @@ func (m *mockRestorationStore) GetWebhooks(filter *model.WebhookFilter) ([]*mode
 
 type mockRestoreProvisioner struct {
 	RestoreCompleteTime int64
-	err             error
+	err                 error
 }
 
 func (p *mockRestoreProvisioner) TriggerRestore(installation *model.Installation, backup *model.InstallationBackup, cluster *model.Cluster) error {
@@ -120,7 +121,6 @@ func (p *mockRestoreProvisioner) CheckRestoreStatus(backupMeta *model.Installati
 func (p *mockRestoreProvisioner) CleanupRestoreJob(backup *model.InstallationBackup, cluster *model.Cluster) error {
 	return p.err
 }
-
 
 func TestInstallationDBRestorationSupervisor_Do(t *testing.T) {
 	t.Run("no installation restoration operations pending work", func(t *testing.T) {
@@ -150,10 +150,10 @@ func TestInstallationDBRestorationSupervisor_Do(t *testing.T) {
 				{ID: model.NewID(), InstallationID: installation.ID, State: model.InstallationDBRestorationStateRequested},
 			},
 			InstallationRestorationOperation: &model.InstallationDBRestorationOperation{ID: model.NewID(), InstallationID: installation.ID, State: model.InstallationDBRestorationStateRequested},
-			UnlockChan: make(chan interface{}),
+			UnlockChan:                       make(chan interface{}),
 		}
 
-		restorationSupervisor := supervisor.NewInstallationDBRestorationSupervisor(mockStore,  &mockAWS{}, &mockRestoreProvisioner{}, "instanceID", logger)
+		restorationSupervisor := supervisor.NewInstallationDBRestorationSupervisor(mockStore, &mockAWS{}, &mockRestoreProvisioner{}, "instanceID", logger)
 		err := restorationSupervisor.Do()
 		require.NoError(t, err)
 
@@ -191,39 +191,39 @@ func TestInstallationDBRestorationSupervisor_Supervise(t *testing.T) {
 		assert.Equal(t, model.InstallationDBRestorationStateInProgress, restorationOp.State)
 		assert.Equal(t, clusterInstallation.ID, restorationOp.ClusterInstallationID)
 
-		installation, err = sqlStore.GetInstallation(installation.ID, false,false)
+		installation, err = sqlStore.GetInstallation(installation.ID, false, false)
 		require.NoError(t, err)
 		assert.Equal(t, model.InstallationStateDBRestorationInProgress, installation.State)
 	})
 
 	t.Run("check restoration status", func(t *testing.T) {
-		for _, testCase := range []struct{
-		    description string
-		    mockRestoreOp *mockRestoreProvisioner
-		    expectedState model.InstallationDBRestorationState
+		for _, testCase := range []struct {
+			description   string
+			mockRestoreOp *mockRestoreProvisioner
+			expectedState model.InstallationDBRestorationState
 		}{
 			{
 				description:   "when restore finished",
-				mockRestoreOp:  &mockRestoreProvisioner{RestoreCompleteTime: 100},
+				mockRestoreOp: &mockRestoreProvisioner{RestoreCompleteTime: 100},
 				expectedState: model.InstallationDBRestorationStateFinalizing,
 			},
 			{
 				description:   "when still in progress",
-				mockRestoreOp:  &mockRestoreProvisioner{RestoreCompleteTime: -1},
+				mockRestoreOp: &mockRestoreProvisioner{RestoreCompleteTime: -1},
 				expectedState: model.InstallationDBRestorationStateInProgress,
 			},
 			{
 				description:   "when non terminal error",
-				mockRestoreOp:  &mockRestoreProvisioner{RestoreCompleteTime: -1, err: errors.New("some error")},
+				mockRestoreOp: &mockRestoreProvisioner{RestoreCompleteTime: -1, err: errors.New("some error")},
 				expectedState: model.InstallationDBRestorationStateInProgress,
 			},
 			{
 				description:   "when terminal error",
-				mockRestoreOp:  &mockRestoreProvisioner{RestoreCompleteTime: -1, err: provisioner.ErrJobBackoffLimitReached},
+				mockRestoreOp: &mockRestoreProvisioner{RestoreCompleteTime: -1, err: provisioner.ErrJobBackoffLimitReached},
 				expectedState: model.InstallationDBRestorationStateFailing,
 			},
 		} {
-		    t.Run(testCase.description, func(t *testing.T) {
+			t.Run(testCase.description, func(t *testing.T) {
 				logger := testlib.MakeLogger(t)
 				sqlStore := store.MakeTestSQLStore(t, logger)
 				defer store.CloseConnection(t, sqlStore)
@@ -231,9 +231,9 @@ func TestInstallationDBRestorationSupervisor_Supervise(t *testing.T) {
 				installation, clusterInstallation, backup := setupRestoreRequiredResources(t, sqlStore)
 
 				restorationOp := &model.InstallationDBRestorationOperation{
-					InstallationID:          installation.ID,
-					BackupID:                backup.ID,
-					State:                   model.InstallationDBRestorationStateInProgress,
+					InstallationID:        installation.ID,
+					BackupID:              backup.ID,
+					State:                 model.InstallationDBRestorationStateInProgress,
 					ClusterInstallationID: clusterInstallation.ID,
 				}
 				err := sqlStore.CreateInstallationDBRestorationOperation(restorationOp)
@@ -247,10 +247,9 @@ func TestInstallationDBRestorationSupervisor_Supervise(t *testing.T) {
 				require.NoError(t, err)
 				assert.Equal(t, testCase.expectedState, restorationOp.State)
 				assert.Equal(t, clusterInstallation.ID, restorationOp.ClusterInstallationID)
-		    })
+			})
 		}
 	})
-
 
 	t.Run("finalizing restoration", func(t *testing.T) {
 		logger := testlib.MakeLogger(t)
@@ -265,7 +264,7 @@ func TestInstallationDBRestorationSupervisor_Supervise(t *testing.T) {
 			InstallationID:          installation.ID,
 			BackupID:                backup.ID,
 			State:                   model.InstallationDBRestorationStateFinalizing,
-			ClusterInstallationID: clusterInstallation.ID,
+			ClusterInstallationID:   clusterInstallation.ID,
 			TargetInstallationState: model.InstallationStateHibernating,
 		}
 		err := sqlStore.CreateInstallationDBRestorationOperation(restorationOp)
@@ -279,7 +278,7 @@ func TestInstallationDBRestorationSupervisor_Supervise(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, model.InstallationDBRestorationStateSucceeded, restorationOp.State)
 
-		installation, err = sqlStore.GetInstallation(installation.ID, false,false)
+		installation, err = sqlStore.GetInstallation(installation.ID, false, false)
 		require.NoError(t, err)
 		assert.Equal(t, model.InstallationStateHibernating, installation.State)
 	})
@@ -297,7 +296,7 @@ func TestInstallationDBRestorationSupervisor_Supervise(t *testing.T) {
 			InstallationID:          installation.ID,
 			BackupID:                backup.ID,
 			State:                   model.InstallationDBRestorationStateFailing,
-			ClusterInstallationID: clusterInstallation.ID,
+			ClusterInstallationID:   clusterInstallation.ID,
 			TargetInstallationState: model.InstallationStateHibernating,
 		}
 		err := sqlStore.CreateInstallationDBRestorationOperation(restorationOp)
@@ -311,11 +310,10 @@ func TestInstallationDBRestorationSupervisor_Supervise(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, model.InstallationDBRestorationStateFailed, restorationOp.State)
 
-		installation, err = sqlStore.GetInstallation(installation.ID, false,false)
+		installation, err = sqlStore.GetInstallation(installation.ID, false, false)
 		require.NoError(t, err)
 		assert.Equal(t, model.InstallationStateDBRestorationFailed, installation.State)
 	})
-
 
 	//t.Run("do not trigger backup if installation not hibernated", func(t *testing.T) {
 	//	logger := testlib.MakeLogger(t)

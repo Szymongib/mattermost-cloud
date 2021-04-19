@@ -2,13 +2,14 @@ package store
 
 import (
 	"fmt"
+	"testing"
+	"time"
+
 	"github.com/mattermost/mattermost-cloud/internal/testlib"
 	"github.com/mattermost/mattermost-cloud/model"
 	"github.com/pborman/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"testing"
-	"time"
 )
 
 func TestTriggerInstallationRestoration(t *testing.T) {
@@ -16,7 +17,7 @@ func TestTriggerInstallationRestoration(t *testing.T) {
 	sqlStore := MakeTestSQLStore(t, logger)
 	defer CloseConnection(t, sqlStore)
 
-	installation :=  &model.Installation{
+	installation := &model.Installation{
 		State: model.InstallationStateHibernating,
 		DNS:   fmt.Sprintf("dns-%s", uuid.NewRandom().String()[:6]),
 	}
@@ -204,7 +205,7 @@ func TestUpdateInstallationDBRestoration(t *testing.T) {
 		fetched, err := sqlStore.GetInstallationDBRestorationOperation(dbRestoration.ID)
 		require.NoError(t, err)
 		assert.Equal(t, model.InstallationDBRestorationStateSucceeded, fetched.State)
-		assert.Equal(t, int64(0), fetched.CompleteAt)         // Assert complete time not updated
+		assert.Equal(t, int64(0), fetched.CompleteAt)      // Assert complete time not updated
 		assert.Equal(t, "", fetched.ClusterInstallationID) // Assert CI ID not updated
 	})
 

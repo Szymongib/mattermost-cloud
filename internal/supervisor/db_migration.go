@@ -5,15 +5,15 @@
 package supervisor
 
 import (
+	"time"
+
 	"github.com/mattermost/mattermost-cloud/internal/components"
 	"github.com/mattermost/mattermost-cloud/internal/provisioner"
 	"github.com/mattermost/mattermost-cloud/internal/tools/aws"
 	"github.com/mattermost/mattermost-cloud/internal/webhook"
 	"github.com/mattermost/mattermost-cloud/model"
 	log "github.com/sirupsen/logrus"
-	"time"
 )
-
 
 // installationDBMigrationStore abstracts the database operations required by the supervisor.
 type installationDBMigrationStore interface {
@@ -64,8 +64,8 @@ type databaseProvider interface {
 // other clients needing to coordinate background jobs.
 type DBMigrationSupervisor struct {
 	store      installationDBMigrationStore
-	aws               aws.AWS
-	dbProvider      databaseProvider
+	aws        aws.AWS
+	dbProvider databaseProvider
 	instanceID string
 	logger     log.FieldLogger
 
@@ -77,16 +77,16 @@ type DBMigrationSupervisor struct {
 func NewInstallationDBMigrationSupervisor(
 	store installationDBMigrationStore,
 	aws aws.AWS,
-	dbProvider      databaseProvider,
+	dbProvider databaseProvider,
 	instanceID string,
 	provisioner dbMigrationProvisioner,
 	logger log.FieldLogger) *DBMigrationSupervisor {
 	return &DBMigrationSupervisor{
-		store:          store,
-		aws: aws,
-		dbProvider: dbProvider,
-		instanceID:     instanceID,
-		logger:         logger,
+		store:                  store,
+		aws:                    aws,
+		dbProvider:             dbProvider,
+		instanceID:             instanceID,
+		logger:                 logger,
 		dbMigrationProvisioner: provisioner,
 	}
 }
@@ -330,13 +330,13 @@ func (s *DBMigrationSupervisor) refreshCredentials(dbMigration *model.DBMigratio
 
 	cis, err := s.store.GetClusterInstallations(&model.ClusterInstallationFilter{InstallationID: installation.ID, Paging: model.AllPagesNotDeleted()})
 	if err != nil {
-		logger.WithError(err ).Errorf("Failed to get cluster installations")
+		logger.WithError(err).Errorf("Failed to get cluster installations")
 		return dbMigration.State
 	}
 
 	cluster, err := s.store.GetCluster(cis[0].ClusterID)
 	if err != nil {
-		logger.WithError(err ).Errorf("Failed to get cluster")
+		logger.WithError(err).Errorf("Failed to get cluster")
 		return dbMigration.State
 	}
 
@@ -348,7 +348,7 @@ func (s *DBMigrationSupervisor) refreshCredentials(dbMigration *model.DBMigratio
 	err = s.dbMigrationProvisioner.ClusterInstallationProvisioner(installation.CRVersion).
 		RefreshSecrets(cluster, installation, cis[0])
 	if err != nil {
-		logger.WithError(err ).Errorf("Failed to update cluster installation")
+		logger.WithError(err).Errorf("Failed to update cluster installation")
 		return dbMigration.State
 	}
 
@@ -359,7 +359,6 @@ func (s *DBMigrationSupervisor) refreshCredentials(dbMigration *model.DBMigratio
 
 	return model.DBMigrationStateTriggerRestoration
 }
-
 
 func (s *DBMigrationSupervisor) triggerInstallationRestoration(dbMigration *model.DBMigrationOperation, instanceID string, logger log.FieldLogger) model.DBMigrationOperationState {
 

@@ -2,9 +2,10 @@ package model
 
 import (
 	"bytes"
+	"testing"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"testing"
 )
 
 func TestNewInstallationDBRestorationOperationFromReader(t *testing.T) {
@@ -27,13 +28,13 @@ func TestNewInstallationDBRestorationOperationFromReader(t *testing.T) {
 	t.Run("valid", func(t *testing.T) {
 		installationDBRestorationOperation, err := NewInstallationDBRestorationOperationFromReader(bytes.NewReader([]byte(
 			`{"ID":"id", "InstallationID":"Installation", "BackupID": "backup", "RequestAt": 10}`,
-	)))
+		)))
 		require.NoError(t, err)
 		require.Equal(t, &InstallationDBRestorationOperation{
-			ID:                      "id",
-			InstallationID:          "Installation",
-			BackupID:                "backup",
-			RequestAt:               10,
+			ID:             "id",
+			InstallationID: "Installation",
+			BackupID:       "backup",
+			RequestAt:      10,
 		}, installationDBRestorationOperation)
 	})
 }
@@ -61,20 +62,20 @@ func TestNewInstallationDBRestorationOperationsFromReader(t *testing.T) {
 	{"ID":"id", "InstallationID":"Installation", "BackupID": "backup", "RequestAt": 10},
 	{"ID":"id2", "InstallationID":"Installation2", "BackupID": "backup2", "RequestAt": 20}
 ]`,
-	)))
+		)))
 		require.NoError(t, err)
 		require.Equal(t, []*InstallationDBRestorationOperation{
 			{
-				ID:                      "id",
-				InstallationID:          "Installation",
-				BackupID:                "backup",
-				RequestAt:               10,
+				ID:             "id",
+				InstallationID: "Installation",
+				BackupID:       "backup",
+				RequestAt:      10,
 			},
 			{
-				ID:                      "id2",
-				InstallationID:          "Installation2",
-				BackupID:                "backup2",
-				RequestAt:               20,
+				ID:             "id2",
+				InstallationID: "Installation2",
+				BackupID:       "backup2",
+				RequestAt:      20,
 			},
 		}, installationDBRestorationOperations)
 	})
@@ -85,90 +86,90 @@ func TestEnsureReadyForDBRestoration(t *testing.T) {
 	for _, testCase := range []struct {
 		description   string
 		installation  *Installation
-		backup *InstallationBackup
+		backup        *InstallationBackup
 		errorContains string
 	}{
 		{
 			description: "valid installation and backup",
 			installation: &Installation{
-				ID: "abcd",
+				ID:        "abcd",
 				State:     InstallationStateHibernating,
 				Database:  InstallationDatabaseMultiTenantRDSPostgres,
 				Filestore: InstallationFilestoreBifrost,
 			},
 			backup: &InstallationBackup{
-				InstallationID:        "abcd",
-				State:                 InstallationBackupStateBackupSucceeded,
+				InstallationID: "abcd",
+				State:          InstallationBackupStateBackupSucceeded,
 			},
 		},
 		{
 			description: "backup failed",
 			installation: &Installation{
-				ID: "abcd",
+				ID:        "abcd",
 				State:     InstallationStateHibernating,
 				Database:  InstallationDatabaseMultiTenantRDSPostgres,
 				Filestore: InstallationFilestoreBifrost,
 			},
 			backup: &InstallationBackup{
-				InstallationID:        "abcd",
-				State:                 InstallationBackupStateBackupFailed,
+				InstallationID: "abcd",
+				State:          InstallationBackupStateBackupFailed,
 			},
 			errorContains: "Only backups in succeeded state can be restored",
 		},
 		{
 			description: "backup not matching installation",
 			installation: &Installation{
-				ID: 	   "abcd",
+				ID:        "abcd",
 				State:     InstallationStateHibernating,
 				Database:  InstallationDatabaseMultiTenantRDSPostgres,
 				Filestore: InstallationFilestoreBifrost,
 			},
 			backup: &InstallationBackup{
-				InstallationID:        "efgh",
-				State:                 InstallationBackupStateBackupSucceeded,
+				InstallationID: "efgh",
+				State:          InstallationBackupStateBackupSucceeded,
 			},
 			errorContains: "Backup belongs to different installation",
 		},
 		{
 			description: "backup deleted",
 			installation: &Installation{
-				ID: "abcd",
+				ID:        "abcd",
 				State:     InstallationStateHibernating,
 				Database:  InstallationDatabaseMultiTenantRDSPostgres,
 				Filestore: InstallationFilestoreBifrost,
 			},
 			backup: &InstallationBackup{
-				InstallationID:        "abcd",
-				State:                 InstallationBackupStateBackupSucceeded,
-				DeleteAt: 1,
+				InstallationID: "abcd",
+				State:          InstallationBackupStateBackupSucceeded,
+				DeleteAt:       1,
 			},
 			errorContains: "Backup files are deleted",
 		},
 		{
 			description: "installation invalid state",
 			installation: &Installation{
-				ID: "abcd",
+				ID:        "abcd",
 				State:     InstallationStateStable,
 				Database:  InstallationDatabaseMultiTenantRDSPostgres,
 				Filestore: InstallationFilestoreBifrost,
 			},
 			backup: &InstallationBackup{
-				InstallationID:        "abcd",
-				State:                 InstallationBackupStateBackupSucceeded,
+				InstallationID: "abcd",
+				State:          InstallationBackupStateBackupSucceeded,
 			},
 			errorContains: "invalid installation state",
 		},
 		{
 			description: "invalid db",
 			installation: &Installation{
-				ID: "abcd",
+				ID:        "abcd",
 				State:     InstallationStateHibernating,
 				Database:  InstallationDatabaseMultiTenantRDSMySQL,
 				Filestore: InstallationFilestoreBifrost,
 			},
 			backup: &InstallationBackup{
-				InstallationID:        "abcd",
-				State:                 InstallationBackupStateBackupSucceeded,
+				InstallationID: "abcd",
+				State:          InstallationBackupStateBackupSucceeded,
 			},
 			errorContains: "invalid installation database",
 		},
@@ -187,28 +188,28 @@ func TestEnsureReadyForDBRestoration(t *testing.T) {
 
 func TestDetermineAfterRestorationState(t *testing.T) {
 
-	for _, testCase := range []struct{
-	    description string
-	    state string
-	    expected string
+	for _, testCase := range []struct {
+		description string
+		state       string
+		expected    string
 	}{
-	    {
-	    	  description: "hibernating",
-	    	  state: InstallationStateHibernating,
-	    	  expected: InstallationStateHibernating,
-	    },
-	    {
-	    	  description: "db-migration",
-	    	  state: InstallationStateDBMigrationInProgress,
-	    	  expected: InstallationStateDBMigrationInProgress,
-	    },
+		{
+			description: "hibernating",
+			state:       InstallationStateHibernating,
+			expected:    InstallationStateHibernating,
+		},
+		{
+			description: "db-migration",
+			state:       InstallationStateDBMigrationInProgress,
+			expected:    InstallationStateDBMigrationInProgress,
+		},
 	} {
-	    t.Run(testCase.description, func(t *testing.T) {
-	    	installation := &Installation{State: testCase.state}
+		t.Run(testCase.description, func(t *testing.T) {
+			installation := &Installation{State: testCase.state}
 			targetState, err := DetermineAfterRestorationState(installation)
 			require.NoError(t, err)
 			assert.Equal(t, testCase.expected, targetState)
-	    })
+		})
 	}
 
 }

@@ -2,14 +2,15 @@ package model
 
 import (
 	"encoding/json"
-	"github.com/pkg/errors"
 	"io"
 	"net/url"
+
+	"github.com/pkg/errors"
 )
 
 type InstallationDBRestorationRequest struct {
 	InstallationID string
-	BackupID string
+	BackupID       string
 }
 
 // NewInstallationDBRestorationRequestFromReader will create a InstallationDBRestorationRequest from an
@@ -28,7 +29,7 @@ type GetInstallationDBRestorationOperationsRequest struct {
 	Paging
 	InstallationID        string
 	ClusterInstallationID string
-	State                string
+	State                 string
 }
 
 // ApplyToURL modifies the given url to include query string parameters for the request.

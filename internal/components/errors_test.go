@@ -18,7 +18,6 @@ func TestErrors(t *testing.T) {
 	err = errors.Wrap(err, "test error 5")
 	err = errors.Wrap(err, "test error 6")
 
-
 	status := ErrToStatus(err)
 	assert.Equal(t, 400, status)
 	fmt.Println(err.Error())

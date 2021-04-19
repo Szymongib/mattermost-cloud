@@ -58,13 +58,13 @@ func main() {
 }
 
 type StoreGenerationData struct {
-	Boilerplate string
-	PackageName string
-	StructName  []string
-	StructNameNotExported  []string
-	StructNameNotExportedPlural  []string
-	PluralName []string
-	TableName []string
+	Boilerplate                 string
+	PackageName                 string
+	StructName                  []string
+	StructNameNotExported       []string
+	StructNameNotExportedPlural []string
+	PluralName                  []string
+	TableName                   []string
 }
 
 var generateStoreLocksCmd = &cobra.Command{
@@ -177,13 +177,13 @@ func genDataFromFlags(command *cobra.Command) (StoreGenerationData, error) {
 	}
 
 	data := StoreGenerationData{
-		Boilerplate: boilerplate,
-		PackageName: packageName,
-		StructName:  structNames,
-		StructNameNotExported: notExportedNames(structNames),
+		Boilerplate:                 boilerplate,
+		PackageName:                 packageName,
+		StructName:                  structNames,
+		StructNameNotExported:       notExportedNames(structNames),
 		StructNameNotExportedPlural: notExportedNames(pluralNames),
-		PluralName: pluralNames,
-		TableName: tableNames,
+		PluralName:                  pluralNames,
+		TableName:                   tableNames,
 	}
 
 	return data, nil

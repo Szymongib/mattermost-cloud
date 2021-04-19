@@ -2,8 +2,9 @@ package model
 
 import (
 	"bytes"
-	"github.com/stretchr/testify/require"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestNewDBMigrationOperationFromReader(t *testing.T) {
@@ -26,13 +27,13 @@ func TestNewDBMigrationOperationFromReader(t *testing.T) {
 	t.Run("valid", func(t *testing.T) {
 		dBMigrationOperation, err := NewDBMigrationOperationFromReader(bytes.NewReader([]byte(
 			`{"ID":"id", "InstallationID": "installation", "RequestAt": 10, "State": "db-migration-requested"}`,
-	)))
+		)))
 		require.NoError(t, err)
 		require.Equal(t, &DBMigrationOperation{
-			ID:                                   "id",
-			InstallationID:                       "installation",
-			RequestAt:                            10,
-			State:                                DBMigrationStateRequested,
+			ID:             "id",
+			InstallationID: "installation",
+			RequestAt:      10,
+			State:          DBMigrationStateRequested,
 		}, dBMigrationOperation)
 	})
 }
@@ -60,20 +61,20 @@ func TestNewDBMigrationOperationsFromReader(t *testing.T) {
 	{"ID":"id", "InstallationID": "installation", "RequestAt": 10, "State": "db-migration-requested"},
 	{"ID":"id2", "InstallationID": "installation2", "RequestAt": 20, "State": "db-migration-requested"}
 ]`,
-	)))
+		)))
 		require.NoError(t, err)
 		require.Equal(t, []*DBMigrationOperation{
 			{
-				ID:                                   "id",
-				InstallationID:                       "installation",
-				RequestAt:                            10,
-				State:                                DBMigrationStateRequested,
+				ID:             "id",
+				InstallationID: "installation",
+				RequestAt:      10,
+				State:          DBMigrationStateRequested,
 			},
 			{
-				ID:                                   "id2",
-				InstallationID:                       "installation2",
-				RequestAt:                            20,
-				State:                                DBMigrationStateRequested,
+				ID:             "id2",
+				InstallationID: "installation2",
+				RequestAt:      20,
+				State:          DBMigrationStateRequested,
 			},
 		}, dBMigrationOperations)
 	})

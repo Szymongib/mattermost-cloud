@@ -56,7 +56,7 @@ const (
 	// InstallationStateDBRestorationInProgress is an installation that is being restored from backup.
 	InstallationStateDBRestorationInProgress = "db-restoration-in-progress"
 	// InstallationStateDBMigrationInProgress is an installation that is being migrated to different database.
-	InstallationStateDBMigrationInProgress  = "db-migration-in-progress"
+	InstallationStateDBMigrationInProgress = "db-migration-in-progress"
 	// InstallationStateDBRestorationFailed is an installation for which database restoration failed.
 	InstallationStateDBRestorationFailed = "db-restoration-failed"
 	// InstallationStateDBMigrationFailed is an installation for which database migration failed.

@@ -7,6 +7,7 @@ package store
 import (
 	"database/sql"
 	"encoding/json"
+
 	sq "github.com/Masterminds/squirrel"
 	"github.com/mattermost/mattermost-cloud/model"
 	"github.com/pkg/errors"
@@ -42,7 +43,7 @@ func init() {
 
 type rawDBMigrationOperation struct {
 	*model.DBMigrationOperation
-	SourceMultiTenantRaw []byte
+	SourceMultiTenantRaw      []byte
 	DestinationMultiTenantRaw []byte
 }
 
@@ -86,7 +87,6 @@ func (r *rawDBMigrationOperations) toDBMigrationOperations() ([]*model.DBMigrati
 	}
 	return migrationOperations, nil
 }
-
 
 // CreateInstallationDBMigration records installation db migration to the database, assigning it a unique ID.
 func (sqlStore *SQLStore) CreateInstallationDBMigration(dbMigration *model.DBMigrationOperation) error {
@@ -184,7 +184,6 @@ func (sqlStore *SQLStore) getDBMigrationOperations(builder builder) ([]*model.DB
 
 	return migrationOps, nil
 }
-
 
 // UpdateInstallationDBMigrationState updates the given installation db migration state.
 func (sqlStore *SQLStore) UpdateInstallationDBMigrationState(dbMigration *model.DBMigrationOperation) error {

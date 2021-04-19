@@ -8,7 +8,7 @@ import (
 
 // TODO: comments + tests
 // TODO: move to backups?
-func handleInstallationDatabaseMigration(c *Context,w http.ResponseWriter, r *http.Request) {
+func handleInstallationDatabaseMigration(c *Context, w http.ResponseWriter, r *http.Request) {
 	c.Logger = c.Logger.WithField("action", "migrate-installation-database")
 
 	////TODO: remove the backdoor lol
@@ -75,12 +75,12 @@ func handleInstallationDatabaseMigration(c *Context,w http.ResponseWriter, r *ht
 	}
 
 	dbMigrationOperation := &model.DBMigrationOperation{
-		InstallationID:                       migrationRequest.InstallationID,
-		State:                                model.DBMigrationStateRequested,
-		SourceDatabase:                       installationDTO.Database,
-		DestinationDatabase:                  model.InstallationDatabaseMultiTenantRDSPostgres, // TODO
-		SourceMultiTenant:                    &model.MultiTenantDBMigrationData{DatabaseID: dbs[0].ID},
-		DestinationMultiTenant:               migrationRequest.DestinationMultiTenant,
+		InstallationID:         migrationRequest.InstallationID,
+		State:                  model.DBMigrationStateRequested,
+		SourceDatabase:         installationDTO.Database,
+		DestinationDatabase:    model.InstallationDatabaseMultiTenantRDSPostgres, // TODO
+		SourceMultiTenant:      &model.MultiTenantDBMigrationData{DatabaseID: dbs[0].ID},
+		DestinationMultiTenant: migrationRequest.DestinationMultiTenant,
 	}
 
 	// TODO: one transaction
@@ -104,7 +104,6 @@ func handleInstallationDatabaseMigration(c *Context,w http.ResponseWriter, r *ht
 
 	w.WriteHeader(http.StatusAccepted)
 	outputJSON(c, w, dbMigrationOperation)
-
 
 	//dbRestoration, err := components.TriggerInstallationDBRestoration(c.Store, installationDTO.Installation, backup)
 	//if err != nil {

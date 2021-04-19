@@ -170,8 +170,4 @@ func TestNew{{ $struct }}sFromReader(t *testing.T) {
 {{end}}
 
 `
-
-
-	)
-
-
+)

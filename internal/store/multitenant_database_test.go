@@ -367,8 +367,8 @@ func TestSQLStore_SwitchInstallationDatabase(t *testing.T) {
 	require.NoError(t, err)
 
 	database2 := &model.MultitenantDatabase{
-		ID:            "database_id1",
-		VpcID:         "vpc_id0",
+		ID:    "database_id1",
+		VpcID: "vpc_id0",
 	}
 	err = sqlStore.CreateMultitenantDatabase(database2)
 	require.NoError(t, err)

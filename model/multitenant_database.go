@@ -12,15 +12,15 @@ import (
 // MultitenantDatabase represents database infrastructure that contains multiple
 // installation databases.
 type MultitenantDatabase struct {
-	ID             string
-	VpcID          string
-	DatabaseType   string
-	Installations  MultitenantDatabaseInstallations
+	ID                    string
+	VpcID                 string
+	DatabaseType          string
+	Installations         MultitenantDatabaseInstallations
 	MigratedInstallations MultitenantDatabaseInstallations
-	CreateAt       int64
-	DeleteAt       int64
-	LockAcquiredBy *string
-	LockAcquiredAt int64
+	CreateAt              int64
+	DeleteAt              int64
+	LockAcquiredBy        *string
+	LockAcquiredAt        int64
 }
 
 // MultitenantDatabaseInstallations is the list of installation IDs that belong

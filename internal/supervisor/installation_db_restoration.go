@@ -1,13 +1,13 @@
 package supervisor
 
 import (
+	"time"
+
 	"github.com/mattermost/mattermost-cloud/internal/provisioner"
 	"github.com/mattermost/mattermost-cloud/internal/tools/aws"
 	"github.com/mattermost/mattermost-cloud/internal/webhook"
 	"github.com/mattermost/mattermost-cloud/model"
-	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
-	"time"
 )
 
 // installationDBRestorationStore abstracts the database operations required by the supervisor.
@@ -47,14 +47,14 @@ type restoreOperator interface {
 // other clients needing to coordinate background jobs.
 type InstallationDBRestorationSupervisor struct {
 	store      installationDBRestorationStore
-	aws               aws.AWS
+	aws        aws.AWS
 	instanceID string
 	logger     log.FieldLogger
 
 	restoreOperator restoreOperator
 }
 
-// NewBackupSupervisor creates a new BackupSupervisor.
+// NewInstallationDBRestorationSupervisor creates a new InstallationDBRestorationSupervisor.
 func NewInstallationDBRestorationSupervisor(
 	store installationDBRestorationStore,
 	aws aws.AWS,
@@ -62,11 +62,11 @@ func NewInstallationDBRestorationSupervisor(
 	instanceID string,
 	logger log.FieldLogger) *InstallationDBRestorationSupervisor {
 	return &InstallationDBRestorationSupervisor{
-		store:          store,
-		aws: aws,
+		store:           store,
+		aws:             aws,
 		restoreOperator: restoreOperator,
-		instanceID:     instanceID,
-		logger:         logger,
+		instanceID:      instanceID,
+		logger:          logger,
 	}
 }
 
@@ -177,7 +177,7 @@ func (s *InstallationDBRestorationSupervisor) transitionRestoration(restoration 
 	}
 }
 
-func (s *InstallationDBRestorationSupervisor) triggerRestoration(restoration *model.InstallationDBRestorationOperation, instanceID string, logger log.FieldLogger) model.InstallationDBRestorationState  {
+func (s *InstallationDBRestorationSupervisor) triggerRestoration(restoration *model.InstallationDBRestorationOperation, instanceID string, logger log.FieldLogger) model.InstallationDBRestorationState {
 	installation, lock, err := getAndLockInstallation(s.store, restoration.InstallationID, instanceID, logger)
 	if err != nil {
 		logger.WithError(err).Error("failed to get and lock installation")
@@ -212,7 +212,7 @@ func (s *InstallationDBRestorationSupervisor) triggerRestoration(restoration *mo
 		return restoration.State
 	}
 
-	err = s.restoreOperator.TriggerRestore(installation,backup, cluster)
+	err = s.restoreOperator.TriggerRestore(installation, backup, cluster)
 	if err != nil {
 		logger.WithError(err).Error("Failed to trigger restoration job")
 		return restoration.State
@@ -292,21 +292,4 @@ func (s *InstallationDBRestorationSupervisor) failRestoration(restoration *model
 	}
 
 	return model.InstallationDBRestorationStateFailed
-}
-
-func (s *InstallationDBRestorationSupervisor) getAndLockBackup(backupID, instanceID string, logger log.FieldLogger) (*model.InstallationBackup, *backupLock, error) {
-	backup, err := s.store.GetInstallationBackup(backupID)
-	if err != nil {
-		return nil, nil, errors.Wrap(err, "failed to get backup")
-	}
-	if backup == nil {
-		return nil, nil, errors.New("could not found the backup")
-	}
-
-	lock := newBackupLock(backupID, instanceID, s.store, logger)
-	if !lock.TryLock() {
-		logger.Debugf("Failed to lock backup %s", backupID)
-		return nil, nil, errors.New("failed to lock backup")
-	}
-	return backup, lock, nil
 }

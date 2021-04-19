@@ -2,34 +2,35 @@ package model
 
 import (
 	"encoding/json"
-	"github.com/pkg/errors"
 	"io"
+
+	"github.com/pkg/errors"
 )
 
 // TODO: remove installation prefix from everything
 type DBMigrationOperation struct {
-	ID string
+	ID             string
 	InstallationID string
-	RequestAt int64
-	State DBMigrationOperationState
+	RequestAt      int64
+	State          DBMigrationOperationState
 
-	SourceDatabase string // TODO: set based on installation
+	SourceDatabase      string // TODO: set based on installation
 	DestinationDatabase string // DB type
 
 	SourceMultiTenant *MultiTenantDBMigrationData
 
 	DestinationMultiTenant *MultiTenantDBMigrationData
 
-	BackupID string
+	BackupID                             string
 	InstallationDBRestorationOperationID string
 
 	// TODO: in te future add target Installation state?
 
 	CompleteAt int64
 
-	DeleteAt int64
-	LockAcquiredBy             *string
-	LockAcquiredAt             int64
+	DeleteAt       int64
+	LockAcquiredBy *string
+	LockAcquiredAt int64
 }
 
 type MultiTenantDBMigrationData struct {
@@ -40,21 +41,21 @@ type DBMigrationOperationState string
 
 // TODO: comments
 const (
-	DBMigrationStateRequested  DBMigrationOperationState = "db-migration-requested"
-	DBMigrationStateInstallationBackupInProgress  DBMigrationOperationState = "db-migration-installation-backup-in-progress"
+	DBMigrationStateRequested                    DBMigrationOperationState = "db-migration-requested"
+	DBMigrationStateInstallationBackupInProgress DBMigrationOperationState = "db-migration-installation-backup-in-progress"
 
-	DBMigrationStateDatabaseSwitch  DBMigrationOperationState = "db-migration-database switch"
+	DBMigrationStateDatabaseSwitch DBMigrationOperationState = "db-migration-database switch"
 
-	DBMigrationStateRefreshSecrets  DBMigrationOperationState = "db-migration-refresh-secrets"
+	DBMigrationStateRefreshSecrets DBMigrationOperationState = "db-migration-refresh-secrets"
 
 	DBMigrationStateTriggerRestoration    DBMigrationOperationState = "db-migration-trigger-restoration"
 	DBMigrationStateRestorationInProgress DBMigrationOperationState = "db-migration-restoration-in-progress"
-	DbMigrationStateFinalizing DBMigrationOperationState = "db-migration-finalizing"
+	DbMigrationStateFinalizing            DBMigrationOperationState = "db-migration-finalizing"
 
-	DBMigrationStateFailing  DBMigrationOperationState = "db-migration-failing"
+	DBMigrationStateFailing DBMigrationOperationState = "db-migration-failing"
 
-	DBMigrationStateSucceeded  DBMigrationOperationState = "db-migration-succeeded"
-	DBMigrationStateFailed     DBMigrationOperationState = "db-migration-failed"
+	DBMigrationStateSucceeded DBMigrationOperationState = "db-migration-succeeded"
+	DBMigrationStateFailed    DBMigrationOperationState = "db-migration-failed"
 )
 
 // AllInstallationBackupStatesPendingWork is a list of all backup states that
@@ -98,7 +99,6 @@ func NewDBMigrationOperationsFromReader(reader io.Reader) ([]*DBMigrationOperati
 // RestoreStrategy
 // - DatabaseType
 // - ? BackupType?
-
 
 // Validation
 /*

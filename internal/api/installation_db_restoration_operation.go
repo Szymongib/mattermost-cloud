@@ -11,7 +11,7 @@ import (
 // TODO: comments + tests
 // TODO: move to backups?
 // handleTriggerInstallationDatabaseRestoration
-func handleTriggerInstallationDatabaseRestoration(c *Context,w http.ResponseWriter, r *http.Request) {
+func handleTriggerInstallationDatabaseRestoration(c *Context, w http.ResponseWriter, r *http.Request) {
 	c.Logger = c.Logger.
 		WithField("action", "restore-installation-database")
 
@@ -74,7 +74,7 @@ func handleTriggerInstallationDatabaseRestoration(c *Context,w http.ResponseWrit
 	outputJSON(c, w, dbRestoration)
 }
 
-func handleGetInstallationDatabaseRestorationOperations(c *Context,w http.ResponseWriter, r *http.Request) {
+func handleGetInstallationDatabaseRestorationOperations(c *Context, w http.ResponseWriter, r *http.Request) {
 	c.Logger = c.Logger.
 		WithField("action", "list-installation-db-restorations")
 

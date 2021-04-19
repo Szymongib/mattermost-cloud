@@ -12,27 +12,27 @@ type dBMigrationOperationLockStore interface {
 }
 
 type dBMigrationOperationLock struct {
-	ids []string
-	lockerID               string
-	store                  dBMigrationOperationLockStore
-	logger                 log.FieldLogger
+	ids      []string
+	lockerID string
+	store    dBMigrationOperationLockStore
+	logger   log.FieldLogger
 }
 
 func newDBMigrationOperationLock(id, lockerID string, store dBMigrationOperationLockStore, logger log.FieldLogger) *dBMigrationOperationLock {
 	return &dBMigrationOperationLock{
-		ids: []string{id},
-		lockerID:               lockerID,
-		store:                  store,
-		logger:                 logger,
+		ids:      []string{id},
+		lockerID: lockerID,
+		store:    store,
+		logger:   logger,
 	}
 }
 
 func newDBMigrationOperationLocks(ids []string, lockerID string, store dBMigrationOperationLockStore, logger log.FieldLogger) *dBMigrationOperationLock {
 	return &dBMigrationOperationLock{
-		ids: ids,
-		lockerID:               lockerID,
-		store:                  store,
-		logger:                 logger,
+		ids:      ids,
+		lockerID: lockerID,
+		store:    store,
+		logger:   logger,
 	}
 }
 

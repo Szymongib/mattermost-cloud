@@ -274,7 +274,7 @@ var serverCmd = &cobra.Command{
 		multiDoer = append(multiDoer, supervisor.NewInstallationDBRestorationSupervisor(sqlStore, awsClient, kopsProvisioner, instanceID, logger))
 
 		// if migrationSuperv {
-		multiDoer = append(multiDoer, supervisor.NewInstallationDBMigrationSupervisor(sqlStore, awsClient, resourceUtil, instanceID,  kopsProvisioner, logger))
+		multiDoer = append(multiDoer, supervisor.NewInstallationDBMigrationSupervisor(sqlStore, awsClient, resourceUtil, instanceID, kopsProvisioner, logger))
 
 		// Setup the supervisor to effect any requested changes. It is wrapped in a
 		// scheduler to trigger it periodically in addition to being poked by the API

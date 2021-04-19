@@ -2,10 +2,11 @@ package model
 
 import (
 	"bytes"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 	"net/url"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestNewInstallationDBRestorationRequestFromReader(t *testing.T) {
@@ -28,7 +29,7 @@ func TestNewInstallationDBRestorationRequestFromReader(t *testing.T) {
 	t.Run("valid", func(t *testing.T) {
 		installationDBRestorationRequest, err := NewInstallationDBRestorationRequestFromReader(bytes.NewReader([]byte(
 			`{"InstallationID": "installation", "BackupID": "backup"}`,
-	)))
+		)))
 		require.NoError(t, err)
 		require.Equal(t, &InstallationDBRestorationRequest{InstallationID: "installation", BackupID: "backup"}, installationDBRestorationRequest)
 	})

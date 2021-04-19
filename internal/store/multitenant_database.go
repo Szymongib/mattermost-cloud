@@ -27,7 +27,7 @@ func init() {
 
 type rawMultitenantDatabase struct {
 	*model.MultitenantDatabase
-	InstallationsRaw []byte
+	InstallationsRaw         []byte
 	MigratedInstallationsRaw []byte
 }
 
@@ -166,15 +166,15 @@ func (sqlStore *SQLStore) CreateMultitenantDatabase(multitenantDatabase *model.M
 	_, err = sqlStore.execBuilder(sqlStore.db, sq.
 		Insert("MultitenantDatabase").
 		SetMap(map[string]interface{}{
-			"ID":               multitenantDatabase.ID,
-			"VpcID":            multitenantDatabase.VpcID,
-			"DatabaseType":     multitenantDatabase.DatabaseType,
-			"InstallationsRaw": installationsJSON,
+			"ID":                       multitenantDatabase.ID,
+			"VpcID":                    multitenantDatabase.VpcID,
+			"DatabaseType":             multitenantDatabase.DatabaseType,
+			"InstallationsRaw":         installationsJSON,
 			"MigratedInstallationsRaw": migratedInstallationsJSON,
-			"LockAcquiredBy":   nil,
-			"LockAcquiredAt":   0,
-			"CreateAt":         multitenantDatabase.CreateAt,
-			"DeleteAt":         0,
+			"LockAcquiredBy":           nil,
+			"LockAcquiredAt":           0,
+			"CreateAt":                 multitenantDatabase.CreateAt,
+			"DeleteAt":                 0,
 		}),
 	)
 	if err != nil {
@@ -202,7 +202,7 @@ func (sqlStore *SQLStore) updateMultitenantDatabase(db execer, multitenantDataba
 	_, err = sqlStore.execBuilder(db, sq.
 		Update("MultitenantDatabase").
 		SetMap(map[string]interface{}{
-			"InstallationsRaw": []byte(installationsJSON),
+			"InstallationsRaw":         []byte(installationsJSON),
 			"MigratedInstallationsRaw": []byte(migratedInstallationsJSON),
 		}).
 		Where(sq.Eq{"ID": multitenantDatabase.ID}),

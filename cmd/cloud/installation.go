@@ -450,7 +450,6 @@ var installationDatabaseRestoreCmd = &cobra.Command{
 		serverAddress, _ := command.Flags().GetString("server")
 		client := model.NewClient(serverAddress)
 
-
 		installationID, _ := command.Flags().GetString("installation")
 		backupID, _ := command.Flags().GetString("backup")
 
@@ -478,7 +477,6 @@ var installationDBRestorationsListCmd = &cobra.Command{
 		serverAddress, _ := command.Flags().GetString("server")
 		client := model.NewClient(serverAddress)
 
-
 		//installationID, _ := command.Flags().GetString("installation")
 		//backupID, _ := command.Flags().GetString("backup")
 
@@ -504,7 +502,6 @@ var installationDatabaseMigrationCmd = &cobra.Command{
 
 		serverAddress, _ := command.Flags().GetString("server")
 		client := model.NewClient(serverAddress)
-
 
 		installationID, _ := command.Flags().GetString("installation")
 		//backupID, _ := command.Flags().GetString("backup")

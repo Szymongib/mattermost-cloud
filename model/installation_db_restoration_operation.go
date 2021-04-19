@@ -2,24 +2,25 @@ package model
 
 import (
 	"encoding/json"
-	"github.com/pkg/errors"
 	"io"
+
+	"github.com/pkg/errors"
 )
 
 type InstallationDBRestorationOperation struct {
-	ID string
+	ID             string
 	InstallationID string
-	BackupID string
-	RequestAt int64
-	State InstallationDBRestorationState
+	BackupID       string
+	RequestAt      int64
+	State          InstallationDBRestorationState
 	// TargetInstallationState is an installation State to which installation
 	// will be transitioned when the restoration finishes successfully.
 	TargetInstallationState string
-	ClusterInstallationID string
-	CompleteAt int64
-	DeleteAt int64
-	LockAcquiredBy             *string
-	LockAcquiredAt             int64
+	ClusterInstallationID   string
+	CompleteAt              int64
+	DeleteAt                int64
+	LockAcquiredBy          *string
+	LockAcquiredAt          int64
 }
 
 // InstallationDBRestorationState represents the state of backup.

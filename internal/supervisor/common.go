@@ -75,4 +75,3 @@ func getClusterForClusterInstallation(store getClusterForClusterInstallationStor
 
 	return cluster, nil
 }
-

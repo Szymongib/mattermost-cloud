@@ -8,27 +8,27 @@ type installationDBRestorationLockStore interface {
 }
 
 type installationDBRestorationLock struct {
-	ids []string
-	lockerID               string
-	store                  installationDBRestorationLockStore
-	logger                 log.FieldLogger
+	ids      []string
+	lockerID string
+	store    installationDBRestorationLockStore
+	logger   log.FieldLogger
 }
 
 func newInstallationDBRestorationLock(id, lockerID string, store installationDBRestorationLockStore, logger log.FieldLogger) *installationDBRestorationLock {
 	return &installationDBRestorationLock{
-		ids: []string{id},
-		lockerID:               lockerID,
-		store:                  store,
-		logger:                 logger,
+		ids:      []string{id},
+		lockerID: lockerID,
+		store:    store,
+		logger:   logger,
 	}
 }
 
 func newInstallationDBRestorationLocks(ids []string, lockerID string, store installationDBRestorationLockStore, logger log.FieldLogger) *installationDBRestorationLock {
 	return &installationDBRestorationLock{
-		ids: ids,
-		lockerID:               lockerID,
-		store:                  store,
-		logger:                 logger,
+		ids:      ids,
+		lockerID: lockerID,
+		store:    store,
+		logger:   logger,
 	}
 }
 

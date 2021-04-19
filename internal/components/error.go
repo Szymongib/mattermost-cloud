@@ -6,7 +6,7 @@ import (
 )
 
 type ErrWithStatus struct {
-	err error
+	err    error
 	status int
 }
 
@@ -48,4 +48,3 @@ func ErrToStatus(err error) int {
 	}
 	return http.StatusInternalServerError
 }
-
