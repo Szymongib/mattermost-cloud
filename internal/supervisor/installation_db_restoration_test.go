@@ -14,89 +14,95 @@ import (
 	"testing"
 )
 
-//type mockBackupStore struct {
-//	BackupMetadata        *model.InstallationBackup
-//	BackupMetadataPending []*model.InstallationBackup
-//	Cluster               *model.Cluster
-//	Installation          *model.Installation
-//	ClusterInstallations  []*model.ClusterInstallation
-//	UnlockChan            chan interface{}
-//
-//	UpdateBackupMetadataCalls int
-//}
-//
-//func (s mockBackupStore) GetUnlockedInstallationBackupPendingWork() ([]*model.InstallationBackup, error) {
-//	return s.BackupMetadataPending, nil
-//}
-//
-//func (s mockBackupStore) GetInstallationBackup(id string) (*model.InstallationBackup, error) {
-//	return s.BackupMetadataPending[0], nil
-//}
-//
-//func (s *mockBackupStore) UpdateInstallationBackupState(backupMeta *model.InstallationBackup) error {
-//	s.UpdateBackupMetadataCalls++
-//	return nil
-//}
-//
-//func (s *mockBackupStore) UpdateInstallationBackupSchedulingData(backupMeta *model.InstallationBackup) error {
-//	s.UpdateBackupMetadataCalls++
-//	return nil
-//}
-//
-//func (s mockBackupStore) UpdateInstallationBackupStartTime(backupMeta *model.InstallationBackup) error {
-//	panic("implement me")
-//}
-//
-//func (s mockBackupStore) DeleteInstallationBackup(backupID string) error {
-//	panic("implement me")
-//}
-//
-//func (s mockBackupStore) LockInstallationBackups(backupIDs []string, lockerID string) (bool, error) {
-//	return true, nil
-//}
-//
-//func (s *mockBackupStore) UnlockInstallationBackups(backupIDs []string, lockerID string, force bool) (bool, error) {
-//	if s.UnlockChan != nil {
-//		close(s.UnlockChan)
-//	}
-//	return true, nil
-//}
-//
-//func (s mockBackupStore) GetInstallation(installationID string, includeGroupConfig, includeGroupConfigOverrides bool) (*model.Installation, error) {
-//	return s.Installation, nil
-//}
-//
-//func (s mockBackupStore) LockInstallation(installationID, lockerID string) (bool, error) {
-//	return true, nil
-//}
-//
-//func (s mockBackupStore) UnlockInstallation(installationID, lockerID string, force bool) (bool, error) {
-//	return true, nil
-//}
-//
-//func (s mockBackupStore) GetClusterInstallations(filter *model.ClusterInstallationFilter) ([]*model.ClusterInstallation, error) {
-//	return s.ClusterInstallations, nil
-//}
-//
-//func (s mockBackupStore) GetClusterInstallation(clusterInstallationID string) (*model.ClusterInstallation, error) {
-//	return s.ClusterInstallations[0], nil
-//}
-//
-//func (s mockBackupStore) LockClusterInstallations(clusterInstallationID []string, lockerID string) (bool, error) {
-//	return true, nil
-//}
-//
-//func (s mockBackupStore) UnlockClusterInstallations(clusterInstallationID []string, lockerID string, force bool) (bool, error) {
-//	return true, nil
-//}
-//
-//func (s mockBackupStore) GetCluster(id string) (*model.Cluster, error) {
-//	return s.Cluster, nil
-//}
-//
-//func (s mockBackupStore) GetWebhooks(filter *model.WebhookFilter) ([]*model.Webhook, error) {
-//	return nil, nil
-//}
+type mockRestorationStore struct {
+	InstallationRestorationOperation *model.InstallationDBRestorationOperation
+	RestorationPending               []*model.InstallationDBRestorationOperation
+	Installation *model.Installation
+	UnlockChan                       chan interface{}
+
+	UpdateRestorationOperationCalls int
+}
+
+func (m *mockRestorationStore) GetUnlockedInstallationDBRestorationOperationsPendingWork() ([]*model.InstallationDBRestorationOperation, error) {
+	return m.RestorationPending, nil
+}
+
+func (m *mockRestorationStore) GetInstallationDBRestorationOperation(id string) (*model.InstallationDBRestorationOperation, error) {
+	return m.InstallationRestorationOperation, nil
+}
+
+func (m *mockRestorationStore) UpdateInstallationDBRestorationOperationState(dbRestoration *model.InstallationDBRestorationOperation) error {
+	m.UpdateRestorationOperationCalls++
+	return nil
+}
+
+func (m *mockRestorationStore) UpdateInstallationDBRestorationOperation(dbRestoration *model.InstallationDBRestorationOperation) error {
+	m.UpdateRestorationOperationCalls++
+	return nil
+}
+
+func (m *mockRestorationStore) LockInstallationDBRestorationOperations(id []string, lockerID string) (bool, error) {
+	return true, nil
+}
+
+func (m *mockRestorationStore) UnlockInstallationDBRestorationOperations(id []string, lockerID string, force bool) (bool, error) {
+	if m.UnlockChan != nil {
+		close(m.UnlockChan)
+	}
+	return true, nil
+}
+
+func (m *mockRestorationStore) GetInstallationBackup(id string) (*model.InstallationBackup, error) {
+	return &model.InstallationBackup{ID: id}, nil
+}
+
+func (m *mockRestorationStore) LockInstallationBackups(backupsID []string, lockerID string) (bool, error) {
+	panic("implement me")
+}
+
+func (m *mockRestorationStore) UnlockInstallationBackups(backupsID []string, lockerID string, force bool) (bool, error) {
+	panic("implement me")
+}
+
+func (m *mockRestorationStore) GetInstallation(installationID string, includeGroupConfig, includeGroupConfigOverrides bool) (*model.Installation, error) {
+	return m.Installation, nil
+}
+
+func (m *mockRestorationStore) UpdateInstallation(installation *model.Installation) error {
+	panic("implement me")
+}
+
+func (m *mockRestorationStore) LockInstallation(installationID, lockerID string) (bool, error) {
+	return true, nil
+}
+
+func (m *mockRestorationStore) UnlockInstallation(installationID, lockerID string, force bool) (bool, error) {
+	return true, nil
+}
+
+func (m *mockRestorationStore) GetClusterInstallations(filter *model.ClusterInstallationFilter) ([]*model.ClusterInstallation, error) {
+	return []*model.ClusterInstallation{{ID: "id"}}, nil
+}
+
+func (m *mockRestorationStore) GetClusterInstallation(clusterInstallationID string) (*model.ClusterInstallation, error) {
+	return &model.ClusterInstallation{ID: "id"}, nil
+}
+
+func (m *mockRestorationStore) LockClusterInstallations(clusterInstallationID []string, lockerID string) (bool, error) {
+	return true, nil
+}
+
+func (m *mockRestorationStore) UnlockClusterInstallations(clusterInstallationID []string, lockerID string, force bool) (bool, error) {
+	return true, nil
+}
+
+func (m *mockRestorationStore) GetCluster(id string) (*model.Cluster, error) {
+	return &model.Cluster{ID: id}, nil
+}
+
+func (m *mockRestorationStore) GetWebhooks(filter *model.WebhookFilter) ([]*model.Webhook, error) {
+	return nil, nil
+}
 
 type mockRestoreProvisioner struct {
 	RestoreCompleteTime int64
@@ -116,52 +122,45 @@ func (p *mockRestoreProvisioner) CleanupRestoreJob(backup *model.InstallationBac
 }
 
 
-//func TestInstallationDBRestorationSupervisor_Do(t *testing.T) {
-//	t.Run("no backup pending work", func(t *testing.T) {
-//		logger := testlib.MakeLogger(t)
-//		mockStore := &mockBackupStore{}
-//		mockBackupOp := &mockBackupProvisioner{}
-//
-//		backupSupervisor := supervisor.NewBackupSupervisor(mockStore, mockBackupOp, &mockAWS{}, "instanceID", logger)
-//		err := backupSupervisor.Do()
-//		require.NoError(t, err)
-//
-//		require.Equal(t, 0, mockStore.UpdateBackupMetadataCalls)
-//	})
-//
-//	t.Run("mock backup trigger", func(t *testing.T) {
-//		logger := testlib.MakeLogger(t)
-//
-//		cluster := &model.Cluster{ID: model.NewID()}
-//		installation := &model.Installation{
-//			ID:        model.NewID(),
-//			State:     model.InstallationStateHibernating,
-//			Database:  model.InstallationDatabaseMultiTenantRDSPostgres,
-//			Filestore: model.InstallationFilestoreBifrost,
-//		}
-//		mockStore := &mockBackupStore{
-//			Cluster:      cluster,
-//			Installation: installation,
-//			BackupMetadataPending: []*model.InstallationBackup{
-//				{ID: model.NewID(), InstallationID: installation.ID, State: model.InstallationBackupStateBackupRequested},
-//			},
-//			ClusterInstallations: []*model.ClusterInstallation{{
-//				ID:             model.NewID(),
-//				ClusterID:      cluster.ID,
-//				InstallationID: installation.ID,
-//				State:          model.ClusterInstallationStateStable,
-//			}},
-//			UnlockChan: make(chan interface{}),
-//		}
-//
-//		backupSupervisor := supervisor.NewBackupSupervisor(mockStore, &mockBackupProvisioner{}, &mockAWS{}, "instanceID", logger)
-//		err := backupSupervisor.Do()
-//		require.NoError(t, err)
-//
-//		<-mockStore.UnlockChan
-//		require.Equal(t, 2, mockStore.UpdateBackupMetadataCalls)
-//	})
-//}
+func TestInstallationDBRestorationSupervisor_Do(t *testing.T) {
+	t.Run("no installation restoration operations pending work", func(t *testing.T) {
+		logger := testlib.MakeLogger(t)
+		mockStore := &mockRestorationStore{}
+
+		restorationSupervisor := supervisor.NewInstallationDBRestorationSupervisor(mockStore, &mockAWS{}, &mockRestoreProvisioner{}, "instanceID", logger)
+		err := restorationSupervisor.Do()
+		require.NoError(t, err)
+
+		require.Equal(t, 0, mockStore.UpdateRestorationOperationCalls)
+	})
+
+	t.Run("mock restoration trigger", func(t *testing.T) {
+		logger := testlib.MakeLogger(t)
+
+		//cluster := &model.Cluster{ID: model.NewID()}
+		installation := &model.Installation{
+			ID:        model.NewID(),
+			State:     model.InstallationStateHibernating,
+			Database:  model.InstallationDatabaseMultiTenantRDSPostgres,
+			Filestore: model.InstallationFilestoreBifrost,
+		}
+		mockStore := &mockRestorationStore{
+			Installation: installation,
+			RestorationPending: []*model.InstallationDBRestorationOperation{
+				{ID: model.NewID(), InstallationID: installation.ID, State: model.InstallationDBRestorationStateRequested},
+			},
+			InstallationRestorationOperation: &model.InstallationDBRestorationOperation{ID: model.NewID(), InstallationID: installation.ID, State: model.InstallationDBRestorationStateRequested},
+			UnlockChan: make(chan interface{}),
+		}
+
+		restorationSupervisor := supervisor.NewInstallationDBRestorationSupervisor(mockStore,  &mockAWS{}, &mockRestoreProvisioner{}, "instanceID", logger)
+		err := restorationSupervisor.Do()
+		require.NoError(t, err)
+
+		<-mockStore.UnlockChan
+		require.Equal(t, 2, mockStore.UpdateRestorationOperationCalls)
+	})
+}
 
 func TestInstallationDBRestorationSupervisor_Supervise(t *testing.T) {
 
@@ -221,7 +220,7 @@ func TestInstallationDBRestorationSupervisor_Supervise(t *testing.T) {
 			{
 				description:   "when terminal error",
 				mockRestoreOp:  &mockRestoreProvisioner{RestoreCompleteTime: -1, err: provisioner.ErrJobBackoffLimitReached},
-				expectedState: model.InstallationDBRestorationStateFailed,
+				expectedState: model.InstallationDBRestorationStateFailing,
 			},
 		} {
 		    t.Run(testCase.description, func(t *testing.T) {
@@ -283,6 +282,38 @@ func TestInstallationDBRestorationSupervisor_Supervise(t *testing.T) {
 		installation, err = sqlStore.GetInstallation(installation.ID, false,false)
 		require.NoError(t, err)
 		assert.Equal(t, model.InstallationStateHibernating, installation.State)
+	})
+
+	t.Run("failing restoration", func(t *testing.T) {
+		logger := testlib.MakeLogger(t)
+		sqlStore := store.MakeTestSQLStore(t, logger)
+		defer store.CloseConnection(t, sqlStore)
+
+		mockRestoreOp := &mockRestoreProvisioner{}
+
+		installation, clusterInstallation, backup := setupRestoreRequiredResources(t, sqlStore)
+
+		restorationOp := &model.InstallationDBRestorationOperation{
+			InstallationID:          installation.ID,
+			BackupID:                backup.ID,
+			State:                   model.InstallationDBRestorationStateFailing,
+			ClusterInstallationID: clusterInstallation.ID,
+			TargetInstallationState: model.InstallationStateHibernating,
+		}
+		err := sqlStore.CreateInstallationDBRestorationOperation(restorationOp)
+		require.NoError(t, err)
+
+		restorationSupervisor := supervisor.NewInstallationDBRestorationSupervisor(sqlStore, &mockAWS{}, mockRestoreOp, "instanceID", logger)
+		restorationSupervisor.Supervise(restorationOp)
+
+		// Assert
+		restorationOp, err = sqlStore.GetInstallationDBRestorationOperation(restorationOp.ID)
+		require.NoError(t, err)
+		assert.Equal(t, model.InstallationDBRestorationStateFailed, restorationOp.State)
+
+		installation, err = sqlStore.GetInstallation(installation.ID, false,false)
+		require.NoError(t, err)
+		assert.Equal(t, model.InstallationStateDBRestorationFailed, installation.State)
 	})
 
 

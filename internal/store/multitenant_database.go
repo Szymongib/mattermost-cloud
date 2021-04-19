@@ -214,65 +214,6 @@ func (sqlStore *SQLStore) updateMultitenantDatabase(db execer, multitenantDataba
 	return nil
 }
 
-func (sqlStore *SQLStore) SwitchInstallationDatabase(installationID, newDBID string) error {
-
-	// Do I assume that DBs are locked by this provisioner? - not sure what isolation level I need
-
-	// TODO: decide if get needs to be inside transaction
-
-	oldDB, err := sqlStore.GetMultitenantDatabaseForInstallationID(installationID)
-	if err != nil {
-		return errors.Wrapf(err, "failed to get multitenant database for installation %q", installationID)
-	}
-
-	newDB, err := sqlStore.GetMultitenantDatabase(newDBID)
-	if err != nil {
-		return errors.Wrap(err, "failed to get multitenant database by id")
-	}
-	if newDB == nil {
-		return errors.Errorf("multitenant database %q not found", newDBID)
-	}
-
-	//// TODO: should we check if database have enough capacity? Or do it on the top level?
-	//totalWeight, err := sqlStore.GetInstallationsTotalDatabaseWeight(newDB.Installations)
-	//if err != nil {
-	//	return errors.Wrap(err, "failed to calculate total weight for database")
-	//}
-	//
-	//if int(math.Ceil(totalWeight)) < filter.MaxInstallationsLimit {
-	//	filteredDatabases = append(filteredDatabases, database)
-	//}
-
-	tx, err := sqlStore.beginTransaction(sqlStore.db)
-	if err != nil {
-		return errors.Wrap(err, "failed to begin transaction")
-	}
-	defer tx.RollbackUnlessCommitted()
-
-	oldDB.Installations.Remove(installationID)
-	oldDB.MigratedInstallations.Add(installationID)
-
-	newDB.Installations.Add(installationID)
-
-	err = sqlStore.updateMultitenantDatabase(tx, oldDB)
-	if err != nil {
-		return errors.Wrap(err, "failed to update multitenant db")
-	}
-
-	err = sqlStore.updateMultitenantDatabase(tx, newDB)
-	if err != nil {
-		return errors.Wrap(err, "failed to update multitenant db")
-	}
-
-	err = tx.Commit()
-	if err != nil {
-		return errors.Wrap(err, "failed to commit transaction switching multitenant databases")
-	}
-
-	return nil
-}
-
-
 // LockMultitenantDatabase marks the database cluster as locked for exclusive use by the caller.
 func (sqlStore *SQLStore) LockMultitenantDatabase(multitenantDatabaseID, lockerID string) (bool, error) {
 	return sqlStore.lockRows("MultitenantDatabase", []string{multitenantDatabaseID}, lockerID)

@@ -43,18 +43,6 @@ const (
 	InstallationStateUpdateInProgress = "update-in-progress"
 	// InstallationStateUpdateFailed is an installation that failed to update.
 	InstallationStateUpdateFailed = "update-failed"
-
-	// InstallationStateDBRestorationInProgress is an installation that is being restored from backup.
-	InstallationStateDBRestorationInProgress = "db-restoration-in-progress"
-
-	// TODO: comments
-	InstallationStateDBMigrationInProgress  = "db-migration-in-progress"
-
-	InstallationStateRestorationFailed = "restoration-failed"
-	InstallationStateDBMigrationFailed = "db-migration-failed"
-
-
-
 	// InstallationStateDeletionRequested is an installation to be deleted.
 	InstallationStateDeletionRequested = "deletion-requested"
 	// InstallationStateDeletionInProgress is an installation being deleted.
@@ -65,6 +53,14 @@ const (
 	InstallationStateDeletionFailed = "deletion-failed"
 	// InstallationStateDeleted is an installation that has been deleted
 	InstallationStateDeleted = "deleted"
+	// InstallationStateDBRestorationInProgress is an installation that is being restored from backup.
+	InstallationStateDBRestorationInProgress = "db-restoration-in-progress"
+	// InstallationStateDBMigrationInProgress is an installation that is being migrated to different database.
+	InstallationStateDBMigrationInProgress  = "db-migration-in-progress"
+	// InstallationStateDBRestorationFailed is an installation for which database restoration failed.
+	InstallationStateDBRestorationFailed = "db-restoration-failed"
+	// InstallationStateDBMigrationFailed is an installation for which database migration failed.
+	InstallationStateDBMigrationFailed = "db-migration-failed"
 )
 
 const (
@@ -96,6 +92,10 @@ var AllInstallationStates = []string{
 	InstallationStateDeletionFinalCleanup,
 	InstallationStateDeletionFailed,
 	InstallationStateDeleted,
+	InstallationStateDBRestorationInProgress,
+	InstallationStateDBMigrationInProgress,
+	InstallationStateDBRestorationFailed,
+	InstallationStateDBMigrationFailed,
 }
 
 // AllInstallationStatesPendingWork is a list of all installation states that

@@ -1217,37 +1217,8 @@ var migrations = []migration{
 
 		return nil
 	}},
-	// TODO: cleanup all of this
-	//{semver.MustParse("0.25.0"), semver.MustParse("0.26.0"), func(e execer) error {
-	//	// Add InstallationDBRestoration table.
-	//	_, err := e.Exec(`
-	//		CREATE TABLE InstallationDBRestoration (
-	//			ID TEXT PRIMARY KEY,
-	//			InstallationID TEXT NOT NULL,
-	//			BackupID TEXT NOT NULL,
-	//			RequestAt BIGINT NOT NULL,
-	//
-	//			ClusterInstallationID TEXT NOT NULL,
-	//			CompleteAt BIGINT NOT NULL
-	//		);
-	//		`)
-	//	if err != nil {
-	//		return err
-	//	}
-	//
-	//	return nil
-	//}},
-	// TODO: decide on this based of migrations
 	{semver.MustParse("0.25.0"), semver.MustParse("0.26.0"), func(e execer) error {
-		// TODO: note changes
-		//_, err := e.Exec(`
-		//	ALTER TABLE Installation ADD COLUMN RestorationMetadataRaw BYTEA NULL;
-		//	`)
-		//if err != nil {
-		//	return err
-		//}
-
-
+		// Add InstallationDBRestorationOperation table.
 		_, err := e.Exec(`
 			CREATE TABLE InstallationDBRestorationOperation (
 				ID TEXT PRIMARY KEY,
@@ -1270,7 +1241,8 @@ var migrations = []migration{
 		return nil
 	}},
 	{semver.MustParse("0.26.0"), semver.MustParse("0.27.0"), func(e execer) error {
-
+		// 1. Add DBMigrationOperation table.
+		// 2. Add column MigratedInstallationsRaw to MultitenantDatabase table.
 		_, err := e.Exec(`
 			CREATE TABLE DBMigrationOperation (
 				ID TEXT PRIMARY KEY,

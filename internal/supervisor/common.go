@@ -57,19 +57,22 @@ func getAndLockInstallation(store getAndLockInstallationStore, installationID, i
 	return installation, lock, nil
 }
 
-//func claimClusterInstallationID(store clusterInstallationClaimStore, installationID string) (*model.ClusterInstallation, error) {
-//	clusterInstallationFilter := &model.ClusterInstallationFilter{
-//		InstallationID: installationID,
-//		Paging:         model.AllPagesNotDeleted(),
-//	}
-//	clusterInstallations, err := store.GetClusterInstallations(clusterInstallationFilter)
-//	if err != nil {
-//		return nil, errors.Wrap(err, "Failed to get cluster installations")
-//	}
-//
-//	if len(clusterInstallations) == 0 {
-//		return  nil, errors.Wrap(err, "Expected at least one cluster installation for the installation but found none")
-//	}
-//
-//	return clusterInstallations[0], nil
-//}
+type getClusterForClusterInstallationStore interface {
+	GetClusterInstallation(string) (*model.ClusterInstallation, error)
+	GetCluster(string) (*model.Cluster, error)
+}
+
+func getClusterForClusterInstallation(store getClusterForClusterInstallationStore, clusterInstallationID string) (*model.Cluster, error) {
+	clusterInstallation, err := store.GetClusterInstallation(clusterInstallationID)
+	if err != nil {
+		return nil, errors.Wrap(err, "Failed to get cluster installations")
+	}
+
+	cluster, err := store.GetCluster(clusterInstallation.ClusterID)
+	if err != nil {
+		return nil, errors.Wrap(err, "Failed to get cluster")
+	}
+
+	return cluster, nil
+}
+

@@ -27,8 +27,6 @@ const (
 
 // installationStore abstracts the database operations required to query installations.
 type installationStore interface {
-	model.InstallationDatabaseStoreInterface
-
 	GetClusters(clusterFilter *model.ClusterFilter) ([]*model.Cluster, error)
 	GetCluster(id string) (*model.Cluster, error)
 	UpdateCluster(cluster *model.Cluster) error
@@ -43,6 +41,9 @@ type installationStore interface {
 	DeleteInstallation(installationID string) error
 	installationLockStore
 
+	GetSingleTenantDatabaseConfigForInstallation(installationID string) (*model.SingleTenantDatabaseConfig, error)
+	GetAnnotationsForInstallation(installationID string) ([]*model.Annotation, error)
+
 	CreateClusterInstallation(clusterInstallation *model.ClusterInstallation) error
 	GetClusterInstallation(clusterInstallationID string) (*model.ClusterInstallation, error)
 	GetClusterInstallations(*model.ClusterInstallationFilter) ([]*model.ClusterInstallation, error)
@@ -54,15 +55,13 @@ type installationStore interface {
 	LockGroup(groupID, lockerID string) (bool, error)
 	UnlockGroup(groupID, lockerID string, force bool) (bool, error)
 
-	GetSingleTenantDatabaseConfigForInstallation(installationID string) (*model.SingleTenantDatabaseConfig, error)
-
-	GetAnnotationsForInstallation(installationID string) ([]*model.Annotation, error)
-
 	GetInstallationBackups(filter *model.InstallationBackupFilter) ([]*model.InstallationBackup, error)
 	UpdateInstallationBackupState(backup *model.InstallationBackup) error
 	installationBackupLockStore
 
 	GetWebhooks(filter *model.WebhookFilter) ([]*model.Webhook, error)
+
+	model.InstallationDatabaseStoreInterface
 }
 
 // provisioner abstracts the provisioning operations required by the installation supervisor.

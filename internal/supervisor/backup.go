@@ -7,8 +7,6 @@ package supervisor
 import (
 	"time"
 
-	"github.com/pkg/errors"
-
 	"github.com/mattermost/mattermost-cloud/internal/provisioner"
 	"github.com/mattermost/mattermost-cloud/internal/tools/aws"
 	"github.com/mattermost/mattermost-cloud/internal/webhook"
@@ -16,22 +14,15 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-// TODO: not sure if I like it
-type installationBackupCommonStore interface {
-	GetInstallationBackup(id string) (*model.InstallationBackup, error)
-	UpdateInstallationBackupState(backupMeta *model.InstallationBackup) error
-}
-
 // installationBackupStore abstracts the database operations required to query installations backup.
 type installationBackupStore interface {
-	installationBackupCommonStore
-	installationBackupLockStore
-
 	GetUnlockedInstallationBackupPendingWork() ([]*model.InstallationBackup, error)
+	GetInstallationBackup(id string) (*model.InstallationBackup, error)
 	UpdateInstallationBackupState(backupMeta *model.InstallationBackup) error
 	UpdateInstallationBackupSchedulingData(backupMeta *model.InstallationBackup) error
 	UpdateInstallationBackupStartTime(backupMeta *model.InstallationBackup) error
 	DeleteInstallationBackup(id string) error
+	installationBackupLockStore
 
 	GetInstallation(installationID string, includeGroupConfig, includeGroupConfigOverrides bool) (*model.Installation, error)
 	installationLockStore
@@ -241,7 +232,7 @@ func (s *BackupSupervisor) triggerBackup(backup *model.InstallationBackup, insta
 }
 
 func (s *BackupSupervisor) monitorBackup(backup *model.InstallationBackup, instanceID string, logger log.FieldLogger) model.InstallationBackupState {
-	cluster, err := s.getClusterForBackup(backup)
+	cluster, err := getClusterForClusterInstallation(s.store, backup.ClusterInstallationID)
 	if err != nil {
 		logger.WithError(err).Error("Failed to get cluster")
 		return backup.State
@@ -274,7 +265,7 @@ func (s *BackupSupervisor) monitorBackup(backup *model.InstallationBackup, insta
 }
 
 func (s *BackupSupervisor) deleteBackup(backup *model.InstallationBackup, instanceID string, logger log.FieldLogger) model.InstallationBackupState {
-	cluster, err := s.getClusterForBackup(backup)
+	cluster, err := getClusterForClusterInstallation(s.store, backup.ClusterInstallationID)
 	if err != nil {
 		logger.WithError(err).Error("Failed to get cluster for backup")
 		return backup.State
@@ -305,18 +296,3 @@ func (s *BackupSupervisor) deleteBackup(backup *model.InstallationBackup, instan
 
 	return model.InstallationBackupStateDeleted
 }
-
-func (s *BackupSupervisor) getClusterForBackup(backup *model.InstallationBackup) (*model.Cluster, error) {
-	backupCI, err := s.store.GetClusterInstallation(backup.ClusterInstallationID)
-	if err != nil {
-		return nil, errors.Wrap(err, "Failed to get cluster installations")
-	}
-
-	cluster, err := s.store.GetCluster(backupCI.ClusterID)
-	if err != nil {
-		return nil, errors.Wrap(err, "Failed to get cluster")
-	}
-
-	return cluster, nil
-}
-

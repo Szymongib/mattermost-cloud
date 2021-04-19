@@ -2,6 +2,7 @@ package components
 
 import (
 	"github.com/mattermost/mattermost-cloud/model"
+	"github.com/pkg/errors"
 	"net/http"
 )
 
@@ -22,7 +23,7 @@ func TriggerInstallationBackup(store installationBackupStore, installation *mode
 		return nil, ErrWrap(http.StatusInternalServerError, err, "failed to check if backup is running for Installation")
 	}
 	if backupRunning {
-		return nil, ErrWrap(http.StatusBadRequest, err, "backup for the installation is already requested or in progress")
+		return nil, NewErr(http.StatusBadRequest, errors.New("backup for the installation is already requested or in progress"))
 	}
 
 	backup := &model.InstallationBackup{

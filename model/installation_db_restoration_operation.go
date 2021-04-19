@@ -34,6 +34,8 @@ const (
 	InstallationDBRestorationStateFinalizing InstallationDBRestorationState = "installation-db-restoration-finishing"
 	// InstallationDBRestorationStateSucceeded is an installation db restoration that have finished with success.
 	InstallationDBRestorationStateSucceeded InstallationDBRestorationState = "installation-db-restoration-succeeded"
+	// InstallationDBRestorationStateFailing is an installation db restoration that is failing.
+	InstallationDBRestorationStateFailing InstallationDBRestorationState = "installation-db-restoration-failing"
 	// InstallationDBRestorationStateFailed is an installation db restoration that have failed.
 	InstallationDBRestorationStateFailed InstallationDBRestorationState = "installation-db-restoration-failed"
 	// InstallationDBRestorationStateInvalid is an installation db restoration that is invalid.
@@ -46,9 +48,9 @@ var AllInstallationDBRestorationStatesPendingWork = []InstallationDBRestorationS
 	InstallationDBRestorationStateRequested,
 	InstallationDBRestorationStateInProgress,
 	InstallationDBRestorationStateFinalizing,
+	InstallationDBRestorationStateFailing,
 }
 
-// TODO: add include finished or something
 // InstallationDBRestorationFilter describes the parameters used to constrain a set of installation-db-restoration.
 type InstallationDBRestorationFilter struct {
 	Paging

@@ -40,7 +40,6 @@ func init() {
 		From(installationDBMigrationTable)
 }
 
-
 type rawDBMigrationOperation struct {
 	*model.DBMigrationOperation
 	SourceMultiTenantRaw []byte

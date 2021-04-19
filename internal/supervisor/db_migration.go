@@ -17,41 +17,36 @@ import (
 
 // installationDBMigrationStore abstracts the database operations required by the supervisor.
 type installationDBMigrationStore interface {
-	// TODO: adjust
-	installationDBRestorationStoreInterface
-	dBMigrationOperationLockStore
-	model.InstallationDatabaseStoreInterface
-
 	GetUnlockedInstallationDBMigrationsPendingWork() ([]*model.DBMigrationOperation, error)
 	GetInstallationDBMigration(id string) (*model.DBMigrationOperation, error)
 	UpdateInstallationDBMigrationState(dbMigration *model.DBMigrationOperation) error
 	UpdateInstallationDBMigration(dbMigration *model.DBMigrationOperation) error
+	dBMigrationOperationLockStore
 
-	UpdateInstallation(installation *model.Installation) error
+	TriggerInstallationRestoration(installation *model.Installation, backup *model.InstallationBackup) (*model.InstallationDBRestorationOperation, error)
+	GetInstallationDBRestorationOperation(id string) (*model.InstallationDBRestorationOperation, error)
+	UpdateInstallationDBRestorationOperationState(dbRestoration *model.InstallationDBRestorationOperation) error
+	UpdateInstallationDBRestorationOperation(dbRestoration *model.InstallationDBRestorationOperation) error
 
 	IsInstallationBackupRunning(installationID string) (bool, error)
 	CreateInstallationBackup(backup *model.InstallationBackup) error
 	GetInstallationBackup(id string) (*model.InstallationBackup, error)
 	UpdateInstallationBackupState(backupMeta *model.InstallationBackup) error
-
-	CreateInstallationDBRestoration(restoration *model.InstallationDBRestorationOperation) error
-	TriggerInstallationRestoration(installation *model.Installation, backup *model.InstallationBackup) (*model.InstallationDBRestorationOperation, error)
-
-	LockInstallationBackups(backupIDs []string, lockerID string) (bool, error)
-	UnlockInstallationBackups(backupIDs []string, lockerID string, force bool) (bool, error)
+	installationBackupLockStore
 
 	GetInstallation(installationID string, includeGroupConfig, includeGroupConfigOverrides bool) (*model.Installation, error)
-	LockInstallation(installationID, lockerID string) (bool, error)
-	UnlockInstallation(installationID, lockerID string, force bool) (bool, error)
+	UpdateInstallation(installation *model.Installation) error
+	installationLockStore
 
 	GetClusterInstallations(*model.ClusterInstallationFilter) ([]*model.ClusterInstallation, error)
 	GetClusterInstallation(clusterInstallationID string) (*model.ClusterInstallation, error)
-	LockClusterInstallations(clusterInstallationID []string, lockerID string) (bool, error)
-	UnlockClusterInstallations(clusterInstallationID []string, lockerID string, force bool) (bool, error)
+	clusterInstallationLockStore
 
 	GetCluster(id string) (*model.Cluster, error)
 
 	GetWebhooks(filter *model.WebhookFilter) ([]*model.Webhook, error)
+
+	model.InstallationDatabaseStoreInterface
 }
 
 // TODO: clusterResourceProvisioner / SecretsProvisioner?
@@ -406,7 +401,7 @@ func (s *DBMigrationSupervisor) triggerInstallationRestoration(dbMigration *mode
 }
 
 func (s *DBMigrationSupervisor) waitForInstallationRestoration(dbMigration *model.DBMigrationOperation, instanceID string, logger log.FieldLogger) model.DBMigrationOperationState {
-	restoration, err := s.store.GetInstallationDBRestoration(dbMigration.InstallationDBRestorationOperationID)
+	restoration, err := s.store.GetInstallationDBRestorationOperation(dbMigration.InstallationDBRestorationOperationID)
 	if err != nil {
 		logger.WithError(err).Error("Failed to get installation restoration")
 		return dbMigration.State
