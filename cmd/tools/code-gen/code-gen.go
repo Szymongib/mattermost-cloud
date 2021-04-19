@@ -36,8 +36,18 @@ func init() {
 	generateSupervisorLocksCmd.PersistentFlags().Bool("locks", true, "Whether to generate locking methods.")
 	generateSupervisorLocksCmd.MarkFlagRequired("struct-name")
 
+	generateFromReaderMethodsCmd.PersistentFlags().StringArray("struct-name", []string{}, "Names of structs for which to generate code.")
+	generateFromReaderMethodsCmd.PersistentFlags().StringArray("plural-name", []string{}, "Plural names of struct for which to generate code.")
+	generateFromReaderMethodsCmd.MarkFlagRequired("struct-name")
+
+	generateFromReaderTestTemplateCmd.PersistentFlags().StringArray("struct-name", []string{}, "Names of structs for which to generate code.")
+	generateFromReaderTestTemplateCmd.PersistentFlags().StringArray("plural-name", []string{}, "Plural names of struct for which to generate code.")
+	generateFromReaderTestTemplateCmd.MarkFlagRequired("struct-name")
+
 	rootCmd.AddCommand(generateStoreLocksCmd)
 	rootCmd.AddCommand(generateSupervisorLocksCmd)
+	rootCmd.AddCommand(generateFromReaderMethodsCmd)
+	rootCmd.AddCommand(generateFromReaderTestTemplateCmd)
 }
 
 func main() {
@@ -94,6 +104,48 @@ var generateSupervisorLocksCmd = &cobra.Command{
 		}
 
 		fmt.Println(locks)
+
+		return nil
+	},
+}
+
+var generateFromReaderMethodsCmd = &cobra.Command{
+	Use:   "generate-from-reader",
+	Short: "Generates from reader methods for a struct and slice of struct",
+	RunE: func(command *cobra.Command, args []string) error {
+
+		data, err := genDataFromFlags(command)
+		if err != nil {
+			return err
+		}
+
+		fromReaderMethods, err := generateFromReader(data)
+		if err != nil {
+			return errors.Wrap(err, "failed to generate from reader methods")
+		}
+
+		fmt.Println(fromReaderMethods)
+
+		return nil
+	},
+}
+
+var generateFromReaderTestTemplateCmd = &cobra.Command{
+	Use:   "generate-from-reader-test",
+	Short: "Generates test template  for from reader methods",
+	RunE: func(command *cobra.Command, args []string) error {
+
+		data, err := genDataFromFlags(command)
+		if err != nil {
+			return err
+		}
+
+		fromReaderTests, err := generateFromReaderTestTemplate(data)
+		if err != nil {
+			return errors.Wrap(err, "failed to generate from reader tests")
+		}
+
+		fmt.Println(fromReaderTests)
 
 		return nil
 	},
@@ -164,6 +216,14 @@ func generateStoreLocks(data StoreGenerationData) (string, error) {
 
 func generateSupervisorLocks(data StoreGenerationData) (string, error) {
 	return createFromTemplate(data, supervisorLocksTemplate)
+}
+
+func generateFromReader(data StoreGenerationData) (string, error) {
+	return createFromTemplate(data, newFromReaderTemplate)
+}
+
+func generateFromReaderTestTemplate(data StoreGenerationData) (string, error) {
+	return createFromTemplate(data, newFromReaderTestTemplate)
 }
 
 func createFromTemplate(data interface{}, rawTemplate string) (string, error) {

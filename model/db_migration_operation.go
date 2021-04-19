@@ -70,38 +70,67 @@ var AllInstallationDBMigrationOperationsStatesPendingWork = []DBMigrationOperati
 	DBMigrationStateFailing,
 }
 
-//type DatabaseMigration struct {
-//	BackupID string
-//
-//	DestinationDatabase string // DB type
-//	DestinationMultiTenant DestinationMultiTenantDB
-//	DestinationSingleTenant DestinationSingleTenantDB
-//}
-//
-//
-
-
 // TODO: test
-// NewInstallationDBRestorationOperationsFromReader will create a []*InstallationDBRestorationOperation from an
-// io.Reader with JSON data.
-func NewDBMigrationOperationsFromReader(reader io.Reader) ([]*DBMigrationOperation, error) {
-	var restorations []*DBMigrationOperation
-	err := json.NewDecoder(reader).Decode(&restorations)
-	if err != nil && err != io.EOF {
-		return nil, errors.Wrap(err, "failed to decode db migration operations")
-	}
-
-	return restorations, nil
-}
-
 // NewDBMigrationOperationFromReader will create a DBMigrationOperation from an
 // io.Reader with JSON data.
 func NewDBMigrationOperationFromReader(reader io.Reader) (*DBMigrationOperation, error) {
-	var migrationOperation DBMigrationOperation
-	err := json.NewDecoder(reader).Decode(&migrationOperation)
+	var dBMigrationOperation DBMigrationOperation
+	err := json.NewDecoder(reader).Decode(&dBMigrationOperation)
 	if err != nil && err != io.EOF {
-		return nil, errors.Wrap(err, "failed to decode migration operation")
+		return nil, errors.Wrap(err, "failed to decode DBMigrationOperation")
 	}
 
-	return &migrationOperation, nil
+	return &dBMigrationOperation, nil
 }
+
+// NewDBMigrationOperationsFromReader will create a slice of DBMigrationOperations from an
+// io.Reader with JSON data.
+func NewDBMigrationOperationsFromReader(reader io.Reader) ([]*DBMigrationOperation, error) {
+	dBMigrationOperations := []*DBMigrationOperation{}
+	err := json.NewDecoder(reader).Decode(&dBMigrationOperations)
+	if err != nil && err != io.EOF {
+		return nil, errors.Wrap(err, "failed to decode DBMigrationOperations")
+	}
+
+	return dBMigrationOperations, nil
+}
+
+// RestoreStrategy
+// - DatabaseType
+// - ? BackupType?
+
+
+// Validation
+/*
+
+	- Installation cannot be in DestinationDB
+	- Both DB types need to be the same
+	- Installation not in MigratedInstallationIDs - could not be restore?
+
+	???
+	- Both Databases in the same VPC? -
+*/
+
+// Flow
+/*
+
+	- Create Backup for the Installation
+	- Wait for backup done | Create new logical DB in other cluster (with user etc)
+	- Switch Installation to new DB cluster
+		- Add Installation to MigratedInstallationIDs of old MultitenantDB
+	- Recreate Secrets - Update Cluster Installation?
+		- Do I need to delete old? or is it the same name? - I think the same
+	- Restore Installation from specific backup
+	- (optional - based on param) Cleanup old database
+
+
+*/
+
+// Other
+/*
+
+	- Add MigratedInstallationIDs to MultitenantDatabase? - to not to delete data right away?
+	- Rollback migration option? - Switch Installation to previous DB
+		- New data is lost.
+		- Need to be in MigratedInstallationIDs on the old one.
+*/

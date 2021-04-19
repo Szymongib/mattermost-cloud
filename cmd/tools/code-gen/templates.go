@@ -84,6 +84,94 @@ func (l *{{ index $.StructNameNotExported $i }}Lock) Unlock() {
 {{end}}
 `
 
-)
+	newFromReaderTemplate = `
+{{range $i, $struct := .StructName}}
+// New{{ $struct }}FromReader will create a {{ $struct }} from an
+// io.Reader with JSON data.
+func New{{ $struct }}FromReader(reader io.Reader) (*{{ $struct }}, error) {
+	var {{ index $.StructNameNotExported $i }} {{ $struct }}
+	err := json.NewDecoder(reader).Decode(&{{ index $.StructNameNotExported $i }})
+	if err != nil && err != io.EOF {
+		return nil, errors.Wrap(err, "failed to decode {{ $struct }}")
+	}
+
+	return &{{ index $.StructNameNotExported $i }}, nil
+}
+
+// New{{ index $.PluralName $i }}FromReader will create a slice of {{ index $.PluralName $i }} from an
+// io.Reader with JSON data.
+func New{{ index $.PluralName $i }}FromReader(reader io.Reader) ([]*{{ index $.StructName $i }}, error) {
+	{{ index $.StructNameNotExportedPlural $i }} := []*{{ index $.StructName $i }}{}
+	err := json.NewDecoder(reader).Decode(&{{ index $.StructNameNotExportedPlural $i }})
+	if err != nil && err != io.EOF {
+		return nil, errors.Wrap(err, "failed to decode {{ index $.PluralName $i }}")
+	}
+
+	return {{ index $.StructNameNotExportedPlural $i }}, nil
+}
+{{end}}
+`
+
+	newFromReaderTestTemplate = `
+{{range $i, $struct := .StructName}}
+func TestNew{{ $struct }}FromReader(t *testing.T) {
+	t.Run("empty", func(t *testing.T) {
+		{{ index $.StructNameNotExported $i }}, err := New{{ $struct }}FromReader(bytes.NewReader([]byte(
+			"",
+		)))
+		require.NoError(t, err)
+		require.Equal(t, &{{ $struct }}{}, {{ index $.StructNameNotExported $i }})
+	})
+
+	t.Run("invalid", func(t *testing.T) {
+		{{ index $.StructNameNotExported $i }}, err := New{{ $struct }}FromReader(bytes.NewReader([]byte(
+			"{test",
+		)))
+		require.Error(t, err)
+		require.Nil(t, {{ index $.StructNameNotExported $i }})
+	})
+
+	t.Run("valid", func(t *testing.T) {
+		{{ index $.StructNameNotExported $i }}, err := New{{ $struct }}FromReader(bytes.NewReader([]byte(
+			TODO - fill me,
+		)))
+		require.NoError(t, err)
+		require.Equal(t, &{{ $struct }}{TODO - fill me}, {{ index $.StructNameNotExported $i }})
+	})
+}
+
+func TestNew{{ $struct }}sFromReader(t *testing.T) {
+	t.Run("empty", func(t *testing.T) {
+		{{ index $.StructNameNotExportedPlural $i }}, err := New{{ $struct }}sFromReader(bytes.NewReader([]byte(
+			"",
+		)))
+		require.NoError(t, err)
+		require.Equal(t, []*{{ $struct }}{}, {{ index $.StructNameNotExportedPlural $i }})
+	})
+
+	t.Run("invalid", func(t *testing.T) {
+		{{ index $.StructNameNotExportedPlural $i }}, err := New{{ $struct }}sFromReader(bytes.NewReader([]byte(
+			"{test",
+		)))
+		require.Error(t, err)
+		require.Nil(t, {{ index $.StructNameNotExportedPlural $i }})
+	})
+
+	t.Run("valid", func(t *testing.T) {
+		{{ index $.StructNameNotExportedPlural $i }}, err := New{{ $struct }}sFromReader(bytes.NewReader([]byte(
+			TODO - fill me,
+		)))
+		require.NoError(t, err)
+		require.Equal(t, []*{{ $struct }}{
+			TODO - fill me,
+		}, {{ index $.StructNameNotExportedPlural $i }})
+	})
+}
+{{end}}
+
+`
+
+
+	)
 
 

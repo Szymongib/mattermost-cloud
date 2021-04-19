@@ -115,14 +115,26 @@ func DetermineAfterRestorationState(installation *Installation) (string, error) 
 
 
 // TODO: test
-// NewInstallationDBRestorationOperationsFromReader will create a []*InstallationDBRestorationOperation from an
+// NewInstallationDBRestorationOperationFromReader will create a InstallationDBRestorationOperation from an
 // io.Reader with JSON data.
-func NewInstallationDBRestorationOperationsFromReader(reader io.Reader) ([]*InstallationDBRestorationOperation, error) {
-	var restorations []*InstallationDBRestorationOperation
-	err := json.NewDecoder(reader).Decode(&restorations)
+func NewInstallationDBRestorationOperationFromReader(reader io.Reader) (*InstallationDBRestorationOperation, error) {
+	var installationDBRestorationOperation InstallationDBRestorationOperation
+	err := json.NewDecoder(reader).Decode(&installationDBRestorationOperation)
 	if err != nil && err != io.EOF {
-		return nil, errors.Wrap(err, "failed to decode installation db restore operation")
+		return nil, errors.Wrap(err, "failed to decode InstallationDBRestorationOperation")
 	}
 
-	return restorations, nil
+	return &installationDBRestorationOperation, nil
+}
+
+// NewInstallationDBRestorationOperationsFromReader will create a slice of InstallationDBRestorationOperations from an
+// io.Reader with JSON data.
+func NewInstallationDBRestorationOperationsFromReader(reader io.Reader) ([]*InstallationDBRestorationOperation, error) {
+	installationDBRestorationOperations := []*InstallationDBRestorationOperation{}
+	err := json.NewDecoder(reader).Decode(&installationDBRestorationOperations)
+	if err != nil && err != io.EOF {
+		return nil, errors.Wrap(err, "failed to decode InstallationDBRestorationOperations")
+	}
+
+	return installationDBRestorationOperations, nil
 }

@@ -57,6 +57,8 @@ func (m *mockMigrationProvisioner) 	ClusterInstallationProvisioner(version strin
 	return &mockInstallationProvisioner{}
 }
 
+// TODO: Do method tests
+
 func TestDBMigrationSupervisor_Supervise(t *testing.T) {
 
 	t.Run("trigger backup", func(t *testing.T) {

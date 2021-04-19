@@ -351,7 +351,7 @@ func (s *DBMigrationSupervisor) refreshCredentials(dbMigration *model.DBMigratio
 
 	// TODO: you actually wake them up here - need new method
 	err = s.dbMigrationProvisioner.ClusterInstallationProvisioner(installation.CRVersion).
-		UpdateClusterInstallation(cluster, installation, cis[0])
+		RefreshSecrets(cluster, installation, cis[0])
 	if err != nil {
 		logger.WithError(err ).Errorf("Failed to update cluster installation")
 		return dbMigration.State
