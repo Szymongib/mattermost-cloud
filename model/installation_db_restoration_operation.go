@@ -7,6 +7,7 @@ import (
 	"github.com/pkg/errors"
 )
 
+// InstallationDBRestorationOperation contains information about installation's database restoration operation.
 type InstallationDBRestorationOperation struct {
 	ID             string
 	InstallationID string
@@ -61,6 +62,7 @@ type InstallationDBRestorationFilter struct {
 	States                []InstallationDBRestorationState
 }
 
+// EnsureInstallationReadyForDBRestoration ensures that installation can be restored.
 func EnsureInstallationReadyForDBRestoration(installation *Installation, backup *InstallationBackup) error {
 	if installation.ID != backup.InstallationID {
 		return errors.New("Backup belongs to different installation")
@@ -79,6 +81,7 @@ func EnsureInstallationReadyForDBRestoration(installation *Installation, backup 
 	return EnsureBackupRestoreCompatible(installation)
 }
 
+// DetermineAfterRestorationState returns installation state that should be set after successful restoration.
 func DetermineAfterRestorationState(installation *Installation) (string, error) {
 	switch installation.State {
 	case InstallationStateHibernating:

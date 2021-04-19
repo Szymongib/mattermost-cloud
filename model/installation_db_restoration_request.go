@@ -8,6 +8,7 @@ import (
 	"github.com/pkg/errors"
 )
 
+// InstallationDBRestorationRequest represents request for installation restoration.
 type InstallationDBRestorationRequest struct {
 	InstallationID string
 	BackupID       string
@@ -25,6 +26,8 @@ func NewInstallationDBRestorationRequestFromReader(reader io.Reader) (*Installat
 	return &restoreRequest, nil
 }
 
+// GetInstallationDBRestorationOperationsRequest describes the parameters to request
+// a list of installation restoration operations.
 type GetInstallationDBRestorationOperationsRequest struct {
 	Paging
 	InstallationID        string

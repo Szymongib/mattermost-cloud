@@ -78,7 +78,7 @@ func (sqlStore *SQLStore) TriggerInstallationRestoration(installation *model.Ins
 	return dbRestorationOp, nil
 }
 
-// CreateInstallationDBRestoration records installation db restoration to the database, assigning it a unique ID.
+// CreateInstallationDBRestorationOperation records installation db restoration to the database, assigning it a unique ID.
 func (sqlStore *SQLStore) CreateInstallationDBRestorationOperation(dbRestoration *model.InstallationDBRestorationOperation) error {
 	return sqlStore.createInstallationDBRestoration(sqlStore.db, dbRestoration)
 }
@@ -110,7 +110,7 @@ func (sqlStore *SQLStore) createInstallationDBRestoration(db execer, dbRestorati
 	return nil
 }
 
-// GetInstallationDBRestoration fetches the given installation db restoration.
+// GetInstallationDBRestorationOperation fetches the given installation db restoration.
 func (sqlStore *SQLStore) GetInstallationDBRestorationOperation(id string) (*model.InstallationDBRestorationOperation, error) {
 	builder := installationDBRestorationSelect.
 		Where("ID = ?", id)
@@ -126,7 +126,7 @@ func (sqlStore *SQLStore) GetInstallationDBRestorationOperation(id string) (*mod
 	return &restorationOp, nil
 }
 
-// GetInstallationDBRestorations fetches the given page of created installation db restoration. The first page is 0.
+// GetInstallationDBRestorationOperations fetches the given page of created installation db restoration. The first page is 0.
 func (sqlStore *SQLStore) GetInstallationDBRestorationOperations(filter *model.InstallationDBRestorationFilter) ([]*model.InstallationDBRestorationOperation, error) {
 	builder := installationDBRestorationSelect.
 		OrderBy("RequestAt DESC")

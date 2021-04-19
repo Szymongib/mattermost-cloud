@@ -122,6 +122,7 @@ func EnsureInstallationReadyForBackup(installation *Installation) error {
 	return EnsureBackupRestoreCompatible(installation)
 }
 
+// EnsureBackupRestoreCompatible check if installation is compatible with backup-restore functionality.
 func EnsureBackupRestoreCompatible(installation *Installation) error {
 	var errs []string
 
