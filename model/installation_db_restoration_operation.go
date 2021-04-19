@@ -44,8 +44,8 @@ const (
 	InstallationDBRestorationStateInvalid InstallationDBRestorationState = "installation-db-restoration-invalid"
 )
 
-// AllInstallationBackupStatesPendingWork is a list of all backup states that
-// the supervisor will attempt to transition towards stable on the next "tick".
+// AllInstallationDBRestorationStatesPendingWork is a list of all installation restoration operation
+// states that the supervisor will attempt to transition towards succeeded on the next "tick".
 var AllInstallationDBRestorationStatesPendingWork = []InstallationDBRestorationState{
 	InstallationDBRestorationStateRequested,
 	InstallationDBRestorationStateInProgress,
