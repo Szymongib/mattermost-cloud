@@ -81,7 +81,7 @@ func TestNewInstallationDBRestorationOperationsFromReader(t *testing.T) {
 	})
 }
 
-func TestEnsureReadyForDBRestoration(t *testing.T) {
+func TestEnsureInstallationReadyForDBRestoration(t *testing.T) {
 
 	for _, testCase := range []struct {
 		description   string
@@ -175,7 +175,7 @@ func TestEnsureReadyForDBRestoration(t *testing.T) {
 		},
 	} {
 		t.Run(testCase.description, func(t *testing.T) {
-			err := EnsureReadyForDBRestoration(testCase.installation, testCase.backup)
+			err := EnsureInstallationReadyForDBRestoration(testCase.installation, testCase.backup)
 			if testCase.errorContains == "" {
 				assert.NoError(t, err)
 			} else {

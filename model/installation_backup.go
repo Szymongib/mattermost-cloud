@@ -63,9 +63,6 @@ const (
 	InstallationBackupStateDeleted InstallationBackupState = "deleted"
 	// InstallationBackupStateDeletionFailed is a backup which deletion failed.
 	InstallationBackupStateDeletionFailed InstallationBackupState = "deletion-failed"
-
-	// InstallationBackupStateRestorationInProgress is a backup currently used for restoration.
-	InstallationBackupStateRestorationInProgress InstallationBackupState = "restoration-in-progress"
 )
 
 // AllInstallationBackupStatesPendingWork is a list of all backup states that
@@ -130,15 +127,15 @@ func EnsureBackupRestoreCompatible(installation *Installation) error {
 
 	if installation.Database != InstallationDatabaseMultiTenantRDSPostgres &&
 		installation.Database != InstallationDatabaseSingleTenantRDSPostgres {
-		errs = append(errs, fmt.Sprintf("invalid installation database, db restoration is supported only for Postgres database, the database type is %q", installation.Database))
+		errs = append(errs, fmt.Sprintf("invalid installation database, backup-restore is supported only for Postgres database, the database type is %q", installation.Database))
 	}
 
 	if installation.Filestore == InstallationFilestoreMinioOperator {
-		errs = append(errs, "invalid installation file store, cannot restore database for installation using local Minio file store")
+		errs = append(errs, "invalid installation file store, backup-restore is not supported for installation using local Minio file store")
 	}
 
 	if len(errs) > 0 {
-		return errors.Errorf("some installation settings are incompatible with db restpration: %s", strings.Join(errs, "; "))
+		return errors.Errorf("some installation settings are incompatible with backup-resotre: %s", strings.Join(errs, "; "))
 	}
 
 	return nil

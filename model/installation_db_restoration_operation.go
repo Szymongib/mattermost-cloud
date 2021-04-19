@@ -61,7 +61,7 @@ type InstallationDBRestorationFilter struct {
 	States                []InstallationDBRestorationState
 }
 
-func EnsureReadyForDBRestoration(installation *Installation, backup *InstallationBackup) error {
+func EnsureInstallationReadyForDBRestoration(installation *Installation, backup *InstallationBackup) error {
 	if installation.ID != backup.InstallationID {
 		return errors.New("Backup belongs to different installation")
 	}
@@ -72,10 +72,6 @@ func EnsureReadyForDBRestoration(installation *Installation, backup *Installatio
 		return errors.New("Backup files are deleted")
 	}
 
-	return EnsureInstallationReadyForDBRestoration(installation)
-}
-
-func EnsureInstallationReadyForDBRestoration(installation *Installation) error {
 	if installation.State != InstallationStateHibernating && installation.State != InstallationStateDBMigrationInProgress {
 		return errors.Errorf("invalid installation state, only hibernated installations can be restored, state is %q", installation.State)
 	}
