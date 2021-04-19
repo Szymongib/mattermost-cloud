@@ -88,9 +88,9 @@ type Store interface {
 	UnlockInstallationBackupAPI(backupID string) error
 
 	TriggerInstallationRestoration(installation *model.Installation, backup *model.InstallationBackup) (*model.InstallationDBRestorationOperation, error)
-	CreateInstallationDBRestoration(dbRestoration *model.InstallationDBRestorationOperation) error
-	GetInstallationDBRestoration(id string) (*model.InstallationDBRestorationOperation, error)
-	GetInstallationDBRestorations(filter *model.InstallationDBRestorationFilter) ([]*model.InstallationDBRestorationOperation, error)
+	CreateInstallationDBRestorationOperation(dbRestoration *model.InstallationDBRestorationOperation) error
+	GetInstallationDBRestorationOperation(id string) (*model.InstallationDBRestorationOperation, error)
+	GetInstallationDBRestorationOperations(filter *model.InstallationDBRestorationFilter) ([]*model.InstallationDBRestorationOperation, error)
 
 	CreateInstallationDBMigration(dbMigration *model.DBMigrationOperation) error
 }

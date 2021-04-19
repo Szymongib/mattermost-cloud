@@ -12,7 +12,6 @@ type InstallationDBRestorationRequest struct {
 	BackupID string
 }
 
-// TODO: test
 // NewInstallationDBRestorationRequestFromReader will create a InstallationDBRestorationRequest from an
 // io.Reader with JSON data.
 func NewInstallationDBRestorationRequestFromReader(reader io.Reader) (*InstallationDBRestorationRequest, error) {

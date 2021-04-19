@@ -140,7 +140,7 @@ func handleInstallationDatabaseMigration(c *Context,w http.ResponseWriter, r *ht
 //
 //	// TODO: filters and stuff
 //
-//	dbRestorations, err := c.Store.GetInstallationDBRestorations(&model.InstallationDBRestorationFilter{
+//	dbRestorations, err := c.Store.GetInstallationDBRestorationOperations(&model.InstallationDBRestorationFilter{
 //		Paging:                model.AllPagesWithDeleted(),
 //		IDs:                   nil,
 //		InstallationID:        "",

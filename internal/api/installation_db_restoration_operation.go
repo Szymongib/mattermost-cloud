@@ -10,7 +10,8 @@ import (
 
 // TODO: comments + tests
 // TODO: move to backups?
-func handleInstallationDatabaseRestore(c *Context,w http.ResponseWriter, r *http.Request) {
+// handleTriggerInstallationDatabaseRestoration
+func handleTriggerInstallationDatabaseRestoration(c *Context,w http.ResponseWriter, r *http.Request) {
 	c.Logger = c.Logger.
 		WithField("action", "restore-installation-database")
 
@@ -79,7 +80,7 @@ func handleGetInstallationDatabaseRestorationOperations(c *Context,w http.Respon
 
 	// TODO: filters and stuff
 
-	dbRestorations, err := c.Store.GetInstallationDBRestorations(&model.InstallationDBRestorationFilter{
+	dbRestorations, err := c.Store.GetInstallationDBRestorationOperations(&model.InstallationDBRestorationFilter{
 		Paging:                model.AllPagesWithDeleted(),
 		IDs:                   nil,
 		InstallationID:        "",

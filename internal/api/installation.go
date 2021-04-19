@@ -27,7 +27,7 @@ func initInstallation(apiRouter *mux.Router, context *Context) {
 	initInstallationBackup(installationsRouter, context)
 
 	// TODO: not sure about routes
-	installationsRouter.Handle("/database/restore", addContext(handleInstallationDatabaseRestore)).Methods("POST")
+	installationsRouter.Handle("/database/restore", addContext(handleTriggerInstallationDatabaseRestoration)).Methods("POST")
 	installationsRouter.Handle("/database/restorations", addContext(handleGetInstallationDatabaseRestorationOperations)).Methods("GET")
 	installationsRouter.Handle("/database/migration", addContext(handleInstallationDatabaseMigration)).Methods("POST")
 

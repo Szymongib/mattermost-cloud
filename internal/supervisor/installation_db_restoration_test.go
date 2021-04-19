@@ -180,14 +180,14 @@ func TestInstallationDBRestorationSupervisor_Supervise(t *testing.T) {
 			State:                   model.InstallationDBRestorationStateRequested,
 			TargetInstallationState: model.InstallationStateHibernating,
 		}
-		err := sqlStore.CreateInstallationDBRestoration(restorationOp)
+		err := sqlStore.CreateInstallationDBRestorationOperation(restorationOp)
 		require.NoError(t, err)
 
 		restorationSupervisor := supervisor.NewInstallationDBRestorationSupervisor(sqlStore, &mockAWS{}, mockRestoreOp, "instanceID", logger)
 		restorationSupervisor.Supervise(restorationOp)
 
 		// Assert
-		restorationOp, err = sqlStore.GetInstallationDBRestoration(restorationOp.ID)
+		restorationOp, err = sqlStore.GetInstallationDBRestorationOperation(restorationOp.ID)
 		require.NoError(t, err)
 		assert.Equal(t, model.InstallationDBRestorationStateInProgress, restorationOp.State)
 		assert.Equal(t, clusterInstallation.ID, restorationOp.ClusterInstallationID)
@@ -237,14 +237,14 @@ func TestInstallationDBRestorationSupervisor_Supervise(t *testing.T) {
 					State:                   model.InstallationDBRestorationStateInProgress,
 					ClusterInstallationID: clusterInstallation.ID,
 				}
-				err := sqlStore.CreateInstallationDBRestoration(restorationOp)
+				err := sqlStore.CreateInstallationDBRestorationOperation(restorationOp)
 				require.NoError(t, err)
 
 				restorationSupervisor := supervisor.NewInstallationDBRestorationSupervisor(sqlStore, &mockAWS{}, testCase.mockRestoreOp, "instanceID", logger)
 				restorationSupervisor.Supervise(restorationOp)
 
 				// Assert
-				restorationOp, err = sqlStore.GetInstallationDBRestoration(restorationOp.ID)
+				restorationOp, err = sqlStore.GetInstallationDBRestorationOperation(restorationOp.ID)
 				require.NoError(t, err)
 				assert.Equal(t, testCase.expectedState, restorationOp.State)
 				assert.Equal(t, clusterInstallation.ID, restorationOp.ClusterInstallationID)
@@ -269,14 +269,14 @@ func TestInstallationDBRestorationSupervisor_Supervise(t *testing.T) {
 			ClusterInstallationID: clusterInstallation.ID,
 			TargetInstallationState: model.InstallationStateHibernating,
 		}
-		err := sqlStore.CreateInstallationDBRestoration(restorationOp)
+		err := sqlStore.CreateInstallationDBRestorationOperation(restorationOp)
 		require.NoError(t, err)
 
 		restorationSupervisor := supervisor.NewInstallationDBRestorationSupervisor(sqlStore, &mockAWS{}, mockRestoreOp, "instanceID", logger)
 		restorationSupervisor.Supervise(restorationOp)
 
 		// Assert
-		restorationOp, err = sqlStore.GetInstallationDBRestoration(restorationOp.ID)
+		restorationOp, err = sqlStore.GetInstallationDBRestorationOperation(restorationOp.ID)
 		require.NoError(t, err)
 		assert.Equal(t, model.InstallationDBRestorationStateSucceeded, restorationOp.State)
 

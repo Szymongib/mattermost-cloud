@@ -116,25 +116,29 @@ func NewInstallationBackupsFromReader(reader io.Reader) ([]*InstallationBackup, 
 	return backupMetadata, nil
 }
 
-// EnsureBackupCompatible ensures that installation can be backed up.
-func EnsureBackupCompatible(installation *Installation) error {
-	var errs []string
-
+// EnsureInstallationReadyForBackup ensures that installation can be backed up.
+func EnsureInstallationReadyForBackup(installation *Installation) error {
 	if installation.State != InstallationStateHibernating && installation.State != InstallationStateDBMigrationInProgress {
-		errs = append(errs, fmt.Sprintf("invalid installation state, only hibernated or migrating installations can be backed up, state is %q", installation.State))
+		return errors.Errorf("invalid installation state, only hibernated or migrating installations can be backed up, state is %q", installation.State)
 	}
+
+	return EnsureBackupRestoreCompatible(installation)
+}
+
+func EnsureBackupRestoreCompatible(installation *Installation) error {
+	var errs []string
 
 	if installation.Database != InstallationDatabaseMultiTenantRDSPostgres &&
 		installation.Database != InstallationDatabaseSingleTenantRDSPostgres {
-		errs = append(errs, fmt.Sprintf("invalid installation database, backup is supported only for Postgres database, the database type is %q", installation.Database))
+		errs = append(errs, fmt.Sprintf("invalid installation database, db restoration is supported only for Postgres database, the database type is %q", installation.Database))
 	}
 
 	if installation.Filestore == InstallationFilestoreMinioOperator {
-		errs = append(errs, "invalid installation file store, cannot backup database for installation using local Minio file store")
+		errs = append(errs, "invalid installation file store, cannot restore database for installation using local Minio file store")
 	}
 
 	if len(errs) > 0 {
-		return errors.Errorf("some settings are incompatible with backup: [%s]", strings.Join(errs, "; "))
+		return errors.Errorf("some installation settings are incompatible with db restpration: %s", strings.Join(errs, "; "))
 	}
 
 	return nil

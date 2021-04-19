@@ -37,7 +37,8 @@ func init() {
 // TODO: we should probably create some intermediary layer to not keep this logic in store.
 // For now tho transactions are not accessible outside the store, therefore it is implemented this way.
 
-// TODO: test and comment
+// TriggerInstallationRestoration creates new InstallationDBRestorationOperation in Requested state
+// and changes installation state to InstallationStateDBRestorationInProgress.
 func (sqlStore *SQLStore) TriggerInstallationRestoration(installation *model.Installation, backup *model.InstallationBackup) (*model.InstallationDBRestorationOperation, error) {
 	targetInstallationState, err := model.DetermineAfterRestorationState(installation)
 	if err != nil {
@@ -77,9 +78,8 @@ func (sqlStore *SQLStore) TriggerInstallationRestoration(installation *model.Ins
 	return dbRestorationOp, nil
 }
 
-
 // CreateInstallationDBRestoration records installation db restoration to the database, assigning it a unique ID.
-func (sqlStore *SQLStore) CreateInstallationDBRestoration(dbRestoration *model.InstallationDBRestorationOperation) error {
+func (sqlStore *SQLStore) CreateInstallationDBRestorationOperation(dbRestoration *model.InstallationDBRestorationOperation) error {
 	return sqlStore.createInstallationDBRestoration(sqlStore.db, dbRestoration)
 }
 
@@ -111,7 +111,7 @@ func (sqlStore *SQLStore) createInstallationDBRestoration(db execer, dbRestorati
 }
 
 // GetInstallationDBRestoration fetches the given installation db restoration.
-func (sqlStore *SQLStore) GetInstallationDBRestoration(id string) (*model.InstallationDBRestorationOperation, error) {
+func (sqlStore *SQLStore) GetInstallationDBRestorationOperation(id string) (*model.InstallationDBRestorationOperation, error) {
 	builder := installationDBRestorationSelect.
 		Where("ID = ?", id)
 
@@ -127,7 +127,7 @@ func (sqlStore *SQLStore) GetInstallationDBRestoration(id string) (*model.Instal
 }
 
 // GetInstallationDBRestorations fetches the given page of created installation db restoration. The first page is 0.
-func (sqlStore *SQLStore) GetInstallationDBRestorations(filter *model.InstallationDBRestorationFilter) ([]*model.InstallationDBRestorationOperation, error) {
+func (sqlStore *SQLStore) GetInstallationDBRestorationOperations(filter *model.InstallationDBRestorationFilter) ([]*model.InstallationDBRestorationOperation, error) {
 	builder := installationDBRestorationSelect.
 		OrderBy("RequestAt DESC")
 	builder = sqlStore.applyInstallationDBRestorationFilter(builder, filter)
@@ -141,8 +141,8 @@ func (sqlStore *SQLStore) GetInstallationDBRestorations(filter *model.Installati
 	return restorationOps, nil
 }
 
-// GetUnlockedInstallationDBRestorationsPendingWork returns unlocked installation db restorations in a pending state.
-func (sqlStore *SQLStore) GetUnlockedInstallationDBRestorationsPendingWork() ([]*model.InstallationDBRestorationOperation, error) {
+// GetUnlockedInstallationDBRestorationOperationsPendingWork returns unlocked installation db restorations in a pending state.
+func (sqlStore *SQLStore) GetUnlockedInstallationDBRestorationOperationsPendingWork() ([]*model.InstallationDBRestorationOperation, error) {
 	builder := installationDBRestorationSelect.
 		Where(sq.Eq{
 			"State": model.AllInstallationDBRestorationStatesPendingWork,
@@ -159,9 +159,8 @@ func (sqlStore *SQLStore) GetUnlockedInstallationDBRestorationsPendingWork() ([]
 	return restorationOps, nil
 }
 
-
-// UpdateInstallationDBRestorationState updates the given installation db restoration state.
-func (sqlStore *SQLStore) UpdateInstallationDBRestorationState(dbRestoration *model.InstallationDBRestorationOperation) error {
+// UpdateInstallationDBRestorationOperationState updates the given installation db restoration state.
+func (sqlStore *SQLStore) UpdateInstallationDBRestorationOperationState(dbRestoration *model.InstallationDBRestorationOperation) error {
 	return sqlStore.updateInstallationDBRestorationFields(
 		sqlStore.db,
 		dbRestoration.ID, map[string]interface{}{
@@ -169,8 +168,8 @@ func (sqlStore *SQLStore) UpdateInstallationDBRestorationState(dbRestoration *mo
 		})
 }
 
-// UpdateInstallationDBRestoration updates the given installation db restoration.
-func (sqlStore *SQLStore) UpdateInstallationDBRestoration(dbRestoration *model.InstallationDBRestorationOperation) error {
+// UpdateInstallationDBRestorationOperation updates the given installation db restoration.
+func (sqlStore *SQLStore) UpdateInstallationDBRestorationOperation(dbRestoration *model.InstallationDBRestorationOperation) error {
 	return sqlStore.updateInstallationDBRestoration(sqlStore.db, dbRestoration)
 }
 
@@ -197,54 +196,23 @@ func (sqlStore *SQLStore) updateInstallationDBRestorationFields(db execer, id st
 	return nil
 }
 
-// TODO: tests / remove
-// UpdateInstallationRestorationResources updates installation, installation backup and installation db restoration in a single transaction.
-func (sqlStore *SQLStore) UpdateInstallationRestorationResources(installation *model.Installation, backup *model.InstallationBackup, dbRestoration *model.InstallationDBRestorationOperation) error {
-	tx, err := sqlStore.beginTransaction(sqlStore.db)
-	if err != nil {
-		return errors.Wrap(err, "failed to start transaction")
-	}
-	defer tx.RollbackUnlessCommitted()
-
-	err = sqlStore.updateInstallationDBRestoration(tx, dbRestoration)
-	if err != nil {
-		return errors.Wrap(err, "failed to update installation db restoration")
-	}
-
-	err = sqlStore.updateInstallation(tx, installation)
-	if err != nil {
-		return errors.Wrap(err, "failed to update installation")
-	}
-
-	err = sqlStore.updateInstallationBackupState(tx, backup)
-	if err != nil {
-		return errors.Wrap(err, "failed to update installation backup")
-	}
-
-	err = tx.Commit()
-	if err != nil {
-		return errors.Wrap(err, "failed to commit transaction")
-	}
-	return nil
-}
-
-// LockInstallationDBRestoration marks the InstallationDBRestoration as locked for exclusive use by the caller.
-func (sqlStore *SQLStore) LockInstallationDBRestoration(id, lockerID string) (bool, error) {
+// LockInstallationDBRestorationOperation marks the InstallationDBRestoration as locked for exclusive use by the caller.
+func (sqlStore *SQLStore) LockInstallationDBRestorationOperation(id, lockerID string) (bool, error) {
 	return sqlStore.lockRows(installationDBRestorationTable, []string{id}, lockerID)
 }
 
-// LockInstallationDBRestorations marks InstallationDBRestorations as locked for exclusive use by the caller.
-func (sqlStore *SQLStore) LockInstallationDBRestorations(ids []string, lockerID string) (bool, error) {
+// LockInstallationDBRestorationOperations marks InstallationDBRestorations as locked for exclusive use by the caller.
+func (sqlStore *SQLStore) LockInstallationDBRestorationOperations(ids []string, lockerID string) (bool, error) {
 	return sqlStore.lockRows(installationDBRestorationTable, ids, lockerID)
 }
 
-// UnlockInstallationDBRestoration releases a lock previously acquired against a caller.
-func (sqlStore *SQLStore) UnlockInstallationDBRestoration(id, lockerID string, force bool) (bool, error) {
+// UnlockInstallationDBRestorationOperation releases a lock previously acquired against a caller.
+func (sqlStore *SQLStore) UnlockInstallationDBRestorationOperation(id, lockerID string, force bool) (bool, error) {
 	return sqlStore.unlockRows(installationDBRestorationTable, []string{id}, lockerID, force)
 }
 
-// UnlockInstallationDBRestorations releases a locks previously acquired against a caller.
-func (sqlStore *SQLStore) UnlockInstallationDBRestorations(ids []string, lockerID string, force bool) (bool, error) {
+// UnlockInstallationDBRestorationOperations releases a locks previously acquired against a caller.
+func (sqlStore *SQLStore) UnlockInstallationDBRestorationOperations(ids []string, lockerID string, force bool) (bool, error) {
 	return sqlStore.unlockRows(installationDBRestorationTable, ids, lockerID, force)
 }
 

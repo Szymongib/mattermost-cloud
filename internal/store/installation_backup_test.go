@@ -274,7 +274,6 @@ func TestUpdateInstallationBackup(t *testing.T) {
 }
 
 func setupBasicInstallation(t *testing.T, sqlStore *SQLStore) *model.Installation {
-	model.NewID()
 	installation := &model.Installation{
 		State: model.InstallationStateStable,
 		DNS:   fmt.Sprintf("dns-%s", uuid.NewRandom().String()[:6]),

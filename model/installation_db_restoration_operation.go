@@ -2,29 +2,24 @@ package model
 
 import (
 	"encoding/json"
-	"fmt"
 	"github.com/pkg/errors"
 	"io"
-	"strings"
 )
 
-// TODO: decide on naming - should we stick to operation?
 type InstallationDBRestorationOperation struct {
 	ID string
 	InstallationID string
 	BackupID string
 	RequestAt int64
 	State InstallationDBRestorationState
-
-	TargetInstallationState string // Decided based on Installation State when the restoration starts
+	// TargetInstallationState is an installation State to which installation
+	// will be transitioned when the restoration finishes successfully.
+	TargetInstallationState string
 	ClusterInstallationID string
-
 	CompleteAt int64
-
 	DeleteAt int64
 	LockAcquiredBy             *string
 	LockAcquiredAt             int64
-	//Lock
 }
 
 // InstallationDBRestorationState represents the state of backup.
@@ -33,8 +28,6 @@ type InstallationDBRestorationState string
 const (
 	// InstallationDBRestorationStateRequested is a requested installation db restoration that was not yet started.
 	InstallationDBRestorationStateRequested InstallationDBRestorationState = "installation-db-restoration-requested"
-	// InstallationDBRestorationStateBeginning is an installation db restoration that is ready to be started.
-	//InstallationDBRestorationStateBeginning InstallationDBRestorationState = "installation-db-restoration-beginning"
 	// InstallationDBRestorationStateInProgress is an installation db restoration that is currently running.
 	InstallationDBRestorationStateInProgress InstallationDBRestorationState = "installation-db-restoration-in-progress"
 	// InstallationDBRestorationStateFinalizing is an installation db restoration that is finalizing restoration.
@@ -51,7 +44,6 @@ const (
 // the supervisor will attempt to transition towards stable on the next "tick".
 var AllInstallationDBRestorationStatesPendingWork = []InstallationDBRestorationState{
 	InstallationDBRestorationStateRequested,
-	//InstallationDBRestorationStateBeginning,
 	InstallationDBRestorationStateInProgress,
 	InstallationDBRestorationStateFinalizing,
 }
@@ -81,26 +73,11 @@ func EnsureReadyForDBRestoration(installation *Installation, backup *Installatio
 }
 
 func EnsureInstallationReadyForDBRestoration(installation *Installation) error {
-	var errs []string
-
 	if installation.State != InstallationStateHibernating && installation.State != InstallationStateDBMigrationInProgress {
-		errs = append(errs, fmt.Sprintf("invalid installation state, only hibernated installations can be restored, state is %q", installation.State))
+		return errors.Errorf("invalid installation state, only hibernated installations can be restored, state is %q", installation.State)
 	}
 
-	if installation.Database != InstallationDatabaseMultiTenantRDSPostgres &&
-		installation.Database != InstallationDatabaseSingleTenantRDSPostgres {
-		errs = append(errs, fmt.Sprintf("invalid installation database, db restoration is supported only for Postgres database, the database type is %q", installation.Database))
-	}
-
-	if installation.Filestore == InstallationFilestoreMinioOperator {
-		errs = append(errs, "invalid installation file store, cannot restore database for installation using local Minio file store")
-	}
-
-	if len(errs) > 0 {
-		return errors.Errorf("some settings are incompatible with db restpration: %s", strings.Join(errs, "; "))
-	}
-
-	return nil
+	return EnsureBackupRestoreCompatible(installation)
 }
 
 func DetermineAfterRestorationState(installation *Installation) (string, error) {
@@ -113,8 +90,6 @@ func DetermineAfterRestorationState(installation *Installation) (string, error) 
 	return "", errors.Errorf("restoration is not supported for installation in state %s", installation.State)
 }
 
-
-// TODO: test
 // NewInstallationDBRestorationOperationFromReader will create a InstallationDBRestorationOperation from an
 // io.Reader with JSON data.
 func NewInstallationDBRestorationOperationFromReader(reader io.Reader) (*InstallationDBRestorationOperation, error) {

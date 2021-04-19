@@ -3,8 +3,8 @@ package supervisor
 import log "github.com/sirupsen/logrus"
 
 type installationDBRestorationLockStore interface {
-	LockInstallationDBRestorations(id []string, lockerID string) (bool, error)
-	UnlockInstallationDBRestorations(id []string, lockerID string, force bool) (bool, error)
+	LockInstallationDBRestorationOperations(id []string, lockerID string) (bool, error)
+	UnlockInstallationDBRestorationOperations(id []string, lockerID string, force bool) (bool, error)
 }
 
 type installationDBRestorationLock struct {
@@ -33,7 +33,7 @@ func newInstallationDBRestorationLocks(ids []string, lockerID string, store inst
 }
 
 func (l *installationDBRestorationLock) TryLock() bool {
-	locked, err := l.store.LockInstallationDBRestorations(l.ids, l.lockerID)
+	locked, err := l.store.LockInstallationDBRestorationOperations(l.ids, l.lockerID)
 	if err != nil {
 		l.logger.WithError(err).Error("failed to lock installationDBRestorations")
 		return false
@@ -43,7 +43,7 @@ func (l *installationDBRestorationLock) TryLock() bool {
 }
 
 func (l *installationDBRestorationLock) Unlock() {
-	unlocked, err := l.store.UnlockInstallationDBRestorations(l.ids, l.lockerID, false)
+	unlocked, err := l.store.UnlockInstallationDBRestorationOperations(l.ids, l.lockerID, false)
 	if err != nil {
 		l.logger.WithError(err).Error("failed to unlock installationDBRestorations")
 	} else if unlocked != true {

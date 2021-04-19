@@ -13,7 +13,7 @@ type installationBackupStore interface {
 }
 
 func TriggerInstallationBackup(store installationBackupStore, installation *model.Installation) (*model.InstallationBackup, error) {
-	if err := model.EnsureBackupCompatible(installation); err != nil {
+	if err := model.EnsureInstallationReadyForBackup(installation); err != nil {
 		return nil, ErrWrap(http.StatusBadRequest, err, "installation cannot be backed up")
 	}
 

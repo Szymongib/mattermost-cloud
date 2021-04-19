@@ -1,13 +1,43 @@
 package store
 
 import (
+	"fmt"
 	"github.com/mattermost/mattermost-cloud/internal/testlib"
 	"github.com/mattermost/mattermost-cloud/model"
+	"github.com/pborman/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"testing"
 	"time"
 )
+
+func TestTriggerInstallationRestoration(t *testing.T) {
+	logger := testlib.MakeLogger(t)
+	sqlStore := MakeTestSQLStore(t, logger)
+	defer CloseConnection(t, sqlStore)
+
+	installation :=  &model.Installation{
+		State: model.InstallationStateHibernating,
+		DNS:   fmt.Sprintf("dns-%s", uuid.NewRandom().String()[:6]),
+	}
+	err := sqlStore.CreateInstallation(installation, nil)
+	require.NoError(t, err)
+
+	backup := &model.InstallationBackup{
+		InstallationID: installation.ID,
+	}
+	err = sqlStore.CreateInstallationBackup(backup)
+	require.NoError(t, err)
+
+	restorationOp, err := sqlStore.TriggerInstallationRestoration(installation, backup)
+	require.NoError(t, err)
+	assert.Equal(t, installation.ID, restorationOp.InstallationID)
+	assert.Equal(t, backup.ID, restorationOp.BackupID)
+
+	fetchOp, err := sqlStore.GetInstallationDBRestorationOperation(restorationOp.ID)
+	require.NoError(t, err)
+	assert.Equal(t, restorationOp, fetchOp)
+}
 
 func TestInstallationDBRestoration(t *testing.T) {
 	logger := testlib.MakeLogger(t)
@@ -24,16 +54,16 @@ func TestInstallationDBRestoration(t *testing.T) {
 		CompleteAt:            0,
 	}
 
-	err := sqlStore.CreateInstallationDBRestoration(dbRestoration)
+	err := sqlStore.CreateInstallationDBRestorationOperation(dbRestoration)
 	require.NoError(t, err)
 	assert.NotEmpty(t, dbRestoration.ID)
 
-	fetchedRestoration, err := sqlStore.GetInstallationDBRestoration(dbRestoration.ID)
+	fetchedRestoration, err := sqlStore.GetInstallationDBRestorationOperation(dbRestoration.ID)
 	require.NoError(t, err)
 	assert.Equal(t, dbRestoration, fetchedRestoration)
 
 	t.Run("unknown restoration", func(t *testing.T) {
-		fetchedRestoration, err = sqlStore.GetInstallationDBRestoration("unknown")
+		fetchedRestoration, err = sqlStore.GetInstallationDBRestorationOperation("unknown")
 		require.NoError(t, err)
 		assert.Nil(t, fetchedRestoration)
 	})
@@ -61,7 +91,7 @@ func TestGetInstallationDBRestorations(t *testing.T) {
 	}
 
 	for i := range dbRestorations {
-		err := sqlStore.CreateInstallationDBRestoration(dbRestorations[i])
+		err := sqlStore.CreateInstallationDBRestorationOperation(dbRestorations[i])
 		require.NoError(t, err)
 		time.Sleep(1 * time.Millisecond) // Ensure RequestAt is different for all installations.
 	}
@@ -98,7 +128,7 @@ func TestGetInstallationDBRestorations(t *testing.T) {
 		},
 	} {
 		t.Run(testCase.description, func(t *testing.T) {
-			fetchedBackups, err := sqlStore.GetInstallationDBRestorations(testCase.filter)
+			fetchedBackups, err := sqlStore.GetInstallationDBRestorationOperations(testCase.filter)
 			require.NoError(t, err)
 			assert.Equal(t, len(testCase.fetchedIds), len(fetchedBackups))
 
@@ -121,7 +151,7 @@ func TestGetUnlockedInstallationDBRestorationsPendingWork(t *testing.T) {
 		State:          model.InstallationDBRestorationStateRequested,
 	}
 
-	err := sqlStore.CreateInstallationDBRestoration(dbRestoration1)
+	err := sqlStore.CreateInstallationDBRestorationOperation(dbRestoration1)
 	require.NoError(t, err)
 	assert.NotEmpty(t, dbRestoration1.ID)
 
@@ -130,20 +160,20 @@ func TestGetUnlockedInstallationDBRestorationsPendingWork(t *testing.T) {
 		State:          model.InstallationDBRestorationStateSucceeded,
 	}
 
-	err = sqlStore.CreateInstallationDBRestoration(dbRestoration2)
+	err = sqlStore.CreateInstallationDBRestorationOperation(dbRestoration2)
 	require.NoError(t, err)
 	assert.NotEmpty(t, dbRestoration1.ID)
 
-	backupsMeta, err := sqlStore.GetUnlockedInstallationDBRestorationsPendingWork()
+	backupsMeta, err := sqlStore.GetUnlockedInstallationDBRestorationOperationsPendingWork()
 	require.NoError(t, err)
 	assert.Equal(t, 1, len(backupsMeta))
 	assert.Equal(t, dbRestoration1.ID, backupsMeta[0].ID)
 
-	locaked, err := sqlStore.LockInstallationDBRestoration(dbRestoration1.ID, "abc")
+	locaked, err := sqlStore.LockInstallationDBRestorationOperation(dbRestoration1.ID, "abc")
 	require.NoError(t, err)
 	assert.True(t, locaked)
 
-	backupsMeta, err = sqlStore.GetUnlockedInstallationDBRestorationsPendingWork()
+	backupsMeta, err = sqlStore.GetUnlockedInstallationDBRestorationOperationsPendingWork()
 	require.NoError(t, err)
 	assert.Equal(t, 0, len(backupsMeta))
 }
@@ -160,7 +190,7 @@ func TestUpdateInstallationDBRestoration(t *testing.T) {
 		State:          model.InstallationDBRestorationStateRequested,
 	}
 
-	err := sqlStore.CreateInstallationDBRestoration(dbRestoration)
+	err := sqlStore.CreateInstallationDBRestorationOperation(dbRestoration)
 	require.NoError(t, err)
 	assert.NotEmpty(t, dbRestoration.ID)
 
@@ -168,10 +198,10 @@ func TestUpdateInstallationDBRestoration(t *testing.T) {
 		dbRestoration.State = model.InstallationDBRestorationStateSucceeded
 		dbRestoration.CompleteAt = -1
 
-		err = sqlStore.UpdateInstallationDBRestorationState(dbRestoration)
+		err = sqlStore.UpdateInstallationDBRestorationOperationState(dbRestoration)
 		require.NoError(t, err)
 
-		fetched, err := sqlStore.GetInstallationDBRestoration(dbRestoration.ID)
+		fetched, err := sqlStore.GetInstallationDBRestorationOperation(dbRestoration.ID)
 		require.NoError(t, err)
 		assert.Equal(t, model.InstallationDBRestorationStateSucceeded, fetched.State)
 		assert.Equal(t, int64(0), fetched.CompleteAt)         // Assert complete time not updated
@@ -182,10 +212,10 @@ func TestUpdateInstallationDBRestoration(t *testing.T) {
 		dbRestoration.ClusterInstallationID = "test"
 		dbRestoration.CompleteAt = 100
 		dbRestoration.State = model.InstallationDBRestorationStateFailed
-		err = sqlStore.UpdateInstallationDBRestoration(dbRestoration)
+		err = sqlStore.UpdateInstallationDBRestorationOperation(dbRestoration)
 		require.NoError(t, err)
 
-		fetched, err := sqlStore.GetInstallationDBRestoration(dbRestoration.ID)
+		fetched, err := sqlStore.GetInstallationDBRestorationOperation(dbRestoration.ID)
 		require.NoError(t, err)
 		assert.Equal(t, model.InstallationDBRestorationStateFailed, fetched.State)
 		assert.Equal(t, "test", fetched.ClusterInstallationID)

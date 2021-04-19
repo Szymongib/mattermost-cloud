@@ -241,7 +241,7 @@ func TestDBMigrationSupervisor_Supervise(t *testing.T) {
 		assert.Equal(t, model.DBMigrationStateRestorationInProgress, migrationOp.State)
 		assert.NotEmpty(t, migrationOp.InstallationDBRestorationOperationID)
 
-		restorationOp, err := sqlStore.GetInstallationDBRestoration(migrationOp.InstallationDBRestorationOperationID)
+		restorationOp, err := sqlStore.GetInstallationDBRestorationOperation(migrationOp.InstallationDBRestorationOperationID)
 		require.NoError(t, err)
 		assert.Equal(t, model.InstallationDBRestorationStateRequested, restorationOp.State)
 		assert.Equal(t, installation.ID, restorationOp.InstallationID)
@@ -320,7 +320,7 @@ func TestDBMigrationSupervisor_Supervise(t *testing.T) {
 					InstallationID: installation.ID,
 					State: testCase.restorationOpState,
 				}
-				err := sqlStore.CreateInstallationDBRestoration(restorationOp)
+				err := sqlStore.CreateInstallationDBRestorationOperation(restorationOp)
 				require.NoError(t, err)
 
 				migrationOp := &model.DBMigrationOperation{
@@ -421,14 +421,14 @@ func TestDBMigrationSupervisor_Supervise(t *testing.T) {
 	//		ClusterInstallationID: clusterInstallation.ID,
 	//		TargetInstallationState: model.InstallationStateHibernating,
 	//	}
-	//	err := sqlStore.CreateInstallationDBRestoration(restorationOp)
+	//	err := sqlStore.CreateInstallationDBRestorationOperation(restorationOp)
 	//	require.NoError(t, err)
 	//
 	//	backupSupervisor := supervisor.NewInstallationDBRestorationSupervisor(sqlStore, &mockAWS{}, mockRestoreOp, "instanceID", logger)
 	//	backupSupervisor.Supervise(restorationOp)
 	//
 	//	// Assert
-	//	restorationOp, err = sqlStore.GetInstallationDBRestoration(restorationOp.ID)
+	//	restorationOp, err = sqlStore.GetInstallationDBRestorationOperation(restorationOp.ID)
 	//	require.NoError(t, err)
 	//	assert.Equal(t, model.InstallationDBRestorationStateSucceeded, restorationOp.State)
 	//
