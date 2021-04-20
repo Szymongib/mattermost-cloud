@@ -11,7 +11,7 @@ type installationRestorationStore interface {
 
 // TODO: comment
 func TriggerInstallationDBRestoration(store installationRestorationStore, installation *model.Installation, backup *model.InstallationBackup) (*model.InstallationDBRestorationOperation, error) {
-	if err := model.EnsureReadyForDBRestoration(installation, backup); err != nil {
+	if err := model.EnsureInstallationReadyForDBRestoration(installation, backup); err != nil {
 		return nil, ErrWrap(http.StatusBadRequest, err, "installation cannot be restored")
 	}
 

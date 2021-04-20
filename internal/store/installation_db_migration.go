@@ -18,6 +18,7 @@ const (
 )
 
 // TODO: implement it and test
+// TODO: align naming
 
 var installationDBMigrationSelect sq.SelectBuilder
 

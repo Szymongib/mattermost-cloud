@@ -3,6 +3,7 @@ package model
 import (
 	"encoding/json"
 	"io"
+	"net/url"
 
 	"github.com/pkg/errors"
 )
@@ -21,7 +22,7 @@ type InstallationDBMigrationFilter struct {
 	IDs                   []string
 	InstallationID        string
 	ClusterInstallationID string
-	States                []InstallationDBRestorationState
+	States                []DBMigrationOperationState
 }
 
 // TODO: test - generate?
@@ -35,4 +36,24 @@ func NewDBMigrationRequestFromReader(reader io.Reader) (*DBMigrationRequest, err
 	}
 
 	return &migrationRequest, nil
+}
+
+// GetDBMigrationOperationsRequest describes the parameters to request
+// a list of installation db migration operations.
+type GetDBMigrationOperationsRequest struct {
+	Paging
+	InstallationID        string
+	ClusterInstallationID string
+	State                 string
+}
+
+// ApplyToURL modifies the given url to include query string parameters for the request.
+func (request *GetDBMigrationOperationsRequest) ApplyToURL(u *url.URL) {
+	q := u.Query()
+	q.Add("installation", request.InstallationID)
+	q.Add("cluster_installation", request.ClusterInstallationID)
+	q.Add("state", request.State)
+	request.Paging.AddToQuery(q)
+
+	u.RawQuery = q.Encode()
 }

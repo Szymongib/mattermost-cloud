@@ -5,6 +5,7 @@
 package supervisor
 
 import (
+	"github.com/mattermost/mattermost-cloud/internal/tools/utils"
 	"time"
 
 	"github.com/mattermost/mattermost-cloud/internal/components"
@@ -315,7 +316,7 @@ func (s *DBMigrationSupervisor) switchDatabase(dbMigration *model.DBMigrationOpe
 		return dbMigration.State
 	}
 
-	return model.DBMigrationStateRefreshSecrets // Update all clusterInstallations
+	return model.DBMigrationStateRefreshSecrets
 }
 
 func (s *DBMigrationSupervisor) refreshCredentials(dbMigration *model.DBMigrationOperation, instanceID string, logger log.FieldLogger) model.DBMigrationOperationState {
@@ -326,30 +327,25 @@ func (s *DBMigrationSupervisor) refreshCredentials(dbMigration *model.DBMigratio
 	}
 	defer lock.Unlock()
 
-	// TODO: Simplified version for now
-
 	cis, err := s.store.GetClusterInstallations(&model.ClusterInstallationFilter{InstallationID: installation.ID, Paging: model.AllPagesNotDeleted()})
 	if err != nil {
 		logger.WithError(err).Errorf("Failed to get cluster installations")
 		return dbMigration.State
 	}
 
-	cluster, err := s.store.GetCluster(cis[0].ClusterID)
-	if err != nil {
-		logger.WithError(err).Errorf("Failed to get cluster")
-		return dbMigration.State
-	}
+	for _, ci := range cis {
+		cluster, err := s.store.GetCluster(ci.ClusterID)
+		if err != nil {
+			logger.WithError(err).Errorf("Failed to get cluster")
+			return dbMigration.State
+		}
 
-	// TODO: refactor this
-
-	// TODO: if I do not want to update then just add method to refresh credentials
-
-	// TODO: you actually wake them up here - need new method
-	err = s.dbMigrationProvisioner.ClusterInstallationProvisioner(installation.CRVersion).
-		RefreshSecrets(cluster, installation, cis[0])
-	if err != nil {
-		logger.WithError(err).Errorf("Failed to update cluster installation")
-		return dbMigration.State
+		err = s.dbMigrationProvisioner.ClusterInstallationProvisioner(installation.CRVersion).
+			RefreshSecrets(cluster, installation, cis[0])
+		if err != nil {
+			logger.WithError(err).Errorf("Failed to refresh credentials of cluster installation")
+			return dbMigration.State
+		}
 	}
 
 	// TODO: here it will be immediate cause installation is scaled down? What will happen with update job etc?
@@ -436,8 +432,7 @@ func (s *DBMigrationSupervisor) finalizeMigration(dbMigration *model.DBMigration
 		return dbMigration.State
 	}
 
-	// TODO: in millis
-	dbMigration.CompleteAt = time.Now().Unix()
+	dbMigration.CompleteAt = utils.GetMillis()
 	err = s.store.UpdateInstallationDBMigration(dbMigration)
 	if err != nil {
 		logger.WithError(err).Errorf("Failed to set complete at for db migration")

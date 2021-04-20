@@ -7,32 +7,29 @@ import (
 	"github.com/pkg/errors"
 )
 
-// TODO: remove installation prefix from everything
+// DBMigrationOperation contains information about installation's database migration operation.
 type DBMigrationOperation struct {
 	ID             string
 	InstallationID string
 	RequestAt      int64
 	State          DBMigrationOperationState
+	// SourceDatabase is current Installation database.
+	SourceDatabase      string
+	// DestinationDatabase is database type to which migration will be performed.
+	DestinationDatabase string
 
-	SourceDatabase      string // TODO: set based on installation
-	DestinationDatabase string // DB type
-
+	// For now only supported migration is from multi-tenant DB to multi-tenant DB.
 	SourceMultiTenant *MultiTenantDBMigrationData
-
 	DestinationMultiTenant *MultiTenantDBMigrationData
-
 	BackupID                             string
 	InstallationDBRestorationOperationID string
-
-	// TODO: in te future add target Installation state?
-
 	CompleteAt int64
-
 	DeleteAt       int64
 	LockAcquiredBy *string
 	LockAcquiredAt int64
 }
 
+// MultiTenantDBMigrationData represents migration data for Multi-tenant database.
 type MultiTenantDBMigrationData struct {
 	DatabaseID string
 }
@@ -71,7 +68,6 @@ var AllInstallationDBMigrationOperationsStatesPendingWork = []DBMigrationOperati
 	DBMigrationStateFailing,
 }
 
-// TODO: test
 // NewDBMigrationOperationFromReader will create a DBMigrationOperation from an
 // io.Reader with JSON data.
 func NewDBMigrationOperationFromReader(reader io.Reader) (*DBMigrationOperation, error) {

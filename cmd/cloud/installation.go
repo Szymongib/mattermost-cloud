@@ -72,16 +72,6 @@ func init() {
 	installationDeleteCmd.Flags().String("installation", "", "The id of the installation to be deleted.")
 	installationDeleteCmd.MarkFlagRequired("installation")
 
-	installationDatabaseRestoreCmd.Flags().String("installation", "", "The id of the installation to be restored.")
-	installationDatabaseRestoreCmd.Flags().String("backup", "", "The id of the backup to restore.")
-	installationDatabaseRestoreCmd.MarkFlagRequired("installation")
-	installationDatabaseRestoreCmd.MarkFlagRequired("backup")
-
-	installationDatabaseMigrationCmd.Flags().String("installation", "", "The id of the installation to be migrated.")
-	installationDatabaseMigrationCmd.Flags().String("multi-tenant-db", "", "The id of the destination multi tenant db.")
-	installationDatabaseMigrationCmd.MarkFlagRequired("installation")
-	installationDatabaseMigrationCmd.MarkFlagRequired("multi-tenant-db")
-
 	installationCmd.AddCommand(installationCreateCmd)
 	installationCmd.AddCommand(installationUpdateCmd)
 	installationCmd.AddCommand(installationDeleteCmd)
@@ -93,12 +83,8 @@ func init() {
 	installationCmd.AddCommand(installationAnnotationCmd)
 	installationCmd.AddCommand(installationsGetStatuses)
 
-	// TODO: move those
-	installationCmd.AddCommand(installationDatabaseRestoreCmd)
-	installationCmd.AddCommand(installationDBRestorationsListCmd)
-	installationCmd.AddCommand(installationDatabaseMigrationCmd)
-
 	installationCmd.AddCommand(backupCmd)
+	installationCmd.AddCommand(installationOperationCmd)
 }
 
 var installationCmd = &cobra.Command{
@@ -432,92 +418,6 @@ var installationShowStateReport = &cobra.Command{
 		command.SilenceUsage = true
 
 		err := printJSON(model.GetInstallationRequestStateReport())
-		if err != nil {
-			return err
-		}
-
-		return nil
-	},
-}
-
-// TODO: maybe as a separate subcommand
-var installationDatabaseRestoreCmd = &cobra.Command{
-	Use:   "restore",
-	Short: "Request database restoration",
-	RunE: func(command *cobra.Command, args []string) error {
-		command.SilenceUsage = true
-
-		serverAddress, _ := command.Flags().GetString("server")
-		client := model.NewClient(serverAddress)
-
-		installationID, _ := command.Flags().GetString("installation")
-		backupID, _ := command.Flags().GetString("backup")
-
-		installationDTO, err := client.RestoreInstallationDatabase(installationID, backupID)
-		if err != nil {
-			return errors.Wrap(err, "failed to request installation database restoration")
-		}
-
-		err = printJSON(installationDTO)
-		if err != nil {
-			return err
-		}
-
-		return nil
-	},
-}
-
-// TODO: maybe as a separate subcommand
-var installationDBRestorationsListCmd = &cobra.Command{
-	Use:   "restorations-list",
-	Short: "List installation database restoration operations",
-	RunE: func(command *cobra.Command, args []string) error {
-		command.SilenceUsage = true
-
-		serverAddress, _ := command.Flags().GetString("server")
-		client := model.NewClient(serverAddress)
-
-		//installationID, _ := command.Flags().GetString("installation")
-		//backupID, _ := command.Flags().GetString("backup")
-
-		dbRestorationOperations, err := client.GetInstallationDBRestorationOperations()
-		if err != nil {
-			return errors.Wrap(err, "failed to request installation database restoration")
-		}
-
-		err = printJSON(dbRestorationOperations)
-		if err != nil {
-			return err
-		}
-
-		return nil
-	},
-}
-
-var installationDatabaseMigrationCmd = &cobra.Command{
-	Use:   "migrate",
-	Short: "Migrate database to different DB",
-	RunE: func(command *cobra.Command, args []string) error {
-		command.SilenceUsage = true
-
-		serverAddress, _ := command.Flags().GetString("server")
-		client := model.NewClient(serverAddress)
-
-		installationID, _ := command.Flags().GetString("installation")
-		//backupID, _ := command.Flags().GetString("backup")
-
-		dbID, _ := command.Flags().GetString("multi-tenant-db")
-
-		migrationOperation, err := client.MigrateInstallationDatabase(&model.DBMigrationRequest{
-			InstallationID:         installationID,
-			DestinationDatabase:    model.InstallationDatabaseMultiTenantRDSPostgres, // TODO: customize
-			DestinationMultiTenant: &model.MultiTenantDBMigrationData{DatabaseID: dbID},
-		})
-		if err != nil {
-			return errors.Wrap(err, "failed to request installation database migration")
-		}
-
-		err = printJSON(migrationOperation)
 		if err != nil {
 			return err
 		}

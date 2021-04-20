@@ -551,7 +551,7 @@ func (c *Client) DeleteInstallation(installationID string) error {
 	}
 }
 
-// TODO: comments
+// RestoreInstallationDatabase requests installation db restoration from the configured provisioning server.
 func (c *Client) RestoreInstallationDatabase(installationID, backupID string) (*InstallationDTO, error) {
 	resp, err := c.doPost(c.buildURL("/api/installations/database/restore"),
 		InstallationDBRestorationRequest{BackupID: backupID, InstallationID: installationID},
@@ -570,13 +570,15 @@ func (c *Client) RestoreInstallationDatabase(installationID, backupID string) (*
 	}
 }
 
-// TODO: comment
-// TODO: request object
-func (c *Client) GetInstallationDBRestorationOperations() ([]*InstallationDBRestorationOperation, error) {
-	u := c.buildURL("/api/installations/database/restorations")
-	fmt.Println(u)
+// GetInstallationDBRestorationOperations  fetches the list of installation db restoration operations from the configured provisioning server.
+func (c *Client) GetInstallationDBRestorationOperations(request *GetInstallationDBRestorationOperationsRequest) ([]*InstallationDBRestorationOperation, error) {
+	u, err := url.Parse(c.buildURL("/api/installations/database/restorations"))
+	if err != nil {
+		return nil, err
+	}
+	request.ApplyToURL(u)
 
-	resp, err := c.doGet(u)
+	resp, err := c.doGet(u.String())
 	if err != nil {
 		return nil, err
 	}
@@ -602,6 +604,29 @@ func (c *Client) MigrateInstallationDatabase(request *DBMigrationRequest) (*DBMi
 	switch resp.StatusCode {
 	case http.StatusAccepted:
 		return NewDBMigrationOperationFromReader(resp.Body)
+
+	default:
+		return nil, errors.Errorf("failed with status code %d", resp.StatusCode)
+	}
+}
+
+// GetInstallationDBMigrationOperations fetches the list of installation db migration operations from the configured provisioning server.
+func (c *Client) GetInstallationDBMigrationOperations(request *GetDBMigrationOperationsRequest) ([]*DBMigrationOperation, error) {
+	u, err := url.Parse(c.buildURL("/api/installations/database/migrations"))
+	if err != nil {
+		return nil, err
+	}
+	request.ApplyToURL(u)
+
+	resp, err := c.doGet(u.String())
+	if err != nil {
+		return nil, err
+	}
+	defer closeBody(resp)
+
+	switch resp.StatusCode {
+	case http.StatusOK:
+		return NewDBMigrationOperationsFromReader(resp.Body)
 
 	default:
 		return nil, errors.Errorf("failed with status code %d", resp.StatusCode)
