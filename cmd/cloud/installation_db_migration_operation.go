@@ -109,9 +109,9 @@ var installationDBMigrationsListCmd = &cobra.Command{
 		paging := parsePagingFlags(command)
 
 		request := &model.GetDBMigrationOperationsRequest{
-			Paging:                paging,
-			InstallationID:        installationID,
-			State:                 state,
+			Paging:         paging,
+			InstallationID: installationID,
+			State:          state,
 		}
 
 		dbMigrationOperations, err := client.GetInstallationDBMigrationOperations(request)

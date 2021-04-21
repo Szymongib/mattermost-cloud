@@ -1,9 +1,12 @@
 package api
 
 import (
-	"fmt"
+	"github.com/mattermost/mattermost-cloud/internal/tools/aws"
+	"github.com/mattermost/mattermost-cloud/internal/webhook"
 	"github.com/mattermost/mattermost-cloud/model"
+	"github.com/pkg/errors"
 	"net/http"
+	"time"
 )
 
 // TODO: comments + tests
@@ -53,24 +56,17 @@ func handleInstallationDatabaseMigration(c *Context, w http.ResponseWriter, r *h
 	}
 	defer unlockOnce()
 
-	// TODO: validate
-
-	// If not multitenant postgres (both source and destination) - fail
-	// Get current multitenant DB
-	// Check if VPC is the same
-	// Check if new DB has enough space?
-
-	fmt.Println(installationDTO.ID)
-	dbs, err := c.Store.GetMultitenantDatabases(&model.MultitenantDatabaseFilter{InstallationID: installationDTO.ID, Paging: model.AllPagesNotDeleted(), MaxInstallationsLimit: 500})
+	currentDB, err := c.Store.GetMultitenantDatabaseForInstallationID(installationDTO.ID)
 	if err != nil {
-		c.Logger.WithError(err).Error("Failed to get multitenant db for installation")
+		c.Logger.WithError(err).Errorf("failed to get current multi-tenant database for installation")
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
 
-	if len(dbs) == 0 {
-		c.Logger.Error("Multitenant db not found for installation")
-		w.WriteHeader(http.StatusInternalServerError)
+	err = validateDBMigration(c, installationDTO.Installation, migrationRequest, currentDB)
+	if err != nil {
+		c.Logger.WithError(err).Errorf("Cannot migrate installation database")
+		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
 
@@ -79,7 +75,7 @@ func handleInstallationDatabaseMigration(c *Context, w http.ResponseWriter, r *h
 		State:                  model.DBMigrationStateRequested,
 		SourceDatabase:         installationDTO.Database,
 		DestinationDatabase:    migrationRequest.DestinationDatabase,
-		SourceMultiTenant:      &model.MultiTenantDBMigrationData{DatabaseID: dbs[0].ID},
+		SourceMultiTenant:      &model.MultiTenantDBMigrationData{DatabaseID: currentDB.ID},
 		DestinationMultiTenant: migrationRequest.DestinationMultiTenant,
 	}
 
@@ -99,38 +95,25 @@ func handleInstallationDatabaseMigration(c *Context, w http.ResponseWriter, r *h
 		return
 	}
 
+	webhookPayload := &model.WebhookPayload{
+		Type:      model.TypeInstallationDBMigration,
+		ID:        dbMigrationOperation.ID,
+		NewState:  string(dbMigrationOperation.State),
+		OldState:  "n/a",
+		Timestamp: time.Now().UnixNano(),
+		ExtraData: map[string]string{"Installation": dbMigrationOperation.InstallationID, "Environment": c.Environment},
+	}
+
+	err = webhook.SendToAllWebhooks(c.Store, webhookPayload, c.Logger.WithField("webhookEvent", webhookPayload.NewState))
+	if err != nil {
+		c.Logger.WithError(err).Error("Unable to process and send webhooks")
+	}
+
 	unlockOnce()
 	c.Supervisor.Do()
 
 	w.WriteHeader(http.StatusAccepted)
 	outputJSON(c, w, dbMigrationOperation)
-
-	//dbRestoration, err := components.TriggerInstallationDBRestoration(c.Store, installationDTO.Installation, backup)
-	//if err != nil {
-	//	c.Logger.WithError(err).Error("Failed to trigger installation db restoration")
-	//	w.WriteHeader(components.ErrToStatus(err))
-	//	return
-	//}
-	//
-	//webhookPayload := &model.WebhookPayload{
-	//	Type:      model.TypeInstallationDBRestoration,
-	//	ID:        dbRestoration.ID,
-	//	NewState:  string(model.InstallationDBRestorationStateRequested),
-	//	OldState:  "n/a",
-	//	Timestamp: time.Now().UnixNano(),
-	//	ExtraData: map[string]string{"Installation": dbRestoration.InstallationID, "Backup": dbRestoration.BackupID, "Environment": c.Environment},
-	//}
-	//
-	//err = webhook.SendToAllWebhooks(c.Store, webhookPayload, c.Logger.WithField("webhookEvent", webhookPayload.NewState))
-	//if err != nil {
-	//	c.Logger.WithError(err).Error("Unable to process and send webhooks")
-	//}
-	//
-	//unlockOnce()
-	//c.Supervisor.Do()
-	//
-	//w.WriteHeader(http.StatusAccepted)
-	//outputJSON(c, w, dbRestoration)
 }
 
 func handleGetInstallationDBMigrationOperations(c *Context, w http.ResponseWriter, r *http.Request) {
@@ -168,3 +151,35 @@ func handleGetInstallationDBMigrationOperations(c *Context, w http.ResponseWrite
 	outputJSON(c, w, dbMigrations)
 }
 
+func validateDBMigration(c *Context, installation *model.Installation, migrationRequest *model.DBMigrationRequest, currentDB *model.MultitenantDatabase) error {
+	if migrationRequest.DestinationDatabase != model.InstallationDatabaseMultiTenantRDSPostgres ||
+		installation.Database != model.InstallationDatabaseMultiTenantRDSPostgres {
+		return errors.Errorf("db migration is supported when both source and destination are %q database", model.InstallationDatabaseMultiTenantRDSPostgres)
+	}
+
+	if migrationRequest.DestinationMultiTenant == nil {
+		return errors.New("destination database data not provided")
+	}
+
+	destinationDB, err := c.Store.GetMultitenantDatabase(migrationRequest.DestinationMultiTenant.DatabaseID)
+	if err != nil {
+		return errors.Wrap(err, "failed to get destination multi-tenant database")
+	}
+	if destinationDB == nil {
+		return errors.Errorf("destination database with id %q not found", migrationRequest.DestinationMultiTenant.DatabaseID)
+	}
+
+	if currentDB.VpcID != destinationDB.VpcID {
+		return errors.New("databases VPCs do not match, only migration inside the same VPC is supported")
+	}
+
+	weight, err := c.Store.GetInstallationsTotalDatabaseWeight(destinationDB.Installations)
+	if err != nil {
+		return errors.Wrap(err, "failed to check total weight of installations in destination database")
+	}
+	if weight >= aws.DefaultRDSMultitenantDatabasePostgresCountLimit {
+		return errors.Errorf("cannot migrate to database, installations weight reached the limit: %f", weight)
+	}
+
+	return nil
+}

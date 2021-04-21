@@ -552,8 +552,8 @@ func (c *Client) DeleteInstallation(installationID string) error {
 }
 
 // RestoreInstallationDatabase requests installation db restoration from the configured provisioning server.
-func (c *Client) RestoreInstallationDatabase(installationID, backupID string) (*InstallationDTO, error) {
-	resp, err := c.doPost(c.buildURL("/api/installations/database/restore"),
+func (c *Client) RestoreInstallationDatabase(installationID, backupID string) (*InstallationDBRestorationOperation, error) {
+	resp, err := c.doPost(c.buildURL("/api/installations/operations/database/restorations"),
 		InstallationDBRestorationRequest{BackupID: backupID, InstallationID: installationID},
 	)
 	if err != nil {
@@ -563,7 +563,7 @@ func (c *Client) RestoreInstallationDatabase(installationID, backupID string) (*
 
 	switch resp.StatusCode {
 	case http.StatusAccepted:
-		return InstallationDTOFromReader(resp.Body) // TODO: fix this - operation should be returned
+		return NewInstallationDBRestorationOperationFromReader(resp.Body)
 
 	default:
 		return nil, errors.Errorf("failed with status code %d", resp.StatusCode)
@@ -572,7 +572,7 @@ func (c *Client) RestoreInstallationDatabase(installationID, backupID string) (*
 
 // GetInstallationDBRestorationOperations  fetches the list of installation db restoration operations from the configured provisioning server.
 func (c *Client) GetInstallationDBRestorationOperations(request *GetInstallationDBRestorationOperationsRequest) ([]*InstallationDBRestorationOperation, error) {
-	u, err := url.Parse(c.buildURL("/api/installations/database/restorations"))
+	u, err := url.Parse(c.buildURL("/api/installations/operations/database/restorations"))
 	if err != nil {
 		return nil, err
 	}
@@ -587,6 +587,23 @@ func (c *Client) GetInstallationDBRestorationOperations(request *GetInstallation
 	switch resp.StatusCode {
 	case http.StatusOK:
 		return NewInstallationDBRestorationOperationsFromReader(resp.Body)
+
+	default:
+		return nil, errors.Errorf("failed with status code %d", resp.StatusCode)
+	}
+}
+
+// GetInstallationDBRestoration fetches the specified installation db restoration operation from the configured provisioning server.
+func (c *Client) GetInstallationDBRestoration(id string) (*InstallationDBRestorationOperation, error) {
+	resp, err := c.doGet(c.buildURL("/api/installations/operations/database/restoration/%s", id))
+	if err != nil {
+		return nil, err
+	}
+	defer closeBody(resp)
+
+	switch resp.StatusCode {
+	case http.StatusOK:
+		return NewInstallationDBRestorationOperationFromReader(resp.Body)
 
 	default:
 		return nil, errors.Errorf("failed with status code %d", resp.StatusCode)

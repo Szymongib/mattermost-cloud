@@ -298,7 +298,7 @@ func TestDBMigrationSupervisor_Supervise(t *testing.T) {
 			{
 				description:        "when restoration succeeded",
 				restorationOpState: model.InstallationDBRestorationStateSucceeded,
-				expectedState:      model.DbMigrationStateFinalizing,
+				expectedState:      model.DBMigrationStateUpdatingInstallationConfig,
 			},
 			{
 				description:        "when restoration failed",
@@ -345,6 +345,8 @@ func TestDBMigrationSupervisor_Supervise(t *testing.T) {
 		}
 	})
 
+	// TODO: config update test
+
 	t.Run("finalizing migration", func(t *testing.T) {
 		logger := testlib.MakeLogger(t)
 		sqlStore := store.MakeTestSQLStore(t, logger)
@@ -354,7 +356,7 @@ func TestDBMigrationSupervisor_Supervise(t *testing.T) {
 
 		migrationOp := &model.DBMigrationOperation{
 			InstallationID: installation.ID,
-			State:          model.DbMigrationStateFinalizing,
+			State:          model.DBMigrationStateFinalizing,
 		}
 
 		err := sqlStore.CreateInstallationDBMigration(migrationOp)

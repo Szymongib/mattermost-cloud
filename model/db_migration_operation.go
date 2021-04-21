@@ -14,19 +14,19 @@ type DBMigrationOperation struct {
 	RequestAt      int64
 	State          DBMigrationOperationState
 	// SourceDatabase is current Installation database.
-	SourceDatabase      string
+	SourceDatabase string
 	// DestinationDatabase is database type to which migration will be performed.
 	DestinationDatabase string
 
 	// For now only supported migration is from multi-tenant DB to multi-tenant DB.
-	SourceMultiTenant *MultiTenantDBMigrationData
-	DestinationMultiTenant *MultiTenantDBMigrationData
+	SourceMultiTenant                    *MultiTenantDBMigrationData
+	DestinationMultiTenant               *MultiTenantDBMigrationData
 	BackupID                             string
 	InstallationDBRestorationOperationID string
-	CompleteAt int64
-	DeleteAt       int64
-	LockAcquiredBy *string
-	LockAcquiredAt int64
+	CompleteAt                           int64
+	DeleteAt                             int64
+	LockAcquiredBy                       *string
+	LockAcquiredAt                       int64
 }
 
 // MultiTenantDBMigrationData represents migration data for Multi-tenant database.
@@ -45,9 +45,10 @@ const (
 
 	DBMigrationStateRefreshSecrets DBMigrationOperationState = "db-migration-refresh-secrets"
 
-	DBMigrationStateTriggerRestoration    DBMigrationOperationState = "db-migration-trigger-restoration"
-	DBMigrationStateRestorationInProgress DBMigrationOperationState = "db-migration-restoration-in-progress"
-	DbMigrationStateFinalizing            DBMigrationOperationState = "db-migration-finalizing"
+	DBMigrationStateTriggerRestoration         DBMigrationOperationState = "db-migration-trigger-restoration"
+	DBMigrationStateRestorationInProgress      DBMigrationOperationState = "db-migration-restoration-in-progress"
+	DBMigrationStateUpdatingInstallationConfig DBMigrationOperationState = "db-migration-updating-installation-config"
+	DBMigrationStateFinalizing                 DBMigrationOperationState = "db-migration-finalizing"
 
 	DBMigrationStateFailing DBMigrationOperationState = "db-migration-failing"
 
@@ -63,8 +64,9 @@ var AllInstallationDBMigrationOperationsStatesPendingWork = []DBMigrationOperati
 	DBMigrationStateDatabaseSwitch,
 	DBMigrationStateRefreshSecrets,
 	DBMigrationStateTriggerRestoration,
-	DbMigrationStateFinalizing,
+	DBMigrationStateFinalizing,
 	DBMigrationStateRestorationInProgress,
+	DBMigrationStateUpdatingInstallationConfig,
 	DBMigrationStateFailing,
 }
 

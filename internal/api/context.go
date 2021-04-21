@@ -82,6 +82,7 @@ type Store interface {
 	UpdateInstallationBackupState(backupMeta *model.InstallationBackup) error
 	GetInstallationBackup(id string) (*model.InstallationBackup, error)
 	GetInstallationBackups(filter *model.InstallationBackupFilter) ([]*model.InstallationBackup, error)
+	IsInstallationBackupBeingUsed(backupID string) (bool, error)
 	LockInstallationBackup(backupMetadataID, lockerID string) (bool, error)
 	UnlockInstallationBackup(backupMetadataID, lockerID string, force bool) (bool, error)
 	LockInstallationBackupAPI(backupID string) error

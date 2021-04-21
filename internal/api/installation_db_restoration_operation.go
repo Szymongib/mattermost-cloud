@@ -1,6 +1,7 @@
 package api
 
 import (
+	"github.com/gorilla/mux"
 	"github.com/mattermost/mattermost-cloud/internal/components"
 	"github.com/mattermost/mattermost-cloud/internal/webhook"
 	"github.com/mattermost/mattermost-cloud/model"
@@ -8,10 +9,26 @@ import (
 	"time"
 )
 
-// TODO: comments + tests
-// TODO: move to backups?
-// handleTriggerInstallationDatabaseRestoration
-func handleTriggerInstallationDatabaseRestoration(c *Context, w http.ResponseWriter, r *http.Request) {
+// initInstallationRestoration registers installation restoration operation endpoints on the given router.
+func initInstallationRestoration(apiRouter *mux.Router, context *Context) {
+	addContext := func(handler contextHandlerFunc) *contextHandler {
+		return newContextHandler(context, handler)
+	}
+
+	restorationsRouter := apiRouter.PathPrefix("/operations/database/restorations").Subrouter()
+
+	restorationsRouter.Handle("", addContext(handleTriggerInstallationDBRestoration)).Methods("POST")
+	restorationsRouter.Handle("", addContext(handleGetInstallationDBRestorationOperations)).Methods("GET")
+
+	restorationRouter := apiRouter.PathPrefix("/operations/database/restoration/{restoration:[A-Za-z0-9]{26}}").Subrouter()
+	restorationRouter.Handle("", addContext(handleGetInstallationDBRestorationOperation)).Methods("GET")
+}
+
+// TODO:  tests
+
+// handleTriggerInstallationDBRestoration responds to POST /api/installations/operations/database/restorations,
+// requests restoration of Installation's data.
+func handleTriggerInstallationDBRestoration(c *Context, w http.ResponseWriter, r *http.Request) {
 	c.Logger = c.Logger.
 		WithField("action", "restore-installation-database")
 
@@ -70,11 +87,14 @@ func handleTriggerInstallationDatabaseRestoration(c *Context, w http.ResponseWri
 	unlockOnce()
 	c.Supervisor.Do()
 
+	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusAccepted)
 	outputJSON(c, w, dbRestoration)
 }
 
-func handleGetInstallationDatabaseRestorationOperations(c *Context, w http.ResponseWriter, r *http.Request) {
+// handleGetInstallationDBRestorationOperations responds to GET /api/installations/operations/database/restorations,
+// returns list of installation restoration operation.
+func handleGetInstallationDBRestorationOperations(c *Context, w http.ResponseWriter, r *http.Request) {
 	c.Logger = c.Logger.
 		WithField("action", "list-installation-db-restorations")
 
@@ -105,6 +125,33 @@ func handleGetInstallationDatabaseRestorationOperations(c *Context, w http.Respo
 		return
 	}
 
+	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	outputJSON(c, w, dbRestorations)
+}
+
+// handleGetInstallationDBRestorationOperation responds to GET /api/installations/operations/database/restoration/{restoration},
+// returns specified installation restoration operation.
+func handleGetInstallationDBRestorationOperation(c *Context, w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	restorationID := vars["restoration"]
+
+	c.Logger = c.Logger.
+		WithField("action", "get-installation-db-restoration").
+		WithField("restoration-operation", restorationID)
+
+	dbRestorationOp, err := c.Store.GetInstallationDBRestorationOperation(restorationID)
+	if err != nil {
+		c.Logger.WithError(err).Error("Failed to get installation restoration")
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	if dbRestorationOp == nil {
+		w.WriteHeader(http.StatusNotFound)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	outputJSON(c, w, dbRestorationOp)
 }

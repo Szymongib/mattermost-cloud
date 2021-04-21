@@ -163,7 +163,7 @@ func (s *DBMigrationSupervisor) Supervise(migration *model.DBMigrationOperation)
 	}
 
 	webhookPayload := &model.WebhookPayload{
-		Type:      model.TypeDBMigration,
+		Type:      model.TypeInstallationDBMigration,
 		ID:        migration.ID,
 		NewState:  string(migration.State),
 		OldState:  string(oldState),
@@ -193,7 +193,9 @@ func (s *DBMigrationSupervisor) transitionMigration(dbMigration *model.DBMigrati
 		return s.triggerInstallationRestoration(dbMigration, instanceID, logger)
 	case model.DBMigrationStateRestorationInProgress:
 		return s.waitForInstallationRestoration(dbMigration, instanceID, logger)
-	case model.DbMigrationStateFinalizing:
+	case model.DBMigrationStateUpdatingInstallationConfig:
+		return s.updateInstallationConfig(dbMigration, instanceID, logger)
+	case model.DBMigrationStateFinalizing:
 		return s.finalizeMigration(dbMigration, instanceID, logger)
 	case model.DBMigrationStateFailing:
 		return s.failMigration(dbMigration, instanceID, logger)
@@ -233,16 +235,12 @@ func (s *DBMigrationSupervisor) triggerInstallationBackup(dbMigration *model.DBM
 	// TODO: Allow passing backupID to migrate from?
 	// Maybe do it as MVP?
 
-	// TODO: not sure if I need this lock here
 	installation, lock, err := getAndLockInstallation(s.store, dbMigration.InstallationID, instanceID, logger)
 	if err != nil {
 		logger.WithError(err).Error("failed to get and lock installation")
 		return dbMigration.State
 	}
 	defer lock.Unlock()
-
-	// TODO: This is not ideal, because the backup will start and in DB migration updated fails
-	// backup will not be able to start until the previous one finishes.
 
 	backup, err := components.TriggerInstallationBackup(s.store, installation)
 	if err != nil {
@@ -292,7 +290,7 @@ func (s *DBMigrationSupervisor) switchDatabase(dbMigration *model.DBMigrationOpe
 	}
 	defer lock.Unlock()
 
-	// Validate migration is ok?
+	// TODO: Validate migration is ok?
 
 	sourceDB := s.dbProvider.GetDatabase(installation.ID, dbMigration.SourceDatabase)
 
@@ -348,17 +346,10 @@ func (s *DBMigrationSupervisor) refreshCredentials(dbMigration *model.DBMigratio
 		}
 	}
 
-	// TODO: here it will be immediate cause installation is scaled down? What will happen with update job etc?
-	// But secrets will be fine anyway
-
-	// TODO: anything else????
-
 	return model.DBMigrationStateTriggerRestoration
 }
 
 func (s *DBMigrationSupervisor) triggerInstallationRestoration(dbMigration *model.DBMigrationOperation, instanceID string, logger log.FieldLogger) model.DBMigrationOperationState {
-
-	// TODO: not sure if I need this lock here
 	installation, lock, err := getAndLockInstallation(s.store, dbMigration.InstallationID, instanceID, logger)
 	if err != nil {
 		logger.WithError(err).Error("failed to get and lock installation")
@@ -405,7 +396,7 @@ func (s *DBMigrationSupervisor) waitForInstallationRestoration(dbMigration *mode
 	switch restoration.State {
 	case model.InstallationDBRestorationStateSucceeded:
 		logger.Info("Restoration for migration finished successfully")
-		return model.DbMigrationStateFinalizing
+		return model.DBMigrationStateUpdatingInstallationConfig
 	case model.InstallationDBRestorationStateFailed, model.InstallationDBRestorationStateInvalid:
 		logger.Error("Restoration for migration failed or is invalid")
 		return model.DBMigrationStateFailing
@@ -415,8 +406,14 @@ func (s *DBMigrationSupervisor) waitForInstallationRestoration(dbMigration *mode
 	}
 }
 
-func (s *DBMigrationSupervisor) finalizeMigration(dbMigration *model.DBMigrationOperation, instanceID string, logger log.FieldLogger) model.DBMigrationOperationState {
+func (s *DBMigrationSupervisor) updateInstallationConfig(dbMigration *model.DBMigrationOperation, instanceID string, logger log.FieldLogger) model.DBMigrationOperationState {
 
+	// TODO: Update Installation config - mattermost config set SqlSettings.DataSource "NEW_CONNECTION_STR"
+
+	return model.DBMigrationStateFinalizing
+}
+
+func (s *DBMigrationSupervisor) finalizeMigration(dbMigration *model.DBMigrationOperation, instanceID string, logger log.FieldLogger) model.DBMigrationOperationState {
 	installation, lock, err := getAndLockInstallation(s.store, dbMigration.InstallationID, instanceID, logger)
 	if err != nil {
 		logger.WithError(err).Error("failed to get and lock installation")
@@ -443,7 +440,6 @@ func (s *DBMigrationSupervisor) finalizeMigration(dbMigration *model.DBMigration
 }
 
 func (s *DBMigrationSupervisor) failMigration(dbMigration *model.DBMigrationOperation, instanceID string, logger log.FieldLogger) model.DBMigrationOperationState {
-
 	installation, lock, err := getAndLockInstallation(s.store, dbMigration.InstallationID, instanceID, logger)
 	if err != nil {
 		logger.WithError(err).Error("failed to get and lock installation")
@@ -451,15 +447,12 @@ func (s *DBMigrationSupervisor) failMigration(dbMigration *model.DBMigrationOper
 	}
 	defer lock.Unlock()
 
-	// TODO: maybe allow different states in future
 	installation.State = model.InstallationStateDBMigrationFailed
 	err = s.store.UpdateInstallation(installation)
 	if err != nil {
 		logger.WithError(err).Errorf("Failed to set installation back to hibernating after migration")
 		return dbMigration.State
 	}
-
-	// TODO: anything eles?
 
 	return model.DBMigrationStateFailed
 }

@@ -118,10 +118,8 @@ func handleGetInstallationBackups(c *Context, w http.ResponseWriter, r *http.Req
 // returns metadata of specified backup.
 func handleGetInstallationBackup(c *Context, w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
-	installationID := vars["installation"]
 	backupID := vars["backup"]
 	c.Logger = c.Logger.
-		WithField("installation", installationID).
 		WithField("backup", backupID).
 		WithField("action", "get-installation-backup")
 
@@ -171,7 +169,17 @@ func handleDeleteInstallationBackup(c *Context, w http.ResponseWriter, r *http.R
 		return
 	}
 
-	// TODO: make sure there is no InstallationDBRestoration or Migration that is running and currently using this backup
+	isUsed, err := c.Store.IsInstallationBackupBeingUsed(backup.ID)
+	if err != nil {
+		c.Logger.WithError(err).Errorf("Failed to check if backup is being used")
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	if isUsed {
+		c.Logger.Warn("Backup is being used by migration or restoration and cannot ne deleted")
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
 
 	if backup.State != newState {
 		oldState := backup.State

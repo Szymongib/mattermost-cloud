@@ -466,10 +466,6 @@ func contains(collection []string, toFind string) bool {
 	return false
 }
 
-// TODO: decide with this
-//func (d *RDSMultitenantDatabase) setupLogicalDBForInstallation(store model.InstallationDatabaseStoreInterface, database *model.MultitenantDatabase, dbName string, logger log.FieldLogger) (error) {
-//}
-
 // Helpers
 
 // getAssignedMultitenantDatabaseResources returns the assigned multitenant

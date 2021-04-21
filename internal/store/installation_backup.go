@@ -7,6 +7,7 @@ package store
 import (
 	"database/sql"
 	"encoding/json"
+	"fmt"
 
 	sq "github.com/Masterminds/squirrel"
 	"github.com/mattermost/mattermost-cloud/model"
@@ -91,6 +92,31 @@ func (sqlStore *SQLStore) IsInstallationBackupRunning(installationID string) (bo
 	ongoingBackups, err := totalResult.value()
 	if err != nil {
 		return false, errors.Wrap(err, "failed to value of ongoing backups")
+	}
+
+	return ongoingBackups > 0, nil
+}
+
+// TODO: add check for db migration operation - one query or two?
+// IsInstallationBackupBeingUsed checks if backup is being used by Restoration Operation or Migration Operation
+func (sqlStore *SQLStore) IsInstallationBackupBeingUsed(backupID string) (bool, error) {
+	var totalResult countResult
+	builder := sq.
+		Select("Count (*)").
+		From(fmt.Sprintf("%s as b", backupTable)).
+		Where("b.ID = ?", backupID).
+		Where("b.DeleteAt = 0").
+		Join(fmt.Sprintf("%s as r on r.BackupID = b.ID", installationDBRestorationTable)).
+		Where(sq.Eq{"r.State": model.AllInstallationDBRestorationStatesPendingWork}).
+		Where("r.DeleteAt == 0")
+	err := sqlStore.selectBuilder(sqlStore.db, &totalResult, builder)
+	if err != nil {
+		return false, errors.Wrap(err, "failed to count backup usage")
+	}
+
+	ongoingBackups, err := totalResult.value()
+	if err != nil {
+		return false, errors.Wrap(err, "failed to get count of ongoing backups")
 	}
 
 	return ongoingBackups > 0, nil
