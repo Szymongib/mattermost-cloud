@@ -65,6 +65,9 @@ type Store interface {
 	DeleteWebhook(webhookID string) error
 
 	GetMultitenantDatabases(filter *model.MultitenantDatabaseFilter) ([]*model.MultitenantDatabase, error)
+	GetMultitenantDatabase(id string) (*model.MultitenantDatabase, error)
+
+	model.InstallationDatabaseStoreInterface // TODO: remove
 
 	GetOrCreateAnnotations(annotations []*model.Annotation) ([]*model.Annotation, error)
 
@@ -79,10 +82,19 @@ type Store interface {
 	UpdateInstallationBackupState(backupMeta *model.InstallationBackup) error
 	GetInstallationBackup(id string) (*model.InstallationBackup, error)
 	GetInstallationBackups(filter *model.InstallationBackupFilter) ([]*model.InstallationBackup, error)
+	IsInstallationBackupBeingUsed(backupID string) (bool, error)
 	LockInstallationBackup(backupMetadataID, lockerID string) (bool, error)
 	UnlockInstallationBackup(backupMetadataID, lockerID string, force bool) (bool, error)
 	LockInstallationBackupAPI(backupID string) error
 	UnlockInstallationBackupAPI(backupID string) error
+
+	TriggerInstallationRestoration(installation *model.Installation, backup *model.InstallationBackup) (*model.InstallationDBRestorationOperation, error)
+	CreateInstallationDBRestorationOperation(dbRestoration *model.InstallationDBRestorationOperation) error
+	GetInstallationDBRestorationOperation(id string) (*model.InstallationDBRestorationOperation, error)
+	GetInstallationDBRestorationOperations(filter *model.InstallationDBRestorationFilter) ([]*model.InstallationDBRestorationOperation, error)
+
+	CreateInstallationDBMigration(dbMigration *model.DBMigrationOperation) error
+	GetInstallationDBMigrations(filter *model.InstallationDBMigrationFilter) ([]*model.DBMigrationOperation, error)
 }
 
 // Provisioner describes the interface required to communicate with the Kubernetes cluster.

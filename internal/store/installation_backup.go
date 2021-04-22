@@ -7,6 +7,7 @@ package store
 import (
 	"database/sql"
 	"encoding/json"
+	"fmt"
 
 	sq "github.com/Masterminds/squirrel"
 	"github.com/mattermost/mattermost-cloud/model"
@@ -91,6 +92,31 @@ func (sqlStore *SQLStore) IsInstallationBackupRunning(installationID string) (bo
 	ongoingBackups, err := totalResult.value()
 	if err != nil {
 		return false, errors.Wrap(err, "failed to value of ongoing backups")
+	}
+
+	return ongoingBackups > 0, nil
+}
+
+// TODO: add check for db migration operation - one query or two?
+// IsInstallationBackupBeingUsed checks if backup is being used by Restoration Operation or Migration Operation
+func (sqlStore *SQLStore) IsInstallationBackupBeingUsed(backupID string) (bool, error) {
+	var totalResult countResult
+	builder := sq.
+		Select("Count (*)").
+		From(fmt.Sprintf("%s as b", backupTable)).
+		Where("b.ID = ?", backupID).
+		Where("b.DeleteAt = 0").
+		Join(fmt.Sprintf("%s as r on r.BackupID = b.ID", installationDBRestorationTable)).
+		Where(sq.Eq{"r.State": model.AllInstallationDBRestorationStatesPendingWork}).
+		Where("r.DeleteAt == 0")
+	err := sqlStore.selectBuilder(sqlStore.db, &totalResult, builder)
+	if err != nil {
+		return false, errors.Wrap(err, "failed to count backup usage")
+	}
+
+	ongoingBackups, err := totalResult.value()
+	if err != nil {
+		return false, errors.Wrap(err, "failed to get count of ongoing backups")
 	}
 
 	return ongoingBackups > 0, nil
@@ -195,6 +221,7 @@ func (sqlStore *SQLStore) UpdateInstallationBackupSchedulingData(backup *model.I
 	}
 
 	return sqlStore.updateBackupFields(
+		sqlStore.db,
 		backup.ID, map[string]interface{}{
 			"DataResidenceRaw":      data,
 			"ClusterInstallationID": backup.ClusterInstallationID,
@@ -204,6 +231,7 @@ func (sqlStore *SQLStore) UpdateInstallationBackupSchedulingData(backup *model.I
 // UpdateInstallationBackupStartTime updates the given backup start time.
 func (sqlStore *SQLStore) UpdateInstallationBackupStartTime(backup *model.InstallationBackup) error {
 	return sqlStore.updateBackupFields(
+		sqlStore.db,
 		backup.ID, map[string]interface{}{
 			"StartAt": backup.StartAt,
 		})
@@ -211,7 +239,12 @@ func (sqlStore *SQLStore) UpdateInstallationBackupStartTime(backup *model.Instal
 
 // UpdateInstallationBackupState updates the given backup to a new state.
 func (sqlStore *SQLStore) UpdateInstallationBackupState(backup *model.InstallationBackup) error {
+	return sqlStore.updateInstallationBackupState(sqlStore.db, backup)
+}
+
+func (sqlStore *SQLStore) updateInstallationBackupState(db execer, backup *model.InstallationBackup) error {
 	return sqlStore.updateBackupFields(
+		db,
 		backup.ID, map[string]interface{}{
 			"State": backup.State,
 		})
@@ -232,8 +265,8 @@ func (sqlStore *SQLStore) DeleteInstallationBackup(id string) error {
 	return nil
 }
 
-func (sqlStore *SQLStore) updateBackupFields(id string, fields map[string]interface{}) error {
-	_, err := sqlStore.execBuilder(sqlStore.db, sq.
+func (sqlStore *SQLStore) updateBackupFields(db execer, id string, fields map[string]interface{}) error {
+	_, err := sqlStore.execBuilder(db, sq.
 		Update(backupTable).
 		SetMap(fields).
 		Where("ID = ?", id))
@@ -288,6 +321,7 @@ func (sqlStore *SQLStore) applyInstallationBackupFilter(builder sq.SelectBuilder
 // LockInstallationBackupAPI locks updates to the backup from the API.
 func (sqlStore *SQLStore) LockInstallationBackupAPI(backupID string) error {
 	return sqlStore.updateBackupFields(
+		sqlStore.db,
 		backupID, map[string]interface{}{
 			"APISecurityLock": true,
 		})
@@ -296,6 +330,7 @@ func (sqlStore *SQLStore) LockInstallationBackupAPI(backupID string) error {
 // UnlockInstallationBackupAPI unlocks updates to the backup from the API.
 func (sqlStore *SQLStore) UnlockInstallationBackupAPI(backupID string) error {
 	return sqlStore.updateBackupFields(
+		sqlStore.db,
 		backupID, map[string]interface{}{
 			"APISecurityLock": false,
 		})

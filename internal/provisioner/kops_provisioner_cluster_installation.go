@@ -35,6 +35,7 @@ type ClusterInstallationProvisioner interface {
 	VerifyClusterInstallationMatchesConfig(cluster *model.Cluster, installation *model.Installation, clusterInstallation *model.ClusterInstallation) (bool, error)
 	DeleteClusterInstallation(cluster *model.Cluster, installation *model.Installation, clusterInstallation *model.ClusterInstallation) error
 	IsResourceReady(cluster *model.Cluster, clusterInstallation *model.ClusterInstallation) (bool, error)
+	RefreshSecrets(cluster *model.Cluster, installation *model.Installation, clusterInstallation *model.ClusterInstallation) error
 }
 
 // ClusterInstallationProvisioner function returns an implementation of ClusterInstallationProvisioner interface
@@ -278,6 +279,76 @@ func (provisioner *kopsCIAlpha) UpdateClusterInstallation(cluster *model.Cluster
 	return nil
 }
 
+// RefreshSecrets deletes old secrets for database and file store and replaces them with new ones.
+func (provisioner *kopsCIAlpha) RefreshSecrets(cluster *model.Cluster, installation *model.Installation, clusterInstallation *model.ClusterInstallation) error {
+	logger := provisioner.logger.WithFields(log.Fields{
+		"cluster":      clusterInstallation.ClusterID,
+		"installation": clusterInstallation.InstallationID,
+	})
+	logger.Info("Refreshing secrets for cluster installation")
+
+	k8sClient, invalidateCache, err := provisioner.k8sClient(cluster.ProvisionerMetadataKops.Name, logger)
+	if err != nil {
+		return errors.Wrap(err, "failed to create k8s client")
+	}
+	defer invalidateCache(err)
+
+	installationName := makeClusterInstallationName(clusterInstallation)
+
+	ctx := context.TODO()
+	mmClient := k8sClient.MattermostClientsetV1Alpha.MattermostV1alpha1().ClusterInstallations(clusterInstallation.Namespace)
+
+	mattermost, err := mmClient.Get(ctx, installationName, metav1.GetOptions{})
+	if err != nil {
+		return errors.Wrapf(err, "failed to get mattermost installation %s", clusterInstallation.ID)
+	}
+
+	err = provisioner.deleteCISecrets(clusterInstallation.Namespace, mattermost, k8sClient, logger)
+	if err != nil {
+		return errors.Wrap(err, "failed to delete old secrets")
+	}
+
+	err = provisioner.ensureFilestoreAndDatabase(mattermost, installation, clusterInstallation, k8sClient, logger)
+	if err != nil {
+		return errors.Wrap(err, "failed to ensure database and filestore")
+	}
+
+	_, err = mmClient.Update(ctx, mattermost, metav1.UpdateOptions{})
+	if err != nil {
+		return errors.Wrapf(err, "failed to update cluster installation %s", mattermost.Name)
+	}
+
+	logger.Info("Refreshed database and file store secrets")
+
+	return nil
+}
+
+func (provisioner *kopsCIAlpha) deleteCISecrets(ns string, mattermost *mmv1alpha1.ClusterInstallation, kubeClient *k8s.KubeClient, logger log.FieldLogger) error {
+	secretsClient := kubeClient.Clientset.CoreV1().Secrets(ns)
+
+	if mattermost.Spec.Database.Secret != "" {
+		err := secretsClient.Delete(context.Background(), mattermost.Spec.Database.Secret, metav1.DeleteOptions{})
+		if err != nil {
+			if !k8sErrors.IsNotFound(err) {
+				return errors.Wrap(err, "failed to delete old database secret")
+			}
+			logger.Debug("Database secret does not exist, assuming already deleted")
+		}
+	}
+
+	if mattermost.Spec.Minio.Secret != "" {
+		err := secretsClient.Delete(context.Background(), mattermost.Spec.Minio.Secret, metav1.DeleteOptions{})
+		if err != nil {
+			if !k8sErrors.IsNotFound(err) {
+				return errors.Wrap(err, "failed to delete old file store secret")
+			}
+			logger.Debug("File store secret does not exist, assuming already deleted")
+		}
+	}
+
+	return nil
+}
+
 func (provisioner *kopsCIAlpha) ensureFilestoreAndDatabase(
 	mattermost *mmv1alpha1.ClusterInstallation,
 	installation *model.Installation,
@@ -285,7 +356,7 @@ func (provisioner *kopsCIAlpha) ensureFilestoreAndDatabase(
 	k8sClient *k8s.KubeClient,
 	logger log.FieldLogger) error {
 
-	databaseSecret, err := provisioner.resourceUtil.GetDatabase(installation).GenerateDatabaseSecret(provisioner.store, logger)
+	databaseSecret, err := provisioner.resourceUtil.GetDatabaseForInstallation(installation).GenerateDatabaseSecret(provisioner.store, logger)
 	if err != nil {
 		return errors.Wrap(err, "failed to generate database configuration")
 	}
@@ -515,7 +586,15 @@ func (provisioner *KopsProvisioner) ExecClusterInstallationCLI(cluster *model.Cl
 	return output, err
 }
 
-// getClusterInstallationResource gets the cluster installation resource from
+
+//// ExecClusterInstallationCLIIsolated execs the provided command on the defined cluster installation.
+//func (provisioner *KopsProvisioner) ExecClusterInstallationCLIIsolated(cluster *model.Cluster, clusterInstallation *model.ClusterInstallation, args ...string) ([]byte, error) {
+//
+//	// TODO: execute the job thingy
+//
+//}
+
+	// getClusterInstallationResource gets the cluster installation resource from
 // the kubernetes API.
 func (provisioner *kopsCIAlpha) getClusterInstallationResource(cluster *model.Cluster, clusterInstallation *model.ClusterInstallation, logger log.FieldLogger) (*mmv1alpha1.ClusterInstallation, error) {
 	configLocation, err := provisioner.getCachedKopsClusterKubecfg(cluster.ProvisionerMetadataKops.Name, logger)

@@ -253,6 +253,10 @@ func (p *mockInstallationProvisioner) GetPublicLoadBalancerEndpoint(cluster *mod
 	return "example.elb.us-east-1.amazonaws.com", nil
 }
 
+func (p *mockInstallationProvisioner) RefreshSecrets(cluster *model.Cluster, installation *model.Installation, clusterInstallation *model.ClusterInstallation) error {
+	return nil
+}
+
 // TODO(gsagula): this can be replaced with /internal/mocks/aws-tools/AWS.go so that inputs and other variants
 // can be tested.
 type mockAWS struct{}

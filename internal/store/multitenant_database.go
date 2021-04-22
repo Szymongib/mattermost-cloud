@@ -20,14 +20,15 @@ var multitenantDatabaseSelect sq.SelectBuilder
 
 func init() {
 	multitenantDatabaseSelect = sq.
-		Select("ID", "VpcID", "DatabaseType", "InstallationsRaw",
+		Select("ID", "VpcID", "DatabaseType", "InstallationsRaw", "MigratedInstallationsRaw",
 			"CreateAt", "DeleteAt", "LockAcquiredBy", "LockAcquiredAt").
 		From("MultitenantDatabase")
 }
 
 type rawMultitenantDatabase struct {
 	*model.MultitenantDatabase
-	InstallationsRaw []byte
+	InstallationsRaw         []byte
+	MigratedInstallationsRaw []byte
 }
 
 type rawMultitenantDatabases []*rawMultitenantDatabase
@@ -36,6 +37,12 @@ func (r *rawMultitenantDatabase) toMultitenantDatabase() (*model.MultitenantData
 	// We only need to set values that are converted from a raw database format.
 	if r.InstallationsRaw != nil {
 		err := json.Unmarshal(r.InstallationsRaw, &r.MultitenantDatabase.Installations)
+		if err != nil {
+			return nil, err
+		}
+	}
+	if r.MigratedInstallationsRaw != nil {
+		err := json.Unmarshal(r.MigratedInstallationsRaw, &r.MultitenantDatabase.MigratedInstallations)
 		if err != nil {
 			return nil, err
 		}
@@ -147,22 +154,27 @@ func (sqlStore *SQLStore) CreateMultitenantDatabase(multitenantDatabase *model.M
 
 	multitenantDatabase.CreateAt = GetMillis()
 
-	envJSON, err := json.Marshal(multitenantDatabase.Installations)
+	installationsJSON, err := json.Marshal(multitenantDatabase.Installations)
 	if err != nil {
 		return errors.Wrap(err, "unable to marshal installation IDs")
+	}
+	migratedInstallationsJSON, err := json.Marshal(multitenantDatabase.MigratedInstallations)
+	if err != nil {
+		return errors.Wrap(err, "unable to marshal migrated installation IDs")
 	}
 
 	_, err = sqlStore.execBuilder(sqlStore.db, sq.
 		Insert("MultitenantDatabase").
 		SetMap(map[string]interface{}{
-			"ID":               multitenantDatabase.ID,
-			"VpcID":            multitenantDatabase.VpcID,
-			"DatabaseType":     multitenantDatabase.DatabaseType,
-			"InstallationsRaw": []byte(envJSON),
-			"LockAcquiredBy":   nil,
-			"LockAcquiredAt":   0,
-			"CreateAt":         multitenantDatabase.CreateAt,
-			"DeleteAt":         0,
+			"ID":                       multitenantDatabase.ID,
+			"VpcID":                    multitenantDatabase.VpcID,
+			"DatabaseType":             multitenantDatabase.DatabaseType,
+			"InstallationsRaw":         installationsJSON,
+			"MigratedInstallationsRaw": migratedInstallationsJSON,
+			"LockAcquiredBy":           nil,
+			"LockAcquiredAt":           0,
+			"CreateAt":                 multitenantDatabase.CreateAt,
+			"DeleteAt":                 0,
 		}),
 	)
 	if err != nil {
@@ -174,15 +186,24 @@ func (sqlStore *SQLStore) CreateMultitenantDatabase(multitenantDatabase *model.M
 
 // UpdateMultitenantDatabase updates a already existent multitenant database in the datastore.
 func (sqlStore *SQLStore) UpdateMultitenantDatabase(multitenantDatabase *model.MultitenantDatabase) error {
-	envJSON, err := json.Marshal(multitenantDatabase.Installations)
+	return sqlStore.updateMultitenantDatabase(sqlStore.db, multitenantDatabase)
+}
+
+func (sqlStore *SQLStore) updateMultitenantDatabase(db execer, multitenantDatabase *model.MultitenantDatabase) error {
+	installationsJSON, err := json.Marshal(multitenantDatabase.Installations)
+	if err != nil {
+		return errors.Wrap(err, "unable to marshal installation IDs")
+	}
+	migratedInstallationsJSON, err := json.Marshal(multitenantDatabase.MigratedInstallations)
 	if err != nil {
 		return errors.Wrap(err, "unable to marshal installation IDs")
 	}
 
-	_, err = sqlStore.execBuilder(sqlStore.db, sq.
+	_, err = sqlStore.execBuilder(db, sq.
 		Update("MultitenantDatabase").
 		SetMap(map[string]interface{}{
-			"InstallationsRaw": []byte(envJSON),
+			"InstallationsRaw":         []byte(installationsJSON),
+			"MigratedInstallationsRaw": []byte(migratedInstallationsJSON),
 		}).
 		Where(sq.Eq{"ID": multitenantDatabase.ID}),
 	)
