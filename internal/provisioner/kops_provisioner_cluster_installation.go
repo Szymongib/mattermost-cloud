@@ -586,7 +586,6 @@ func (provisioner *KopsProvisioner) ExecClusterInstallationCLI(cluster *model.Cl
 	return output, err
 }
 
-
 //// ExecClusterInstallationCLIIsolated execs the provided command on the defined cluster installation.
 //func (provisioner *KopsProvisioner) ExecClusterInstallationCLIIsolated(cluster *model.Cluster, clusterInstallation *model.ClusterInstallation, args ...string) ([]byte, error) {
 //
@@ -594,7 +593,7 @@ func (provisioner *KopsProvisioner) ExecClusterInstallationCLI(cluster *model.Cl
 //
 //}
 
-	// getClusterInstallationResource gets the cluster installation resource from
+// getClusterInstallationResource gets the cluster installation resource from
 // the kubernetes API.
 func (provisioner *kopsCIAlpha) getClusterInstallationResource(cluster *model.Cluster, clusterInstallation *model.ClusterInstallation, logger log.FieldLogger) (*mmv1alpha1.ClusterInstallation, error) {
 	configLocation, err := provisioner.getCachedKopsClusterKubecfg(cluster.ProvisionerMetadataKops.Name, logger)

@@ -188,7 +188,7 @@ var serverCmd = &cobra.Command{
 			"installation-supervisor":                installationSupervisor,
 			"cluster-installation-supervisor":        clusterInstallationSupervisor,
 			"backup-supervisor":                      backupSupervisor,
-			"installation-restoration-supervisor":                      installationRestorationSupervisor,
+			"installation-restoration-supervisor":    installationRestorationSupervisor,
 			"store-version":                          currentVersion,
 			"state-store":                            s3StateStore,
 			"working-directory":                      wd,
