@@ -23,7 +23,6 @@ func claimClusterInstallation(store clusterInstallationClaimStore, installation 
 	clusterInstallations, err := store.GetClusterInstallations(clusterInstallationFilter)
 	if err != nil {
 		return nil, nil, errors.Wrap(err, "Failed to get cluster installations")
-
 	}
 
 	if len(clusterInstallations) == 0 {
@@ -33,7 +32,7 @@ func claimClusterInstallation(store clusterInstallationClaimStore, installation 
 	claimedCI := clusterInstallations[0]
 	ciLock := newClusterInstallationLock(claimedCI.ID, instanceID, store, logger)
 	if !ciLock.TryLock() {
-		return nil, nil, errors.Errorf("Failed to lock cluster installation %s", claimedCI.ID)
+		return nil, nil, errors.Errorf("failed to lock cluster installation %s", claimedCI.ID)
 	}
 
 	return claimedCI, ciLock, nil
@@ -55,8 +54,7 @@ func getAndLockInstallation(store getAndLockInstallationStore, installationID, i
 
 	lock := newInstallationLock(installation.ID, instanceID, store, logger)
 	if !lock.TryLock() {
-		logger.Debugf("Failed to lock installation %s", installation.ID)
-		return nil, nil, errors.New("failed to lock installation")
+		return nil, nil, errors.Errorf("failed to lock installation %s", installationID)
 	}
 	return installation, lock, nil
 }
@@ -75,6 +73,10 @@ func getClusterForClusterInstallation(store getClusterForClusterInstallationStor
 	cluster, err := store.GetCluster(clusterInstallation.ClusterID)
 	if err != nil {
 		return nil, errors.Wrap(err, "Failed to get cluster")
+	}
+
+	if cluster == nil {
+		return nil, errors.New("cluster not found for cluster installation")
 	}
 
 	return cluster, nil

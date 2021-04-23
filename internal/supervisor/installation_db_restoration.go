@@ -79,7 +79,7 @@ func (s *InstallationDBRestorationSupervisor) Shutdown() {
 	s.logger.Debug("Shutting down installation db restoration supervisor")
 }
 
-// Do looks for work to be done on any pending backups and attempts to schedule the required work.
+// Do looks for work to be done on any pending restoration operations and attempts to schedule the required work.
 func (s *InstallationDBRestorationSupervisor) Do() error {
 	installationDBRestorations, err := s.store.GetUnlockedInstallationDBRestorationOperationsPendingWork()
 	if err != nil {
@@ -94,7 +94,7 @@ func (s *InstallationDBRestorationSupervisor) Do() error {
 	return nil
 }
 
-// Supervise schedules the required work on the given backup.
+// Supervise schedules the required work on the given restoration.
 func (s *InstallationDBRestorationSupervisor) Supervise(restoration *model.InstallationDBRestorationOperation) {
 	logger := s.logger.WithFields(log.Fields{
 		"restorationOperation": restoration.ID,
