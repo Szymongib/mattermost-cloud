@@ -24,8 +24,6 @@ func initInstallationRestoration(apiRouter *mux.Router, context *Context) {
 	restorationRouter.Handle("", addContext(handleGetInstallationDBRestorationOperation)).Methods("GET")
 }
 
-// TODO:  tests
-
 // handleTriggerInstallationDBRestoration responds to POST /api/installations/operations/database/restorations,
 // requests restoration of Installation's data.
 func handleTriggerInstallationDBRestoration(c *Context, w http.ResponseWriter, r *http.Request) {
@@ -63,6 +61,7 @@ func handleTriggerInstallationDBRestoration(c *Context, w http.ResponseWriter, r
 		return
 	}
 
+	oldInstallationState := installationDTO.State
 	dbRestoration, err := components.TriggerInstallationDBRestoration(c.Store, installationDTO.Installation, backup)
 	if err != nil {
 		c.Logger.WithError(err).Error("Failed to trigger installation db restoration")
@@ -78,8 +77,20 @@ func handleTriggerInstallationDBRestoration(c *Context, w http.ResponseWriter, r
 		Timestamp: time.Now().UnixNano(),
 		ExtraData: map[string]string{"Installation": dbRestoration.InstallationID, "Backup": dbRestoration.BackupID, "Environment": c.Environment},
 	}
-
 	err = webhook.SendToAllWebhooks(c.Store, webhookPayload, c.Logger.WithField("webhookEvent", webhookPayload.NewState))
+	if err != nil {
+		c.Logger.WithError(err).Error("Unable to process and send webhooks")
+	}
+
+	installationWebhookPayload := &model.WebhookPayload{
+		Type:      model.TypeInstallation,
+		ID:        installationDTO.ID,
+		NewState:  installationDTO.State,
+		OldState:  oldInstallationState,
+		Timestamp: time.Now().UnixNano(),
+		ExtraData: map[string]string{"DNS": installationDTO.DNS, "Environment": c.Environment},
+	}
+	err = webhook.SendToAllWebhooks(c.Store, installationWebhookPayload, c.Logger.WithField("webhookEvent", installationWebhookPayload.NewState))
 	if err != nil {
 		c.Logger.WithError(err).Error("Unable to process and send webhooks")
 	}

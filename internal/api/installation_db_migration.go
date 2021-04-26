@@ -79,6 +79,7 @@ func handleInstallationDatabaseMigration(c *Context, w http.ResponseWriter, r *h
 		DestinationMultiTenant: migrationRequest.DestinationMultiTenant,
 	}
 
+	oldInstallationState := installationDTO.State
 	// TODO: one transaction
 	err = c.Store.CreateInstallationDBMigration(dbMigrationOperation)
 	if err != nil {
@@ -103,8 +104,20 @@ func handleInstallationDatabaseMigration(c *Context, w http.ResponseWriter, r *h
 		Timestamp: time.Now().UnixNano(),
 		ExtraData: map[string]string{"Installation": dbMigrationOperation.InstallationID, "Environment": c.Environment},
 	}
-
 	err = webhook.SendToAllWebhooks(c.Store, webhookPayload, c.Logger.WithField("webhookEvent", webhookPayload.NewState))
+	if err != nil {
+		c.Logger.WithError(err).Error("Unable to process and send webhooks")
+	}
+	
+	installationWebhookPayload := &model.WebhookPayload{
+		Type:      model.TypeInstallation,
+		ID:        installationDTO.ID,
+		NewState:  installationDTO.State,
+		OldState:  oldInstallationState,
+		Timestamp: time.Now().UnixNano(),
+		ExtraData: map[string]string{"DNS": installationDTO.DNS, "Environment": c.Environment},
+	}
+	err = webhook.SendToAllWebhooks(c.Store, installationWebhookPayload, c.Logger.WithField("webhookEvent", installationWebhookPayload.NewState))
 	if err != nil {
 		c.Logger.WithError(err).Error("Unable to process and send webhooks")
 	}
