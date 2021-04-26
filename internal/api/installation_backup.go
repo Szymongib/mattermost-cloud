@@ -58,14 +58,12 @@ func handleRequestInstallationBackup(c *Context, w http.ResponseWriter, r *http.
 		return
 	}
 
-	backup, err := components.TriggerInstallationBackup(c.Store, installationDTO.Installation)
+	backup, err := components.TriggerInstallationBackup(c.Store, installationDTO.Installation, c.Environment, c.Logger)
 	if err != nil {
 		c.Logger.WithError(err).Error("Failed to trigger installation backup")
 		w.WriteHeader(components.ErrToStatus(err))
 		return
 	}
-
-	sendInstallationBackupWebhook(c, backup, "n/a")
 
 	c.Supervisor.Do()
 

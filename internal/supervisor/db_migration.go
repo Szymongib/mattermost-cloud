@@ -220,7 +220,7 @@ func (s *DBMigrationSupervisor) triggerInstallationBackup(dbMigration *model.DBM
 	}
 	defer lock.Unlock()
 
-	backup, err := components.TriggerInstallationBackup(s.store, installation)
+	backup, err := components.TriggerInstallationBackup(s.store, installation, s.environment, logger)
 	if err != nil {
 		logger.WithError(err).Error("Failed to trigger installation backup")
 		return dbMigration.State
@@ -348,7 +348,7 @@ func (s *DBMigrationSupervisor) triggerInstallationRestoration(dbMigration *mode
 		return model.DBMigrationStateFailing
 	}
 
-	dbRestoration, err := components.TriggerInstallationDBRestoration(s.store, installation, backup)
+	dbRestoration, err := components.TriggerInstallationDBRestoration(s.store, installation, backup, s.environment, logger)
 	if err != nil {
 		s.logger.WithError(err).Error("Failed to trigger installation db restoration")
 		return dbMigration.State

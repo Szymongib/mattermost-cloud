@@ -1,9 +1,12 @@
 package components
 
 import (
+	"github.com/mattermost/mattermost-cloud/internal/webhook"
 	"github.com/mattermost/mattermost-cloud/model"
 	"github.com/pkg/errors"
+	log "github.com/sirupsen/logrus"
 	"net/http"
+	"time"
 )
 
 // TODO: what should be the name of this package
@@ -11,9 +14,10 @@ import (
 type installationBackupStore interface {
 	IsInstallationBackupRunning(installationID string) (bool, error)
 	CreateInstallationBackup(backup *model.InstallationBackup) error
+	GetWebhooks(filter *model.WebhookFilter) ([]*model.Webhook, error)
 }
 
-func TriggerInstallationBackup(store installationBackupStore, installation *model.Installation) (*model.InstallationBackup, error) {
+func TriggerInstallationBackup(store installationBackupStore, installation *model.Installation, env string, logger log.FieldLogger) (*model.InstallationBackup, error) {
 	if err := model.EnsureInstallationReadyForBackup(installation); err != nil {
 		return nil, ErrWrap(http.StatusBadRequest, err, "installation cannot be backed up")
 	}
@@ -34,6 +38,19 @@ func TriggerInstallationBackup(store installationBackupStore, installation *mode
 	err = store.CreateInstallationBackup(backup)
 	if err != nil {
 		return nil, ErrWrap(http.StatusInternalServerError, err, "failed to create installation backup")
+	}
+
+	webhookPayload := &model.WebhookPayload{
+		Type:      model.TypeInstallationBackup,
+		ID:        backup.ID,
+		NewState:  string(backup.State),
+		OldState:  "n/a",
+		Timestamp: time.Now().UnixNano(),
+		ExtraData: map[string]string{"Installation": backup.InstallationID, "Environment": env},
+	}
+	err = webhook.SendToAllWebhooks(store, webhookPayload, logger.WithField("webhookEvent", webhookPayload.NewState))
+	if err != nil {
+		logger.WithError(err).Error("Unable to process and send webhooks")
 	}
 
 	return backup, nil

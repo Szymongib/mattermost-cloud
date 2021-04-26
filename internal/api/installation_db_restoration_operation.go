@@ -3,10 +3,8 @@ package api
 import (
 	"github.com/gorilla/mux"
 	"github.com/mattermost/mattermost-cloud/internal/components"
-	"github.com/mattermost/mattermost-cloud/internal/webhook"
 	"github.com/mattermost/mattermost-cloud/model"
 	"net/http"
-	"time"
 )
 
 // initInstallationRestoration registers installation restoration operation endpoints on the given router.
@@ -61,38 +59,11 @@ func handleTriggerInstallationDBRestoration(c *Context, w http.ResponseWriter, r
 		return
 	}
 
-	oldInstallationState := installationDTO.State
-	dbRestoration, err := components.TriggerInstallationDBRestoration(c.Store, installationDTO.Installation, backup)
+	dbRestoration, err := components.TriggerInstallationDBRestoration(c.Store, installationDTO.Installation, backup, c.Environment, c.Logger)
 	if err != nil {
 		c.Logger.WithError(err).Error("Failed to trigger installation db restoration")
 		w.WriteHeader(components.ErrToStatus(err))
 		return
-	}
-
-	webhookPayload := &model.WebhookPayload{
-		Type:      model.TypeInstallationDBRestoration,
-		ID:        dbRestoration.ID,
-		NewState:  string(model.InstallationDBRestorationStateRequested),
-		OldState:  "n/a",
-		Timestamp: time.Now().UnixNano(),
-		ExtraData: map[string]string{"Installation": dbRestoration.InstallationID, "Backup": dbRestoration.BackupID, "Environment": c.Environment},
-	}
-	err = webhook.SendToAllWebhooks(c.Store, webhookPayload, c.Logger.WithField("webhookEvent", webhookPayload.NewState))
-	if err != nil {
-		c.Logger.WithError(err).Error("Unable to process and send webhooks")
-	}
-
-	installationWebhookPayload := &model.WebhookPayload{
-		Type:      model.TypeInstallation,
-		ID:        installationDTO.ID,
-		NewState:  installationDTO.State,
-		OldState:  oldInstallationState,
-		Timestamp: time.Now().UnixNano(),
-		ExtraData: map[string]string{"DNS": installationDTO.DNS, "Environment": c.Environment},
-	}
-	err = webhook.SendToAllWebhooks(c.Store, installationWebhookPayload, c.Logger.WithField("webhookEvent", installationWebhookPayload.NewState))
-	if err != nil {
-		c.Logger.WithError(err).Error("Unable to process and send webhooks")
 	}
 
 	unlockOnce()

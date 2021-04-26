@@ -132,7 +132,6 @@ func handleGetInstallationDBMigrationOperations(c *Context, w http.ResponseWrite
 	}
 
 	installationID := r.URL.Query().Get("installation")
-	clusterInstallationID := r.URL.Query().Get("cluster_installation")
 	state := r.URL.Query().Get("state")
 	var states []model.DBMigrationOperationState
 	if state != "" {
@@ -142,7 +141,6 @@ func handleGetInstallationDBMigrationOperations(c *Context, w http.ResponseWrite
 	dbMigrations, err := c.Store.GetInstallationDBMigrationOperations(&model.InstallationDBMigrationFilter{
 		Paging:                paging,
 		InstallationID:        installationID,
-		ClusterInstallationID: clusterInstallationID,
 		States:                states,
 	})
 	if err != nil {

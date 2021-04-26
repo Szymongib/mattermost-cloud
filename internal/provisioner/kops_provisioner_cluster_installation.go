@@ -7,8 +7,6 @@ package provisioner
 import (
 	"context"
 	"fmt"
-	"github.com/mattermost/mattermost-operator/pkg/resources"
-	"k8s.io/apimachinery/pkg/util/wait"
 	"strings"
 	"time"
 
@@ -590,76 +588,76 @@ func (provisioner *KopsProvisioner) ExecClusterInstallationCLI(cluster *model.Cl
 
 // TODO: might need to split it to two methods - one to lunch one to wait? Or one idempotent one that takes command identifier?
 
-// ExecClusterInstallationCLIIsolated execs the provided command on the defined cluster installation.
-func (provisioner *KopsProvisioner) ExecClusterInstallationCLIIsolated(cluster *model.Cluster, clusterInstallation *model.ClusterInstallation, args ...string) ([]byte, error) {
-	logger := provisioner.logger.WithFields(log.Fields{
-		"cluster":      clusterInstallation.ClusterID,
-		"installation": clusterInstallation.InstallationID,
-	})
-	logger.Info("Executing isolated CLI command on cluster installation")
-
-	k8sClient, invalidateCache, err := provisioner.k8sClient(cluster.ProvisionerMetadataKops.Name, logger)
-	if err != nil {
-		return nil, errors.Wrap(err, "failed to create k8s client")
-	}
-	defer invalidateCache(err)
-
-	installationName := makeClusterInstallationName(clusterInstallation)
-
-	ctx := context.TODO()
-	mmClient := k8sClient.MattermostClientsetV1Alpha.MattermostV1alpha1().ClusterInstallations(clusterInstallation.Namespace)
-
-	deploymentList, err := k8sClient.Clientset.AppsV1().Deployments(clusterInstallation.Namespace).List(ctx, metav1.ListOptions{
-		LabelSelector: "app=mattermost",
-	})
-	if err != nil {
-		return nil, errors.Wrap(err, "failed to get installation deployments")
-	}
-
-	if len(deploymentList.Items) == 0 {
-		return nil, errors.New("no mattermost deployments found")
-	}
-
-	// TODO: random suffix to command? Some extra arg?
-	jobName := "command"
-
-	job := resources.PrepareMattermostJobTemplate(jobName, clusterInstallation.Namespace, &deploymentList.Items[0])
-
-	for i := range job.Spec.Template.Spec.Containers {
-		job.Spec.Template.Spec.Containers[i].Command = args
-	}
-
-	jobsClient := k8sClient.Clientset.BatchV1().Jobs(clusterInstallation.Namespace)
-
-	job, err = jobsClient.Create(ctx, job, metav1.CreateOptions{})
-	if err != nil {
-		if !k8sErrors.IsAlreadyExists(err) {
-			return nil, errors.Wrap(err, "failed to create CLI command job")
-		}
-		logger.Warnf("Job %q already exists", jobName)
-	}
-
-	err = wait.Poll(time.Second, 1*time.Minute, func() (bool, error) {
-		job, err = jobsClient.Get(ctx, jobName, metav1.GetOptions{})
-		if err != nil {
-			return false, errors.Wrapf(err, "failed to get %q job", jobName)
-		}
-		if job.Status.Active == 0 && job.Status.CompletionTime == nil {
-			logger.Infof("Job %q not yet started", jobName)
-			return false, nil
-		}
-		return true, nil
-	})
-	if err != nil {
-		return nil, errors.Wrapf(err, "Job %q not yet finished", jobName)
-	}
-
-	// Read logs to get output? Or ignore output?
-
-	// Wait for job to finish
-	// How to get output?
-
-}
+//// ExecClusterInstallationCLIIsolated execs the provided command on the defined cluster installation.
+//func (provisioner *KopsProvisioner) ExecClusterInstallationCLIIsolated(cluster *model.Cluster, clusterInstallation *model.ClusterInstallation, args ...string) ([]byte, error) {
+//	logger := provisioner.logger.WithFields(log.Fields{
+//		"cluster":      clusterInstallation.ClusterID,
+//		"installation": clusterInstallation.InstallationID,
+//	})
+//	logger.Info("Executing isolated CLI command on cluster installation")
+//
+//	k8sClient, invalidateCache, err := provisioner.k8sClient(cluster.ProvisionerMetadataKops.Name, logger)
+//	if err != nil {
+//		return nil, errors.Wrap(err, "failed to create k8s client")
+//	}
+//	defer invalidateCache(err)
+//
+//	installationName := makeClusterInstallationName(clusterInstallation)
+//
+//	ctx := context.TODO()
+//	mmClient := k8sClient.MattermostClientsetV1Alpha.MattermostV1alpha1().ClusterInstallations(clusterInstallation.Namespace)
+//
+//	deploymentList, err := k8sClient.Clientset.AppsV1().Deployments(clusterInstallation.Namespace).List(ctx, metav1.ListOptions{
+//		LabelSelector: "app=mattermost",
+//	})
+//	if err != nil {
+//		return nil, errors.Wrap(err, "failed to get installation deployments")
+//	}
+//
+//	if len(deploymentList.Items) == 0 {
+//		return nil, errors.New("no mattermost deployments found")
+//	}
+//
+//	// TODO: random suffix to command? Some extra arg?
+//	jobName := "command"
+//
+//	job := resources.PrepareMattermostJobTemplate(jobName, clusterInstallation.Namespace, &deploymentList.Items[0])
+//
+//	for i := range job.Spec.Template.Spec.Containers {
+//		job.Spec.Template.Spec.Containers[i].Command = args
+//	}
+//
+//	jobsClient := k8sClient.Clientset.BatchV1().Jobs(clusterInstallation.Namespace)
+//
+//	job, err = jobsClient.Create(ctx, job, metav1.CreateOptions{})
+//	if err != nil {
+//		if !k8sErrors.IsAlreadyExists(err) {
+//			return nil, errors.Wrap(err, "failed to create CLI command job")
+//		}
+//		logger.Warnf("Job %q already exists", jobName)
+//	}
+//
+//	err = wait.Poll(time.Second, 1*time.Minute, func() (bool, error) {
+//		job, err = jobsClient.Get(ctx, jobName, metav1.GetOptions{})
+//		if err != nil {
+//			return false, errors.Wrapf(err, "failed to get %q job", jobName)
+//		}
+//		if job.Status.Active == 0 && job.Status.CompletionTime == nil {
+//			logger.Infof("Job %q not yet started", jobName)
+//			return false, nil
+//		}
+//		return true, nil
+//	})
+//	if err != nil {
+//		return nil, errors.Wrapf(err, "Job %q not yet finished", jobName)
+//	}
+//
+//	// Read logs to get output? Or ignore output?
+//
+//	// Wait for job to finish
+//	// How to get output?
+//
+//}
 
 // getClusterInstallationResource gets the cluster installation resource from
 // the kubernetes API.
