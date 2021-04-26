@@ -5,8 +5,9 @@
 package supervisor
 
 import (
-	"github.com/mattermost/mattermost-cloud/internal/tools/utils"
 	"time"
+
+	"github.com/mattermost/mattermost-cloud/internal/tools/utils"
 
 	"github.com/mattermost/mattermost-cloud/internal/components"
 	"github.com/mattermost/mattermost-cloud/internal/provisioner"
@@ -64,17 +65,18 @@ type databaseProvider interface {
 // The degree of parallelism is controlled by a weighted semaphore, intended to be shared with
 // other clients needing to coordinate background jobs.
 type DBMigrationSupervisor struct {
-	store      installationDBMigrationStore
-	aws        aws.AWS
-	dbProvider databaseProvider
-	instanceID string
-	logger     log.FieldLogger
+	store       installationDBMigrationStore
+	aws         aws.AWS
+	dbProvider  databaseProvider
+	instanceID  string
+	environment string
+	logger      log.FieldLogger
 
 	// TODO: idealy remove and use cluster CI supervisor?
 	dbMigrationProvisioner dbMigrationProvisioner
 }
 
-// NewBackupSupervisor creates a new BackupSupervisor.
+// NewInstallationDBMigrationSupervisor creates a new DBMigrationSupervisor.
 func NewInstallationDBMigrationSupervisor(
 	store installationDBMigrationStore,
 	aws aws.AWS,
@@ -87,6 +89,7 @@ func NewInstallationDBMigrationSupervisor(
 		aws:                    aws,
 		dbProvider:             dbProvider,
 		instanceID:             instanceID,
+		environment:            aws.GetCloudEnvironmentName(),
 		logger:                 logger,
 		dbMigrationProvisioner: provisioner,
 	}
@@ -396,12 +399,27 @@ func (s *DBMigrationSupervisor) finalizeMigration(dbMigration *model.DBMigration
 	}
 	defer lock.Unlock()
 
-	// TODO: maybe allow different states in future
+	oldState := installation.State
+
 	installation.State = model.InstallationStateHibernating
 	err = s.store.UpdateInstallation(installation)
 	if err != nil {
 		logger.WithError(err).Errorf("Failed to set installation back to hibernating after migration")
 		return dbMigration.State
+	}
+
+	webhookPayload := &model.WebhookPayload{
+		Type:      model.TypeInstallation,
+		ID:        installation.ID,
+		NewState:  installation.State,
+		OldState:  oldState,
+		Timestamp: time.Now().UnixNano(),
+		ExtraData: map[string]string{"DNS": installation.DNS, "Environment": s.environment},
+	}
+
+	err = webhook.SendToAllWebhooks(s.store, webhookPayload, logger.WithField("webhookEvent", webhookPayload.NewState))
+	if err != nil {
+		logger.WithError(err).Error("Unable to process and send webhooks")
 	}
 
 	dbMigration.CompleteAt = utils.GetMillis()
@@ -422,11 +440,27 @@ func (s *DBMigrationSupervisor) failMigration(dbMigration *model.DBMigrationOper
 	}
 	defer lock.Unlock()
 
+	oldState := installation.State
+
 	installation.State = model.InstallationStateDBMigrationFailed
 	err = s.store.UpdateInstallation(installation)
 	if err != nil {
 		logger.WithError(err).Errorf("Failed to set installation back to hibernating after migration")
 		return dbMigration.State
+	}
+
+	webhookPayload := &model.WebhookPayload{
+		Type:      model.TypeInstallation,
+		ID:        installation.ID,
+		NewState:  installation.State,
+		OldState:  oldState,
+		Timestamp: time.Now().UnixNano(),
+		ExtraData: map[string]string{"DNS": installation.DNS, "Environment": s.environment},
+	}
+
+	err = webhook.SendToAllWebhooks(s.store, webhookPayload, logger.WithField("webhookEvent", webhookPayload.NewState))
+	if err != nil {
+		logger.WithError(err).Error("Unable to process and send webhooks")
 	}
 
 	return model.DBMigrationStateFailed
