@@ -647,8 +647,7 @@ func updateInstallationState(c *Context, installationDTO *model.InstallationDTO,
 	}
 	installationDTO.State = newState
 
-	// TODO: if you want to move with it make update state only func?
-	err := c.Store.UpdateInstallation(installationDTO.Installation)
+	err := c.Store.UpdateInstallationState(installationDTO.Installation)
 	if err != nil {
 		return err
 	}

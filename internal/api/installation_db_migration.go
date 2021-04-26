@@ -80,6 +80,7 @@ func handleInstallationDatabaseMigration(c *Context, w http.ResponseWriter, r *h
 	}
 
 	oldInstallationState := installationDTO.State
+
 	// TODO: one transaction
 	err = c.Store.CreateInstallationDBMigration(dbMigrationOperation)
 	if err != nil {
@@ -108,7 +109,7 @@ func handleInstallationDatabaseMigration(c *Context, w http.ResponseWriter, r *h
 	if err != nil {
 		c.Logger.WithError(err).Error("Unable to process and send webhooks")
 	}
-	
+
 	installationWebhookPayload := &model.WebhookPayload{
 		Type:      model.TypeInstallation,
 		ID:        installationDTO.ID,

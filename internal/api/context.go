@@ -37,6 +37,7 @@ type Store interface {
 	GetInstallationsCount(includeDeleted bool) (int64, error)
 	GetInstallationsStatus() (*model.InstallationsStatus, error)
 	UpdateInstallation(installation *model.Installation) error
+	UpdateInstallationState(installation *model.Installation) error
 	LockInstallation(installationID, lockerID string) (bool, error)
 	UnlockInstallation(installationID, lockerID string, force bool) (bool, error)
 	LockInstallationAPI(installationID string) error
@@ -67,7 +68,7 @@ type Store interface {
 	GetMultitenantDatabases(filter *model.MultitenantDatabaseFilter) ([]*model.MultitenantDatabase, error)
 	GetMultitenantDatabase(id string) (*model.MultitenantDatabase, error)
 
-	model.InstallationDatabaseStoreInterface // TODO: remove
+	model.InstallationDatabaseStoreInterface // TODO: remove - only needed methods?
 
 	GetOrCreateAnnotations(annotations []*model.Annotation) ([]*model.Annotation, error)
 
