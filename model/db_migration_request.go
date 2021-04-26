@@ -19,10 +19,9 @@ type DBMigrationRequest struct {
 
 type InstallationDBMigrationFilter struct {
 	Paging
-	IDs                   []string
-	InstallationID        string
-	ClusterInstallationID string
-	States                []DBMigrationOperationState
+	IDs            []string
+	InstallationID string
+	States         []DBMigrationOperationState
 }
 
 // TODO: test - generate?

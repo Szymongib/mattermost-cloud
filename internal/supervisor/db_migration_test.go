@@ -79,14 +79,14 @@ func TestDBMigrationSupervisor_Supervise(t *testing.T) {
 			State:          model.DBMigrationStateRequested,
 		}
 
-		err := sqlStore.CreateInstallationDBMigration(migrationOp)
+		err := sqlStore.CreateInstallationDBMigrationOperation(migrationOp)
 		require.NoError(t, err)
 
 		dbMigrationSupervisor := supervisor.NewInstallationDBMigrationSupervisor(sqlStore, &mockAWS{}, &utils.ResourceUtil{}, "instanceID", nil, logger)
 		dbMigrationSupervisor.Supervise(migrationOp)
 
 		// Assert
-		migrationOp, err = sqlStore.GetInstallationDBMigration(migrationOp.ID)
+		migrationOp, err = sqlStore.GetInstallationDBMigrationOperation(migrationOp.ID)
 		require.NoError(t, err)
 		assert.Equal(t, model.DBMigrationStateInstallationBackupInProgress, migrationOp.State)
 		assert.NotEmpty(t, migrationOp.BackupID)
@@ -145,14 +145,14 @@ func TestDBMigrationSupervisor_Supervise(t *testing.T) {
 					BackupID:       backup.ID,
 				}
 
-				err = sqlStore.CreateInstallationDBMigration(migrationOp)
+				err = sqlStore.CreateInstallationDBMigrationOperation(migrationOp)
 				require.NoError(t, err)
 
 				dbMigrationSupervisor := supervisor.NewInstallationDBMigrationSupervisor(sqlStore, &mockAWS{}, &utils.ResourceUtil{}, "instanceID", nil, logger)
 				dbMigrationSupervisor.Supervise(migrationOp)
 
 				// Assert
-				migrationOp, err = sqlStore.GetInstallationDBMigration(migrationOp.ID)
+				migrationOp, err = sqlStore.GetInstallationDBMigrationOperation(migrationOp.ID)
 				require.NoError(t, err)
 				assert.Equal(t, testCase.expectedState, migrationOp.State)
 			})
@@ -175,14 +175,14 @@ func TestDBMigrationSupervisor_Supervise(t *testing.T) {
 			DestinationMultiTenant: &model.MultiTenantDBMigrationData{DatabaseID: "destination-id"},
 		}
 
-		err := sqlStore.CreateInstallationDBMigration(migrationOp)
+		err := sqlStore.CreateInstallationDBMigrationOperation(migrationOp)
 		require.NoError(t, err)
 
 		dbMigrationSupervisor := supervisor.NewInstallationDBMigrationSupervisor(sqlStore, &mockAWS{}, &mockResourceUtil{}, "instanceID", nil, logger)
 		dbMigrationSupervisor.Supervise(migrationOp)
 
 		// Assert
-		migrationOp, err = sqlStore.GetInstallationDBMigration(migrationOp.ID)
+		migrationOp, err = sqlStore.GetInstallationDBMigrationOperation(migrationOp.ID)
 		require.NoError(t, err)
 		assert.Equal(t, model.DBMigrationStateRefreshSecrets, migrationOp.State)
 
@@ -203,14 +203,14 @@ func TestDBMigrationSupervisor_Supervise(t *testing.T) {
 			State:          model.DBMigrationStateRefreshSecrets,
 		}
 
-		err := sqlStore.CreateInstallationDBMigration(migrationOp)
+		err := sqlStore.CreateInstallationDBMigrationOperation(migrationOp)
 		require.NoError(t, err)
 
 		dbMigrationSupervisor := supervisor.NewInstallationDBMigrationSupervisor(sqlStore, &mockAWS{}, &mockResourceUtil{}, "instanceID", &mockMigrationProvisioner{}, logger)
 		dbMigrationSupervisor.Supervise(migrationOp)
 
 		// Assert
-		migrationOp, err = sqlStore.GetInstallationDBMigration(migrationOp.ID)
+		migrationOp, err = sqlStore.GetInstallationDBMigrationOperation(migrationOp.ID)
 		require.NoError(t, err)
 		assert.Equal(t, model.DBMigrationStateTriggerRestoration, migrationOp.State)
 	})
@@ -235,14 +235,14 @@ func TestDBMigrationSupervisor_Supervise(t *testing.T) {
 			BackupID:       backup.ID,
 		}
 
-		err = sqlStore.CreateInstallationDBMigration(migrationOp)
+		err = sqlStore.CreateInstallationDBMigrationOperation(migrationOp)
 		require.NoError(t, err)
 
 		dbMigrationSupervisor := supervisor.NewInstallationDBMigrationSupervisor(sqlStore, &mockAWS{}, &mockResourceUtil{}, "instanceID", nil, logger)
 		dbMigrationSupervisor.Supervise(migrationOp)
 
 		// Assert
-		migrationOp, err = sqlStore.GetInstallationDBMigration(migrationOp.ID)
+		migrationOp, err = sqlStore.GetInstallationDBMigrationOperation(migrationOp.ID)
 		require.NoError(t, err)
 		assert.Equal(t, model.DBMigrationStateRestorationInProgress, migrationOp.State)
 		assert.NotEmpty(t, migrationOp.InstallationDBRestorationOperationID)
@@ -266,14 +266,14 @@ func TestDBMigrationSupervisor_Supervise(t *testing.T) {
 			State:          model.DBMigrationStateTriggerRestoration,
 		}
 
-		err := sqlStore.CreateInstallationDBMigration(migrationOp)
+		err := sqlStore.CreateInstallationDBMigrationOperation(migrationOp)
 		require.NoError(t, err)
 
 		dbMigrationSupervisor := supervisor.NewInstallationDBMigrationSupervisor(sqlStore, &mockAWS{}, &mockResourceUtil{}, "instanceID", nil, logger)
 		dbMigrationSupervisor.Supervise(migrationOp)
 
 		// Assert
-		migrationOp, err = sqlStore.GetInstallationDBMigration(migrationOp.ID)
+		migrationOp, err = sqlStore.GetInstallationDBMigrationOperation(migrationOp.ID)
 		require.NoError(t, err)
 		assert.Equal(t, model.DBMigrationStateFailing, migrationOp.State)
 	})
@@ -335,14 +335,14 @@ func TestDBMigrationSupervisor_Supervise(t *testing.T) {
 					InstallationDBRestorationOperationID: restorationOp.ID,
 				}
 
-				err = sqlStore.CreateInstallationDBMigration(migrationOp)
+				err = sqlStore.CreateInstallationDBMigrationOperation(migrationOp)
 				require.NoError(t, err)
 
 				dbMigrationSupervisor := supervisor.NewInstallationDBMigrationSupervisor(sqlStore, &mockAWS{}, &utils.ResourceUtil{}, "instanceID", nil, logger)
 				dbMigrationSupervisor.Supervise(migrationOp)
 
 				// Assert
-				migrationOp, err = sqlStore.GetInstallationDBMigration(migrationOp.ID)
+				migrationOp, err = sqlStore.GetInstallationDBMigrationOperation(migrationOp.ID)
 				require.NoError(t, err)
 				assert.Equal(t, testCase.expectedState, migrationOp.State)
 			})
@@ -363,14 +363,14 @@ func TestDBMigrationSupervisor_Supervise(t *testing.T) {
 			State:          model.DBMigrationStateFinalizing,
 		}
 
-		err := sqlStore.CreateInstallationDBMigration(migrationOp)
+		err := sqlStore.CreateInstallationDBMigrationOperation(migrationOp)
 		require.NoError(t, err)
 
 		dbMigrationSupervisor := supervisor.NewInstallationDBMigrationSupervisor(sqlStore, &mockAWS{}, &mockResourceUtil{}, "instanceID", nil, logger)
 		dbMigrationSupervisor.Supervise(migrationOp)
 
 		// Assert
-		migrationOp, err = sqlStore.GetInstallationDBMigration(migrationOp.ID)
+		migrationOp, err = sqlStore.GetInstallationDBMigrationOperation(migrationOp.ID)
 		require.NoError(t, err)
 		assert.Equal(t, model.DBMigrationStateSucceeded, migrationOp.State)
 		assert.True(t, migrationOp.CompleteAt > 0)
@@ -392,14 +392,14 @@ func TestDBMigrationSupervisor_Supervise(t *testing.T) {
 			State:          model.DBMigrationStateFailing,
 		}
 
-		err := sqlStore.CreateInstallationDBMigration(migrationOp)
+		err := sqlStore.CreateInstallationDBMigrationOperation(migrationOp)
 		require.NoError(t, err)
 
 		dbMigrationSupervisor := supervisor.NewInstallationDBMigrationSupervisor(sqlStore, &mockAWS{}, &mockResourceUtil{}, "instanceID", nil, logger)
 		dbMigrationSupervisor.Supervise(migrationOp)
 
 		// Assert
-		migrationOp, err = sqlStore.GetInstallationDBMigration(migrationOp.ID)
+		migrationOp, err = sqlStore.GetInstallationDBMigrationOperation(migrationOp.ID)
 		require.NoError(t, err)
 		assert.Equal(t, model.DBMigrationStateFailed, migrationOp.State)
 

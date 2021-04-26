@@ -7,11 +7,11 @@ import (
 )
 
 type Sender struct {
-	store webhookStore
+	store       webhookStore
 	environment string
 }
 
-func (s *Sender) SendInstallationWebhook(installation *model.Installation, oldState, newState string, logger log.FieldLogger)  {
+func (s *Sender) SendInstallationWebhook(installation *model.Installation, oldState, newState string, logger log.FieldLogger) {
 	if oldState == "" {
 		oldState = "n/a"
 	}

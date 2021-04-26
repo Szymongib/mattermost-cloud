@@ -19,10 +19,10 @@ import (
 
 // installationDBMigrationStore abstracts the database operations required by the supervisor.
 type installationDBMigrationStore interface {
-	GetUnlockedInstallationDBMigrationsPendingWork() ([]*model.DBMigrationOperation, error)
-	GetInstallationDBMigration(id string) (*model.DBMigrationOperation, error)
-	UpdateInstallationDBMigrationState(dbMigration *model.DBMigrationOperation) error
-	UpdateInstallationDBMigration(dbMigration *model.DBMigrationOperation) error
+	GetUnlockedInstallationDBMigrationOperationsPendingWork() ([]*model.DBMigrationOperation, error)
+	GetInstallationDBMigrationOperation(id string) (*model.DBMigrationOperation, error)
+	UpdateInstallationDBMigrationOperationState(dbMigration *model.DBMigrationOperation) error
+	UpdateInstallationDBMigrationOperation(dbMigration *model.DBMigrationOperation) error
 	dBMigrationOperationLockStore
 
 	TriggerInstallationRestoration(installation *model.Installation, backup *model.InstallationBackup) (*model.InstallationDBRestorationOperation, error)
@@ -102,7 +102,7 @@ func (s *DBMigrationSupervisor) Shutdown() {
 
 // Do looks for work to be done on any pending backups and attempts to schedule the required work.
 func (s *DBMigrationSupervisor) Do() error {
-	installationDBMigrations, err := s.store.GetUnlockedInstallationDBMigrationsPendingWork()
+	installationDBMigrations, err := s.store.GetUnlockedInstallationDBMigrationOperationsPendingWork()
 	if err != nil {
 		s.logger.WithError(err).Warn("Failed to query for pending work")
 		return nil
@@ -130,7 +130,7 @@ func (s *DBMigrationSupervisor) Supervise(migration *model.DBMigrationOperation)
 	// Before working on the migration operation, it is crucial that we ensure that it
 	// was not updated to a new state by another provisioning server.
 	originalState := migration.State
-	migration, err := s.store.GetInstallationDBMigration(migration.ID)
+	migration, err := s.store.GetInstallationDBMigrationOperation(migration.ID)
 	if err != nil {
 		logger.WithError(err).Errorf("Failed to get refreshed migration")
 		return
@@ -146,7 +146,7 @@ func (s *DBMigrationSupervisor) Supervise(migration *model.DBMigrationOperation)
 
 	newState := s.transitionMigration(migration, s.instanceID, logger)
 
-	migration, err = s.store.GetInstallationDBMigration(migration.ID)
+	migration, err = s.store.GetInstallationDBMigrationOperation(migration.ID)
 	if err != nil {
 		logger.WithError(err).Errorf("Failed to get migration and thus persist state %s", newState)
 		return
@@ -159,7 +159,7 @@ func (s *DBMigrationSupervisor) Supervise(migration *model.DBMigrationOperation)
 	oldState := migration.State
 	migration.State = newState
 
-	err = s.store.UpdateInstallationDBMigrationState(migration)
+	err = s.store.UpdateInstallationDBMigrationOperationState(migration)
 	if err != nil {
 		logger.WithError(err).Errorf("Failed to set migration state to %s", newState)
 		return
@@ -227,7 +227,7 @@ func (s *DBMigrationSupervisor) triggerInstallationBackup(dbMigration *model.DBM
 	}
 
 	dbMigration.BackupID = backup.ID
-	err = s.store.UpdateInstallationDBMigration(dbMigration)
+	err = s.store.UpdateInstallationDBMigrationOperation(dbMigration)
 	if err != nil {
 		logger.WithError(err).Error("Failed to set backup ID for DB migration")
 		return dbMigration.State
@@ -355,7 +355,7 @@ func (s *DBMigrationSupervisor) triggerInstallationRestoration(dbMigration *mode
 	}
 
 	dbMigration.InstallationDBRestorationOperationID = dbRestoration.ID
-	err = s.store.UpdateInstallationDBMigration(dbMigration)
+	err = s.store.UpdateInstallationDBMigrationOperation(dbMigration)
 	if err != nil {
 		logger.WithError(err).Error("Failed to set restoration operation ID for DB migration")
 		return dbMigration.State
@@ -423,7 +423,7 @@ func (s *DBMigrationSupervisor) finalizeMigration(dbMigration *model.DBMigration
 	}
 
 	dbMigration.CompleteAt = utils.GetMillis()
-	err = s.store.UpdateInstallationDBMigration(dbMigration)
+	err = s.store.UpdateInstallationDBMigrationOperation(dbMigration)
 	if err != nil {
 		logger.WithError(err).Errorf("Failed to set complete at for db migration")
 		return dbMigration.State

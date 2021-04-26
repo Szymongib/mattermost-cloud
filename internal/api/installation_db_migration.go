@@ -72,7 +72,6 @@ func handleInstallationDatabaseMigration(c *Context, w http.ResponseWriter, r *h
 
 	dbMigrationOperation := &model.DBMigrationOperation{
 		InstallationID:         migrationRequest.InstallationID,
-		State:                  model.DBMigrationStateRequested,
 		SourceDatabase:         installationDTO.Database,
 		DestinationDatabase:    migrationRequest.DestinationDatabase,
 		SourceMultiTenant:      &model.MultiTenantDBMigrationData{DatabaseID: currentDB.ID},
@@ -81,18 +80,9 @@ func handleInstallationDatabaseMigration(c *Context, w http.ResponseWriter, r *h
 
 	oldInstallationState := installationDTO.State
 
-	// TODO: one transaction
-	err = c.Store.CreateInstallationDBMigration(dbMigrationOperation)
+	dbMigrationOperation, err = c.Store.TriggerInstallationDBMigration(dbMigrationOperation, installationDTO.Installation)
 	if err != nil {
-		c.Logger.WithError(err).Error("Failed to create DB migration operation")
-		w.WriteHeader(http.StatusInternalServerError)
-		return
-	}
-
-	installationDTO.State = model.InstallationStateDBMigrationInProgress
-	err = c.Store.UpdateInstallation(installationDTO.Installation)
-	if err != nil {
-		c.Logger.WithError(err).Error("Failed to update installation state")
+		c.Logger.WithError(err).Error("Failed to trigger DB migration operation")
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
@@ -149,7 +139,7 @@ func handleGetInstallationDBMigrationOperations(c *Context, w http.ResponseWrite
 		states = append(states, model.DBMigrationOperationState(state))
 	}
 
-	dbMigrations, err := c.Store.GetInstallationDBMigrations(&model.InstallationDBMigrationFilter{
+	dbMigrations, err := c.Store.GetInstallationDBMigrationOperations(&model.InstallationDBMigrationFilter{
 		Paging:                paging,
 		InstallationID:        installationID,
 		ClusterInstallationID: clusterInstallationID,
