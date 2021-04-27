@@ -1,6 +1,7 @@
 package api
 
 import (
+	"github.com/gorilla/mux"
 	"github.com/mattermost/mattermost-cloud/internal/tools/aws"
 	"github.com/mattermost/mattermost-cloud/internal/webhook"
 	"github.com/mattermost/mattermost-cloud/model"
@@ -9,9 +10,25 @@ import (
 	"time"
 )
 
+// initInstallationMigration registers installation migration operation endpoints on the given router.
+func initInstallationMigration(apiRouter *mux.Router, context *Context) {
+	addContext := func(handler contextHandlerFunc) *contextHandler {
+		return newContextHandler(context, handler)
+	}
+
+	restorationsRouter := apiRouter.PathPrefix("/operations/database/migrations").Subrouter()
+
+	restorationsRouter.Handle("", addContext(handleTriggerInstallationDatabaseMigration)).Methods("POST")
+	restorationsRouter.Handle("", addContext(handleGetInstallationDBMigrationOperations)).Methods("GET")
+
+	//restorationRouter := apiRouter.PathPrefix("/operations/database/restoration/{restoration:[A-Za-z0-9]{26}}").Subrouter()
+	//restorationRouter.Handle("", addContext(handleGetInstallationDBRestorationOperation)).Methods("GET")
+}
+
+
 // TODO: comments + tests
 // TODO: move to backups?
-func handleInstallationDatabaseMigration(c *Context, w http.ResponseWriter, r *http.Request) {
+func handleTriggerInstallationDatabaseMigration(c *Context, w http.ResponseWriter, r *http.Request) {
 	c.Logger = c.Logger.WithField("action", "migrate-installation-database")
 
 	////TODO: remove the backdoor lol
@@ -154,6 +171,12 @@ func handleGetInstallationDBMigrationOperations(c *Context, w http.ResponseWrite
 }
 
 func validateDBMigration(c *Context, installation *model.Installation, migrationRequest *model.DBMigrationRequest, currentDB *model.MultitenantDatabase) error {
+
+	// TODO: might not need this
+	if installation.CRVersion != model.V1betaCRVersion {
+		return errors.Errorf("db migration is only supported for Beta CR, the CR Version is %q", installation.CRVersion)
+	}
+
 	if migrationRequest.DestinationDatabase != model.InstallationDatabaseMultiTenantRDSPostgres ||
 		installation.Database != model.InstallationDatabaseMultiTenantRDSPostgres {
 		return errors.Errorf("db migration is supported when both source and destination are %q database", model.InstallationDatabaseMultiTenantRDSPostgres)

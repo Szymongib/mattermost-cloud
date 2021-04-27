@@ -54,6 +54,7 @@ type installationDBMigrationStore interface {
 // TODO: clusterResourceProvisioner / SecretsProvisioner?
 type dbMigrationProvisioner interface {
 	ClusterInstallationProvisioner(version string) provisioner.ClusterInstallationProvisioner
+	ExecClusterInstallationCLIIsolated(cluster *model.Cluster, clusterInstallation *model.ClusterInstallation, args ...string) error
 }
 
 type databaseProvider interface {
@@ -384,9 +385,46 @@ func (s *DBMigrationSupervisor) waitForInstallationRestoration(dbMigration *mode
 	}
 }
 
+// TODO: test it
 func (s *DBMigrationSupervisor) updateInstallationConfig(dbMigration *model.DBMigrationOperation, instanceID string, logger log.FieldLogger) model.DBMigrationOperationState {
 
 	// TODO: Update Installation config - mattermost config set SqlSettings.DataSource "NEW_CONNECTION_STR"
+
+	installation, err := s.store.GetInstallation(dbMigration.InstallationID, false, false)
+	if err != nil {
+		logger.WithError(err).Error("Failed to get installation")
+		return dbMigration.State
+	}
+	if installation == nil {
+		logger.Error("Installation not found")
+		return dbMigration.State
+	}
+
+	clusterInstallation, ciLock, err := claimClusterInstallation(s.store, installation, instanceID, logger)
+	if err != nil {
+		logger.WithError(err).Error("Failed to claim cluster installation")
+		return dbMigration.State
+	}
+	defer ciLock.Unlock()
+
+	cluster, err := s.store.GetCluster(clusterInstallation.ClusterID)
+	if err != nil {
+		logger.WithError(err).Error("Failed to get cluster")
+		return dbMigration.State
+	}
+	if cluster == nil {
+		logger.Error("Cluster not found")
+		return dbMigration.State
+	}
+
+	command := []string{"/bin/sh", "-c", "mattermost config set SqlSettings.DataSource $MM_CONFIG"}
+
+	// TODO: one step or separate wait?
+	err = s.dbMigrationProvisioner.ExecClusterInstallationCLIIsolated(cluster, clusterInstallation, command...)
+	if err != nil {
+		logger.WithError(err).Error("Failed to execute command on cluster installation")
+		return dbMigration.State
+	}
 
 	return model.DBMigrationStateFinalizing
 }

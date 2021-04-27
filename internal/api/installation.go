@@ -26,10 +26,7 @@ func initInstallation(apiRouter *mux.Router, context *Context) {
 	installationsRouter := apiRouter.PathPrefix("/installations").Subrouter()
 	initInstallationBackup(installationsRouter, context)
 	initInstallationRestoration(installationsRouter, context)
-
-	// TODO: move migrations stuff
-	installationsRouter.Handle("/database/migrate", addContext(handleInstallationDatabaseMigration)).Methods("POST")
-	installationsRouter.Handle("/database/migrations", addContext(handleGetInstallationDBMigrationOperations)).Methods("GET")
+	initInstallationMigration(installationsRouter, context)
 
 	installationsRouter.Handle("", addContext(handleGetInstallations)).Methods("GET")
 	installationsRouter.Handle("", addContext(handleCreateInstallation)).Methods("POST")
@@ -664,6 +661,7 @@ func updateInstallationState(c *Context, installationDTO *model.InstallationDTO,
 func getInstallationForTransition(c *Context, installationID, newState string) (*model.InstallationDTO, int, func()) {
 	installationDTO, status, unlockOnce := lockInstallation(c, installationID)
 	if status != 0 {
+		c.Logger.Errorf("Failed to lock installation, status: %d", status)
 		return nil, status, unlockOnce
 	}
 
