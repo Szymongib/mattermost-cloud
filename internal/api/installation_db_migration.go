@@ -6,6 +6,7 @@ package api
 
 import (
 	"github.com/gorilla/mux"
+	"github.com/mattermost/mattermost-cloud/internal/components"
 	"github.com/mattermost/mattermost-cloud/internal/tools/aws"
 	"github.com/mattermost/mattermost-cloud/internal/webhook"
 	"github.com/mattermost/mattermost-cloud/model"
@@ -28,7 +29,6 @@ func initInstallationMigration(apiRouter *mux.Router, context *Context) {
 	//restorationRouter := apiRouter.PathPrefix("/operations/database/restoration/{restoration:[A-Za-z0-9]{26}}").Subrouter()
 	//restorationRouter.Handle("", addContext(handleGetInstallationDBRestorationOperation)).Methods("GET")
 }
-
 
 // TODO: comments + tests
 // TODO: move to backups?
@@ -160,9 +160,9 @@ func handleGetInstallationDBMigrationOperations(c *Context, w http.ResponseWrite
 	}
 
 	dbMigrations, err := c.Store.GetInstallationDBMigrationOperations(&model.InstallationDBMigrationFilter{
-		Paging:                paging,
-		InstallationID:        installationID,
-		States:                states,
+		Paging:         paging,
+		InstallationID: installationID,
+		States:         states,
 	})
 	if err != nil {
 		c.Logger.WithError(err).Error("Failed to list installation migrations")
@@ -175,12 +175,6 @@ func handleGetInstallationDBMigrationOperations(c *Context, w http.ResponseWrite
 }
 
 func validateDBMigration(c *Context, installation *model.Installation, migrationRequest *model.DBMigrationRequest, currentDB *model.MultitenantDatabase) error {
-
-	// TODO: might not need this
-	if installation.CRVersion != model.V1betaCRVersion {
-		return errors.Errorf("db migration is only supported for Beta CR, the CR Version is %q", installation.CRVersion)
-	}
-
 	if migrationRequest.DestinationDatabase != model.InstallationDatabaseMultiTenantRDSPostgres ||
 		installation.Database != model.InstallationDatabaseMultiTenantRDSPostgres {
 		return errors.Errorf("db migration is supported when both source and destination are %q database", model.InstallationDatabaseMultiTenantRDSPostgres)
@@ -202,12 +196,9 @@ func validateDBMigration(c *Context, installation *model.Installation, migration
 		return errors.New("databases VPCs do not match, only migration inside the same VPC is supported")
 	}
 
-	weight, err := c.Store.GetInstallationsTotalDatabaseWeight(destinationDB.Installations)
+	err = components.ValidateDBMigrationDestination(c.Store, destinationDB, installation.ID, aws.DefaultRDSMultitenantDatabasePostgresCountLimit)
 	if err != nil {
-		return errors.Wrap(err, "failed to check total weight of installations in destination database")
-	}
-	if weight >= aws.DefaultRDSMultitenantDatabasePostgresCountLimit {
-		return errors.Errorf("cannot migrate to database, installations weight reached the limit: %f", weight)
+		return errors.Wrap(err, "destination database validation failed")
 	}
 
 	return nil

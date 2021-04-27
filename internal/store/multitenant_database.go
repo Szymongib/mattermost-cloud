@@ -88,6 +88,10 @@ func (sqlStore *SQLStore) GetMultitenantDatabases(filter *model.MultitenantDatab
 		builder = builder.
 			Where(sq.Like{"InstallationsRaw": fmt.Sprint("%", filter.InstallationID, "%")})
 	}
+	if len(filter.MigratedInstallationID) > 0 {
+		builder = builder.
+			Where(sq.Like{"MigratedInstallationsRaw": fmt.Sprint("%", filter.MigratedInstallationID, "%")})
+	}
 	if len(filter.LockerID) > 0 {
 		builder = builder.Where(sq.Eq{"LockAcquiredBy": filter.LockerID})
 	}
@@ -222,4 +226,14 @@ func (sqlStore *SQLStore) LockMultitenantDatabase(multitenantDatabaseID, lockerI
 // UnlockMultitenantDatabase releases a lock previously acquired against a caller.
 func (sqlStore *SQLStore) UnlockMultitenantDatabase(multitenantDatabaseID, lockerID string, force bool) (bool, error) {
 	return sqlStore.unlockRows("MultitenantDatabase", []string{multitenantDatabaseID}, lockerID, force)
+}
+
+// LockMultitenantDatabases marks MultitenantDatabases as locked for exclusive use by the caller.
+func (sqlStore *SQLStore) LockMultitenantDatabases(ids []string, lockerID string) (bool, error) {
+	return sqlStore.lockRows("MultitenantDatabase", ids, lockerID)
+}
+
+// UnlockMultitenantDatabases releases a locks previously acquired against a caller.
+func (sqlStore *SQLStore) UnlockMultitenantDatabases(ids []string, lockerID string, force bool) (bool, error) {
+	return sqlStore.unlockRows("MultitenantDatabase", ids, lockerID, force)
 }

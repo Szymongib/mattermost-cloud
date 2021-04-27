@@ -65,12 +65,12 @@ type databaseProvider interface {
 // The degree of parallelism is controlled by a weighted semaphore, intended to be shared with
 // other clients needing to coordinate background jobs.
 type DBMigrationSupervisor struct {
-	store       installationDBMigrationStore
-	aws         aws.AWS
-	dbProvider  databaseProvider
-	instanceID  string
-	environment string
-	logger      log.FieldLogger
+	store                    installationDBMigrationStore
+	aws                      aws.AWS
+	dbProvider               databaseProvider
+	instanceID               string
+	environment              string
+	logger                   log.FieldLogger
 	dbMigrationCIProvisioner dbMigrationCIProvisioner
 }
 

@@ -9,6 +9,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"github.com/mattermost/mattermost-cloud/internal/components"
 	"math"
 	"strconv"
 	"strings"
@@ -290,7 +291,6 @@ func (d *RDSMultitenantDatabase) GenerateDatabaseSecret(store model.Installation
 	return databaseSecret, nil
 }
 
-// TODO: Also teardown the migrated
 // Teardown removes all AWS resources related to a RDS multitenant database.
 func (d *RDSMultitenantDatabase) Teardown(store model.InstallationDatabaseStoreInterface, keepData bool, logger log.FieldLogger) error {
 	logger = logger.WithField("rds-multitenant-database", MattermostRDSDatabaseName(d.installationID))
@@ -320,8 +320,33 @@ func (d *RDSMultitenantDatabase) Teardown(store model.InstallationDatabaseStoreI
 		logger.Debug("No multitenant databases found for this installation; skipping...")
 	}
 
+	err = d.teardownMigrated(store, logger)
+	if err != nil {
+		return errors.Wrap(err, "Failed to teardown migrated installation databases")
+	}
+
 	logger.Info("Multitenant RDS database teardown complete")
 
+	return nil
+}
+
+func (d *RDSMultitenantDatabase) teardownMigrated(store model.InstallationDatabaseStoreInterface, logger log.FieldLogger) error {
+	databases, unlockFn, err := d.getAndLockMigratedMultitenantDatabase(store, logger)
+	if err != nil {
+		return errors.Wrap(err, "failed to get migrated multitenant database")
+	}
+	defer unlockFn()
+	if len(databases) == 0 {
+		logger.Debug("No migrated multitenant databases found for this installation; skipping...")
+		return nil
+	}
+
+	for _, db := range databases {
+		err = d.removeMigratedInstallationFromMultitenantDatabase(db, store, logger)
+		if err != nil {
+			return errors.Wrap(err, "failed to remove migrated installation database")
+		}
+	}
 	return nil
 }
 
@@ -346,7 +371,7 @@ func (d *RDSMultitenantDatabase) MigrateOut(store model.InstallationDatabaseStor
 
 	database.Installations.Remove(d.installationID)
 
-	if !contains(database.MigratedInstallations, d.installationID) {
+	if !components.Contains(database.MigratedInstallations, d.installationID) {
 		database.MigratedInstallations.Add(d.installationID)
 	}
 
@@ -387,10 +412,6 @@ func (d *RDSMultitenantDatabase) MigrateTo(store model.InstallationDatabaseStore
 		return errors.Wrap(err, "failed to query for the multitenant database")
 	}
 
-	// TODO: check if can add
-	// TODO: check if installation not already added - idempotency
-	// TODO: check if installation not in migratedInstallations - needs to cleanup first
-
 	err = d.migrateInstallationToDB(store, database)
 	if err != nil {
 		return errors.Wrap(err, "failed to migrate installation to multitenant db")
@@ -427,24 +448,15 @@ func (d *RDSMultitenantDatabase) MigrateTo(store model.InstallationDatabaseStore
 	return nil
 }
 
-// TODO: pull this validation logic to some func?
 func (d *RDSMultitenantDatabase) migrateInstallationToDB(store model.InstallationDatabaseStoreInterface, database *model.MultitenantDatabase) error {
 	// To make migration idempotent we check if installation is already in db.
-	if contains(database.Installations, d.installationID) {
+	if components.Contains(database.Installations, d.installationID) {
 		return nil
 	}
 
-	if contains(database.MigratedInstallations, d.installationID) {
-		return errors.Errorf("installation %q still exists in migrated installations for %q database, clean it up before migration", d.installationID, database.ID)
-	}
-
-	installationsWeight, err := store.GetInstallationsTotalDatabaseWeight(database.Installations)
+	err := components.ValidateDBMigrationDestination(store, database, d.installationID, float64(d.MaxSupportedDatabases()))
 	if err != nil {
-		return errors.Wrap(err, "failed to calculate weight of installations in DB")
-	}
-
-	if int(installationsWeight) >= d.MaxSupportedDatabases() {
-		return errors.Errorf("cannot migrate Installation to %q database, supported databases limit exceeded", database.ID)
+		return errors.Wrap(err, "database validation failed")
 	}
 
 	database.Installations.Add(d.installationID)
@@ -454,16 +466,6 @@ func (d *RDSMultitenantDatabase) migrateInstallationToDB(store model.Installatio
 	}
 
 	return nil
-}
-
-// TODO: it already exists somewhere
-func contains(collection []string, toFind string) bool {
-	for _, elem := range collection {
-		if toFind == elem {
-			return true
-		}
-	}
-	return false
 }
 
 // Helpers
@@ -502,6 +504,58 @@ func (d *RDSMultitenantDatabase) getAndLockAssignedMultitenantDatabase(store mod
 	}
 
 	return database, unlockFn, nil
+}
+
+// getAndLockMigratedMultitenantDatabase returns the multitenant databases
+// from which installation was migrated and they were not deleted.
+func (d *RDSMultitenantDatabase) getAndLockMigratedMultitenantDatabase(store model.InstallationDatabaseStoreInterface, logger log.FieldLogger) ([]*model.MultitenantDatabase, func(), error) {
+	multitenantDatabases, err := store.GetMultitenantDatabases(&model.MultitenantDatabaseFilter{
+		MigratedInstallationID: d.installationID,
+		MaxInstallationsLimit:  model.NoInstallationsLimit,
+		Paging:                 model.AllPagesNotDeleted(),
+	})
+	if err != nil {
+		return nil, nil, errors.Wrap(err, "failed to query for multitenant databases")
+	}
+	if len(multitenantDatabases) == 0 {
+		return nil, func() {}, nil
+	}
+
+	ids := make([]string, 0, len(multitenantDatabases))
+	for _, db := range multitenantDatabases {
+		ids = append(ids, db.ID)
+	}
+	locked, err := store.LockMultitenantDatabases(ids, d.instanceID)
+	if err != nil {
+		return nil, nil, errors.Wrap(err, "failed to lock multitenant databases")
+	}
+	if !locked {
+		return nil, nil, errors.New("could not lock multitenant databases")
+	}
+	unlockFn := func() {
+		unlocked, err := store.UnlockMultitenantDatabases(ids, d.instanceID, true)
+		if err != nil {
+			logger.Error("Failed to unlock multitenant databases")
+		}
+		if !unlocked {
+			logger.Error("Could not unlock multitenant databases")
+		}
+	}
+
+	// Take no chances that the stored multitenant database was updated between
+	// retrieving it and locking it. We know this installation is assigned to
+	// exactly one multitenant database at this point so we can use the store
+	// function to directly retrieve it.
+	for i, db := range multitenantDatabases {
+		refetched, err := store.GetMultitenantDatabase(db.ID)
+		if err != nil {
+			unlockFn()
+			return nil, nil, errors.Wrap(err, "failed to refresh multitenant database")
+		}
+		multitenantDatabases[i] = refetched
+	}
+
+	return multitenantDatabases, unlockFn, nil
 }
 
 // This helper method finds a multitenant RDS cluster that is ready for receiving a database installation. The lookup
@@ -821,6 +875,31 @@ func (d *RDSMultitenantDatabase) removeInstallationFromMultitenantDatabase(datab
 	err = store.UpdateMultitenantDatabase(database)
 	if err != nil {
 		return errors.Wrapf(err, "failed to remove installation ID %s from multitenant datastore", d.installationID)
+	}
+
+	return nil
+}
+
+// removeMigratedInstallationFromMultitenantDatabase performs the work necessary to
+// remove a single migrated installation database from a multitenant RDS cluster.
+func (d *RDSMultitenantDatabase) removeMigratedInstallationFromMultitenantDatabase(database *model.MultitenantDatabase, store model.InstallationDatabaseStoreInterface, logger log.FieldLogger) error {
+	rdsCluster, err := d.describeRDSCluster(database.ID)
+	if err != nil {
+		return errors.Wrap(err, "failed to describe multitenant database")
+	}
+
+	logger = logger.WithField("rds-cluster-id", *rdsCluster.DBClusterIdentifier)
+
+	// TODO: split this up.
+	err = d.dropDatabaseAndDeleteSecret(database.ID, *rdsCluster.Endpoint, store, logger)
+	if err != nil {
+		return errors.Wrap(err, "failed to drop database or delete secret")
+	}
+
+	database.MigratedInstallations.Remove(d.installationID)
+	err = store.UpdateMultitenantDatabase(database)
+	if err != nil {
+		return errors.Wrapf(err, "failed to remove migrated installation ID %s from multitenant datastore", d.installationID)
 	}
 
 	return nil

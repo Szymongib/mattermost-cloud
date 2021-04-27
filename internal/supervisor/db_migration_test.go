@@ -23,11 +23,13 @@ import (
 
 type mockDBMigrationStore struct {
 	DBMigrationOperation *model.DBMigrationOperation
-	MigrationPending               []*model.DBMigrationOperation
-	Installation                     *model.Installation
-	UnlockChan                       chan interface{}
+	MigrationPending     []*model.DBMigrationOperation
+	Installation         *model.Installation
+	UnlockChan           chan interface{}
 
 	UpdateMigrationOperationCalls int
+
+	mockMultitenantDBStore
 }
 
 func (m *mockDBMigrationStore) GetUnlockedInstallationDBMigrationOperationsPendingWork() ([]*model.DBMigrationOperation, error) {
@@ -40,11 +42,13 @@ func (m *mockDBMigrationStore) GetInstallationDBMigrationOperation(id string) (*
 
 func (m *mockDBMigrationStore) UpdateInstallationDBMigrationOperationState(dbMigration *model.DBMigrationOperation) error {
 	m.UpdateMigrationOperationCalls++
-	return nil}
+	return nil
+}
 
 func (m *mockDBMigrationStore) UpdateInstallationDBMigrationOperation(dbMigration *model.DBMigrationOperation) error {
 	m.UpdateMigrationOperationCalls++
-	return nil}
+	return nil
+}
 
 func (m *mockDBMigrationStore) LockDBMigrationOperations(id []string, lockerID string) (bool, error) {
 	return true, nil
@@ -137,42 +141,6 @@ func (m *mockDBMigrationStore) GetWebhooks(filter *model.WebhookFilter) ([]*mode
 	return nil, nil
 }
 
-func (m *mockDBMigrationStore) GetMultitenantDatabase(multitenantdatabaseID string) (*model.MultitenantDatabase, error) {
-	panic("implement me")
-}
-
-func (m *mockDBMigrationStore) GetMultitenantDatabases(filter *model.MultitenantDatabaseFilter) ([]*model.MultitenantDatabase, error) {
-	panic("implement me")
-}
-
-func (m *mockDBMigrationStore) GetMultitenantDatabaseForInstallationID(installationID string) (*model.MultitenantDatabase, error) {
-	panic("implement me")
-}
-
-func (m *mockDBMigrationStore) GetInstallationsTotalDatabaseWeight(installationIDs []string) (float64, error) {
-	panic("implement me")
-}
-
-func (m *mockDBMigrationStore) CreateMultitenantDatabase(multitenantDatabase *model.MultitenantDatabase) error {
-	panic("implement me")
-}
-
-func (m *mockDBMigrationStore) UpdateMultitenantDatabase(multitenantDatabase *model.MultitenantDatabase) error {
-	panic("implement me")
-}
-
-func (m *mockDBMigrationStore) LockMultitenantDatabase(multitenantdatabaseID, lockerID string) (bool, error) {
-	panic("implement me")
-}
-
-func (m *mockDBMigrationStore) UnlockMultitenantDatabase(multitenantdatabaseID, lockerID string, force bool) (bool, error) {
-	panic("implement me")
-}
-
-func (m *mockDBMigrationStore) GetSingleTenantDatabaseConfigForInstallation(installationID string) (*model.SingleTenantDatabaseConfig, error) {
-	panic("implement me")
-}
-
 type mockDatabase struct{}
 
 func (m *mockDatabase) Provision(store model.InstallationDatabaseStoreInterface, logger log.FieldLogger) error {
@@ -209,7 +177,7 @@ func (m *mockResourceUtil) GetDatabase(installationID, dbType string) model.Data
 	return &mockDatabase{}
 }
 
-type mockMigrationProvisioner struct{
+type mockMigrationProvisioner struct {
 	expectedCommand []string
 }
 
@@ -248,7 +216,7 @@ func TestDBMigrationSupervisor_Do(t *testing.T) {
 				{ID: model.NewID(), InstallationID: installation.ID, State: model.DBMigrationStateRequested},
 			},
 			DBMigrationOperation: &model.DBMigrationOperation{ID: model.NewID(), InstallationID: installation.ID, State: model.DBMigrationStateRequested},
-			UnlockChan:                       make(chan interface{}),
+			UnlockChan:           make(chan interface{}),
 		}
 
 		dbMigrationSupervisor := supervisor.NewInstallationDBMigrationSupervisor(mockStore, &mockAWS{}, &utils.ResourceUtil{}, "instanceID", nil, logger)

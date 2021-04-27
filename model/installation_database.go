@@ -59,6 +59,8 @@ type InstallationDatabaseStoreInterface interface {
 	UpdateMultitenantDatabase(multitenantDatabase *MultitenantDatabase) error
 	LockMultitenantDatabase(multitenantdatabaseID, lockerID string) (bool, error)
 	UnlockMultitenantDatabase(multitenantdatabaseID, lockerID string, force bool) (bool, error)
+	LockMultitenantDatabases(ids []string, lockerID string) (bool, error)
+	UnlockMultitenantDatabases(ids []string, lockerID string, force bool) (bool, error)
 	GetSingleTenantDatabaseConfigForInstallation(installationID string) (*SingleTenantDatabaseConfig, error)
 }
 

@@ -1,3 +1,7 @@
+// Copyright (c) 2015-present Mattermost, Inc. All Rights Reserved.
+// See LICENSE.txt for license information.
+//
+
 package components
 
 import (
@@ -5,15 +9,18 @@ import (
 	"net/http"
 )
 
+// ErrWithStatus represents error with status code.
 type ErrWithStatus struct {
 	err    error
 	status int
 }
 
+// Error returns error string.
 func (e *ErrWithStatus) Error() string {
 	return e.err.Error()
 }
 
+// NewErr creates ErrWithStatus as error interface.
 func NewErr(status int, err error) error {
 	return &ErrWithStatus{
 		err:    err,
@@ -21,6 +28,7 @@ func NewErr(status int, err error) error {
 	}
 }
 
+// ErrWrap wraps an error inside ErrWithStatus with additional message.
 func ErrWrap(status int, err error, message string) error {
 	if err == nil {
 		return nil
@@ -31,6 +39,7 @@ func ErrWrap(status int, err error, message string) error {
 	}
 }
 
+// ErrWrapf wraps an error inside ErrWithStatus with additional formatted message.
 func ErrWrapf(status int, err error, format string, args ...interface{}) error {
 	if err == nil {
 		return nil
@@ -41,6 +50,7 @@ func ErrWrapf(status int, err error, format string, args ...interface{}) error {
 	}
 }
 
+// ErrToStatus tries to extract status code from error. If the error is not ErrWithStatus returns status 500.
 func ErrToStatus(err error) int {
 	statusErr := &ErrWithStatus{}
 	if errors.As(err, &statusErr) {

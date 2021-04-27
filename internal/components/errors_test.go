@@ -1,3 +1,7 @@
+// Copyright (c) 2015-present Mattermost, Inc. All Rights Reserved.
+// See LICENSE.txt for license information.
+//
+
 package components
 
 import (
@@ -6,6 +10,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"testing"
 )
+
+// TODO: improve those tests
 
 func TestErrors(t *testing.T) {
 
