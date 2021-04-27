@@ -331,6 +331,8 @@ func (d *RDSMultitenantDatabase) Teardown(store model.InstallationDatabaseStoreI
 }
 
 func (d *RDSMultitenantDatabase) teardownMigrated(store model.InstallationDatabaseStoreInterface, logger log.FieldLogger) error {
+	logger.Info("Tearing down migrated multitenant databases")
+
 	databases, unlockFn, err := d.getAndLockMigratedMultitenantDatabase(store, logger)
 	if err != nil {
 		return errors.Wrap(err, "failed to get migrated multitenant database")
