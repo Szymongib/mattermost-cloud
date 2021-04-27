@@ -21,6 +21,158 @@ import (
 	corev1 "k8s.io/api/core/v1"
 )
 
+type mockDBMigrationStore struct {
+	DBMigrationOperation *model.DBMigrationOperation
+	MigrationPending               []*model.DBMigrationOperation
+	Installation                     *model.Installation
+	UnlockChan                       chan interface{}
+
+	UpdateMigrationOperationCalls int
+}
+
+func (m *mockDBMigrationStore) GetUnlockedInstallationDBMigrationOperationsPendingWork() ([]*model.DBMigrationOperation, error) {
+	return m.MigrationPending, nil
+}
+
+func (m *mockDBMigrationStore) GetInstallationDBMigrationOperation(id string) (*model.DBMigrationOperation, error) {
+	return m.DBMigrationOperation, nil
+}
+
+func (m *mockDBMigrationStore) UpdateInstallationDBMigrationOperationState(dbMigration *model.DBMigrationOperation) error {
+	m.UpdateMigrationOperationCalls++
+	return nil}
+
+func (m *mockDBMigrationStore) UpdateInstallationDBMigrationOperation(dbMigration *model.DBMigrationOperation) error {
+	m.UpdateMigrationOperationCalls++
+	return nil}
+
+func (m *mockDBMigrationStore) LockDBMigrationOperations(id []string, lockerID string) (bool, error) {
+	return true, nil
+}
+
+func (m *mockDBMigrationStore) UnlockDBMigrationOperations(id []string, lockerID string, force bool) (bool, error) {
+	if m.UnlockChan != nil {
+		close(m.UnlockChan)
+	}
+	return true, nil
+}
+
+func (m *mockDBMigrationStore) TriggerInstallationRestoration(installation *model.Installation, backup *model.InstallationBackup) (*model.InstallationDBRestorationOperation, error) {
+	panic("implement me")
+}
+
+func (m *mockDBMigrationStore) GetInstallationDBRestorationOperation(id string) (*model.InstallationDBRestorationOperation, error) {
+	panic("implement me")
+}
+
+func (m *mockDBMigrationStore) UpdateInstallationDBRestorationOperationState(dbRestoration *model.InstallationDBRestorationOperation) error {
+	panic("implement me")
+}
+
+func (m *mockDBMigrationStore) UpdateInstallationDBRestorationOperation(dbRestoration *model.InstallationDBRestorationOperation) error {
+	panic("implement me")
+}
+
+func (m *mockDBMigrationStore) IsInstallationBackupRunning(installationID string) (bool, error) {
+	return false, nil
+}
+
+func (m *mockDBMigrationStore) CreateInstallationBackup(backup *model.InstallationBackup) error {
+	return nil
+}
+
+func (m *mockDBMigrationStore) GetInstallationBackup(id string) (*model.InstallationBackup, error) {
+	panic("implement me")
+}
+
+func (m *mockDBMigrationStore) UpdateInstallationBackupState(backupMeta *model.InstallationBackup) error {
+	panic("implement me")
+}
+
+func (m *mockDBMigrationStore) LockInstallationBackups(backupsID []string, lockerID string) (bool, error) {
+	panic("implement me")
+}
+
+func (m *mockDBMigrationStore) UnlockInstallationBackups(backupsID []string, lockerID string, force bool) (bool, error) {
+	panic("implement me")
+}
+
+func (m *mockDBMigrationStore) GetInstallation(installationID string, includeGroupConfig, includeGroupConfigOverrides bool) (*model.Installation, error) {
+	return m.Installation, nil
+}
+
+func (m *mockDBMigrationStore) UpdateInstallation(installation *model.Installation) error {
+	panic("implement me")
+}
+
+func (m *mockDBMigrationStore) LockInstallation(installationID, lockerID string) (bool, error) {
+	return true, nil
+}
+
+func (m *mockDBMigrationStore) UnlockInstallation(installationID, lockerID string, force bool) (bool, error) {
+	return true, nil
+}
+
+func (m *mockDBMigrationStore) GetClusterInstallations(filter *model.ClusterInstallationFilter) ([]*model.ClusterInstallation, error) {
+	panic("implement me")
+}
+
+func (m *mockDBMigrationStore) GetClusterInstallation(clusterInstallationID string) (*model.ClusterInstallation, error) {
+	panic("implement me")
+}
+
+func (m *mockDBMigrationStore) LockClusterInstallations(clusterInstallationID []string, lockerID string) (bool, error) {
+	panic("implement me")
+}
+
+func (m *mockDBMigrationStore) UnlockClusterInstallations(clusterInstallationID []string, lockerID string, force bool) (bool, error) {
+	panic("implement me")
+}
+
+func (m *mockDBMigrationStore) GetCluster(id string) (*model.Cluster, error) {
+	panic("implement me")
+}
+
+func (m *mockDBMigrationStore) GetWebhooks(filter *model.WebhookFilter) ([]*model.Webhook, error) {
+	return nil, nil
+}
+
+func (m *mockDBMigrationStore) GetMultitenantDatabase(multitenantdatabaseID string) (*model.MultitenantDatabase, error) {
+	panic("implement me")
+}
+
+func (m *mockDBMigrationStore) GetMultitenantDatabases(filter *model.MultitenantDatabaseFilter) ([]*model.MultitenantDatabase, error) {
+	panic("implement me")
+}
+
+func (m *mockDBMigrationStore) GetMultitenantDatabaseForInstallationID(installationID string) (*model.MultitenantDatabase, error) {
+	panic("implement me")
+}
+
+func (m *mockDBMigrationStore) GetInstallationsTotalDatabaseWeight(installationIDs []string) (float64, error) {
+	panic("implement me")
+}
+
+func (m *mockDBMigrationStore) CreateMultitenantDatabase(multitenantDatabase *model.MultitenantDatabase) error {
+	panic("implement me")
+}
+
+func (m *mockDBMigrationStore) UpdateMultitenantDatabase(multitenantDatabase *model.MultitenantDatabase) error {
+	panic("implement me")
+}
+
+func (m *mockDBMigrationStore) LockMultitenantDatabase(multitenantdatabaseID, lockerID string) (bool, error) {
+	panic("implement me")
+}
+
+func (m *mockDBMigrationStore) UnlockMultitenantDatabase(multitenantdatabaseID, lockerID string, force bool) (bool, error) {
+	panic("implement me")
+}
+
+func (m *mockDBMigrationStore) GetSingleTenantDatabaseConfigForInstallation(installationID string) (*model.SingleTenantDatabaseConfig, error) {
+	panic("implement me")
+}
+
 type mockDatabase struct{}
 
 func (m *mockDatabase) Provision(store model.InstallationDatabaseStoreInterface, logger log.FieldLogger) error {
@@ -57,13 +209,56 @@ func (m *mockResourceUtil) GetDatabase(installationID, dbType string) model.Data
 	return &mockDatabase{}
 }
 
-type mockMigrationProvisioner struct{}
+type mockMigrationProvisioner struct{
+	expectedCommand []string
+}
 
 func (m *mockMigrationProvisioner) ClusterInstallationProvisioner(version string) provisioner.ClusterInstallationProvisioner {
 	return &mockInstallationProvisioner{}
 }
 
-// TODO: Do method tests
+func (m *mockMigrationProvisioner) ExecClusterInstallationJob(cluster *model.Cluster, clusterInstallation *model.ClusterInstallation, args ...string) error {
+	return nil
+}
+
+func TestDBMigrationSupervisor_Do(t *testing.T) {
+	t.Run("no installation migration operations pending work", func(t *testing.T) {
+		logger := testlib.MakeLogger(t)
+		mockStore := &mockDBMigrationStore{}
+
+		dbMigrationSupervisor := supervisor.NewInstallationDBMigrationSupervisor(mockStore, &mockAWS{}, &utils.ResourceUtil{}, "instanceID", nil, logger)
+		err := dbMigrationSupervisor.Do()
+		require.NoError(t, err)
+
+		require.Equal(t, 0, mockStore.UpdateMigrationOperationCalls)
+	})
+
+	t.Run("mock restoration trigger", func(t *testing.T) {
+		logger := testlib.MakeLogger(t)
+
+		installation := &model.Installation{
+			ID:        model.NewID(),
+			State:     model.InstallationStateHibernating,
+			Database:  model.InstallationDatabaseMultiTenantRDSPostgres,
+			Filestore: model.InstallationFilestoreBifrost,
+		}
+		mockStore := &mockDBMigrationStore{
+			Installation: installation,
+			MigrationPending: []*model.DBMigrationOperation{
+				{ID: model.NewID(), InstallationID: installation.ID, State: model.DBMigrationStateRequested},
+			},
+			DBMigrationOperation: &model.DBMigrationOperation{ID: model.NewID(), InstallationID: installation.ID, State: model.DBMigrationStateRequested},
+			UnlockChan:                       make(chan interface{}),
+		}
+
+		dbMigrationSupervisor := supervisor.NewInstallationDBMigrationSupervisor(mockStore, &mockAWS{}, &utils.ResourceUtil{}, "instanceID", nil, logger)
+		err := dbMigrationSupervisor.Do()
+		require.NoError(t, err)
+
+		<-mockStore.UnlockChan
+		require.Equal(t, 2, mockStore.UpdateMigrationOperationCalls)
+	})
+}
 
 func TestDBMigrationSupervisor_Supervise(t *testing.T) {
 
@@ -349,7 +544,29 @@ func TestDBMigrationSupervisor_Supervise(t *testing.T) {
 		}
 	})
 
-	// TODO: config update test
+	t.Run("update installation config", func(t *testing.T) {
+		logger := testlib.MakeLogger(t)
+		sqlStore := store.MakeTestSQLStore(t, logger)
+		defer store.CloseConnection(t, sqlStore)
+
+		installation, _ := setupMigrationRequiredResources(t, sqlStore)
+
+		migrationOp := &model.DBMigrationOperation{
+			InstallationID: installation.ID,
+			State:          model.DBMigrationStateUpdatingInstallationConfig,
+		}
+
+		err := sqlStore.CreateInstallationDBMigrationOperation(migrationOp)
+		require.NoError(t, err)
+
+		dbMigrationSupervisor := supervisor.NewInstallationDBMigrationSupervisor(sqlStore, &mockAWS{}, &mockResourceUtil{}, "instanceID", &mockMigrationProvisioner{}, logger)
+		dbMigrationSupervisor.Supervise(migrationOp)
+
+		// Assert
+		migrationOp, err = sqlStore.GetInstallationDBMigrationOperation(migrationOp.ID)
+		require.NoError(t, err)
+		assert.Equal(t, model.DBMigrationStateFinalizing, migrationOp.State)
+	})
 
 	t.Run("finalizing migration", func(t *testing.T) {
 		logger := testlib.MakeLogger(t)

@@ -8,6 +8,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/mattermost/mattermost-operator/pkg/resources"
+	"github.com/pborman/uuid"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"strings"
 	"time"
@@ -588,15 +589,13 @@ func (provisioner *KopsProvisioner) ExecClusterInstallationCLI(cluster *model.Cl
 	return output, err
 }
 
-// TODO: might need to split it to two methods - one to lunch one to wait? Or one idempotent one that takes command identifier?
-
-// ExecClusterInstallationCLIIsolated creates job executing command on cluster installation.
-func (provisioner *KopsProvisioner) ExecClusterInstallationCLIIsolated(cluster *model.Cluster, clusterInstallation *model.ClusterInstallation, args ...string) (error) {
+// ExecClusterInstallationJob creates job executing command on cluster installation.
+func (provisioner *KopsProvisioner) ExecClusterInstallationJob(cluster *model.Cluster, clusterInstallation *model.ClusterInstallation, args ...string) (error) {
 	logger := provisioner.logger.WithFields(log.Fields{
 		"cluster":      clusterInstallation.ClusterID,
 		"installation": clusterInstallation.InstallationID,
 	})
-	logger.Info("Executing isolated CLI command on cluster installation")
+	logger.Info("Executing job with CLI command on cluster installation")
 
 	k8sClient, invalidateCache, err := provisioner.k8sClient(cluster.ProvisionerMetadataKops.Name, logger)
 	if err != nil {
@@ -604,11 +603,7 @@ func (provisioner *KopsProvisioner) ExecClusterInstallationCLIIsolated(cluster *
 	}
 	defer invalidateCache(err)
 
-	//installationName := makeClusterInstallationName(clusterInstallation)
-
 	ctx := context.TODO()
-	//mmClient := k8sClient.MattermostClientsetV1Alpha.MattermostV1alpha1().ClusterInstallations(clusterInstallation.Namespace)
-
 	deploymentList, err := k8sClient.Clientset.AppsV1().Deployments(clusterInstallation.Namespace).List(ctx, metav1.ListOptions{
 		LabelSelector: "app=mattermost",
 	})
@@ -620,11 +615,8 @@ func (provisioner *KopsProvisioner) ExecClusterInstallationCLIIsolated(cluster *
 		return errors.New("no mattermost deployments found")
 	}
 
-	// TODO: random suffix to command? Some extra arg?
-	jobName := "command"
-
+	jobName := fmt.Sprintf("command-%s", uuid.New()[:6])
 	job := resources.PrepareMattermostJobTemplate(jobName, clusterInstallation.Namespace, &deploymentList.Items[0])
-
 	for i := range job.Spec.Template.Spec.Containers {
 		job.Spec.Template.Spec.Containers[i].Command = args
 	}
@@ -653,11 +645,6 @@ func (provisioner *KopsProvisioner) ExecClusterInstallationCLIIsolated(cluster *
 	if err != nil {
 		return errors.Wrapf(err, "Job %q not yet finished", jobName)
 	}
-
-	// Read logs to get output? Or ignore output?
-
-	// Wait for job to finish
-	// How to get output?
 
 	return nil
 }

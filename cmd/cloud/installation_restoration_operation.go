@@ -1,3 +1,7 @@
+// Copyright (c) 2015-present Mattermost, Inc. All Rights Reserved.
+// See LICENSE.txt for license information.
+//
+
 package main
 
 import (
@@ -10,22 +14,6 @@ import (
 )
 
 func init() {
-	//installationGetCmd.Flags().String("installation", "", "The id of the installation to be fetched.")
-	//installationGetCmd.Flags().Bool("include-group-config", true, "Whether to include group configuration in the installation or not.")
-	//installationGetCmd.Flags().Bool("include-group-config-overrides", true, "Whether to include a group configuration override summary in the installation or not.")
-	//installationGetCmd.Flags().Bool("hide-license", true, "Whether to hide the license value in the output or not.")
-	//installationGetCmd.MarkFlagRequired("installation")
-	//
-	//installationListCmd.Flags().String("owner", "", "The owner ID to filter installations by.")
-	//installationListCmd.Flags().String("group", "", "The group ID to filter installations.")
-	//installationListCmd.Flags().String("state", "", "The state to filter installations by.")
-	//installationListCmd.Flags().String("dns", "", "The dns name to filter installations by.")
-	//installationListCmd.Flags().Bool("include-group-config", true, "Whether to include group configuration in the installations or not.")
-	//installationListCmd.Flags().Bool("include-group-config-overrides", true, "Whether to include a group configuration override summary in the installations or not.")
-	//installationListCmd.Flags().Bool("hide-license", true, "Whether to hide the license value in the output or not.")
-	//installationListCmd.Flags().Bool("table", false, "Whether to display the returned installation list in a table or not.")
-	//registerPagingFlags(installationListCmd)
-
 	installationRestorationRequestCmd.Flags().String("installation", "", "The id of the installation to be restored.")
 	installationRestorationRequestCmd.Flags().String("backup", "", "The id of the backup to restore.")
 	installationRestorationRequestCmd.MarkFlagRequired("installation")
@@ -36,11 +24,6 @@ func init() {
 	installationRestorationsListCmd.Flags().String("cluster-installation", "", "The cluster installation to filter operations by.")
 	registerPagingFlags(installationRestorationsListCmd)
 	installationRestorationsListCmd.Flags().Bool("table", false, "Whether to display output in a table or not.")
-
-	//installationDatabaseMigrationCmd.Flags().String("installation", "", "The id of the installation to be migrated.")
-	//installationDatabaseMigrationCmd.Flags().String("multi-tenant-db", "", "The id of the destination multi tenant db.")
-	//installationDatabaseMigrationCmd.MarkFlagRequired("installation")
-	//installationDatabaseMigrationCmd.MarkFlagRequired("multi-tenant-db")
 
 	installationRestorationOperationCmd.AddCommand(installationRestorationRequestCmd)
 	installationRestorationOperationCmd.AddCommand(installationRestorationsListCmd)

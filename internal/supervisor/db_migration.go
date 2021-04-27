@@ -51,10 +51,9 @@ type installationDBMigrationStore interface {
 	model.InstallationDatabaseStoreInterface
 }
 
-// TODO: clusterResourceProvisioner / SecretsProvisioner?
-type dbMigrationProvisioner interface {
+type dbMigrationCIProvisioner interface {
 	ClusterInstallationProvisioner(version string) provisioner.ClusterInstallationProvisioner
-	ExecClusterInstallationCLIIsolated(cluster *model.Cluster, clusterInstallation *model.ClusterInstallation, args ...string) error
+	ExecClusterInstallationJob(cluster *model.Cluster, clusterInstallation *model.ClusterInstallation, args ...string) error
 }
 
 type databaseProvider interface {
@@ -72,9 +71,7 @@ type DBMigrationSupervisor struct {
 	instanceID  string
 	environment string
 	logger      log.FieldLogger
-
-	// TODO: idealy remove and use cluster CI supervisor?
-	dbMigrationProvisioner dbMigrationProvisioner
+	dbMigrationCIProvisioner dbMigrationCIProvisioner
 }
 
 // NewInstallationDBMigrationSupervisor creates a new DBMigrationSupervisor.
@@ -83,16 +80,16 @@ func NewInstallationDBMigrationSupervisor(
 	aws aws.AWS,
 	dbProvider databaseProvider,
 	instanceID string,
-	provisioner dbMigrationProvisioner,
+	provisioner dbMigrationCIProvisioner,
 	logger log.FieldLogger) *DBMigrationSupervisor {
 	return &DBMigrationSupervisor{
-		store:                  store,
-		aws:                    aws,
-		dbProvider:             dbProvider,
-		instanceID:             instanceID,
-		environment:            aws.GetCloudEnvironmentName(),
-		logger:                 logger,
-		dbMigrationProvisioner: provisioner,
+		store:                    store,
+		aws:                      aws,
+		dbProvider:               dbProvider,
+		instanceID:               instanceID,
+		environment:              aws.GetCloudEnvironmentName(),
+		logger:                   logger,
+		dbMigrationCIProvisioner: provisioner,
 	}
 }
 
@@ -209,11 +206,8 @@ func (s *DBMigrationSupervisor) transitionMigration(dbMigration *model.DBMigrati
 	}
 }
 
+// TODO: Allow passing existing backupID to migrate from
 func (s *DBMigrationSupervisor) triggerInstallationBackup(dbMigration *model.DBMigrationOperation, instanceID string, logger log.FieldLogger) model.DBMigrationOperationState {
-
-	// TODO: Allow passing backupID to migrate from?
-	// Maybe do it as MVP?
-
 	installation, lock, err := getAndLockInstallation(s.store, dbMigration.InstallationID, instanceID, logger)
 	if err != nil {
 		logger.WithError(err).Error("failed to get and lock installation")
@@ -261,15 +255,12 @@ func (s *DBMigrationSupervisor) waitForInstallationBackup(dbMigration *model.DBM
 }
 
 func (s *DBMigrationSupervisor) switchDatabase(dbMigration *model.DBMigrationOperation, instanceID string, logger log.FieldLogger) model.DBMigrationOperationState {
-
 	installation, lock, err := getAndLockInstallation(s.store, dbMigration.InstallationID, instanceID, logger)
 	if err != nil {
 		logger.WithError(err).Error("failed to get and lock installation")
 		return dbMigration.State
 	}
 	defer lock.Unlock()
-
-	// TODO: Validate migration is ok?
 
 	sourceDB := s.dbProvider.GetDatabase(installation.ID, dbMigration.SourceDatabase)
 
@@ -317,7 +308,7 @@ func (s *DBMigrationSupervisor) refreshCredentials(dbMigration *model.DBMigratio
 			return dbMigration.State
 		}
 
-		err = s.dbMigrationProvisioner.ClusterInstallationProvisioner(installation.CRVersion).
+		err = s.dbMigrationCIProvisioner.ClusterInstallationProvisioner(installation.CRVersion).
 			RefreshSecrets(cluster, installation, cis[0])
 		if err != nil {
 			logger.WithError(err).Errorf("Failed to refresh credentials of cluster installation")
@@ -335,9 +326,6 @@ func (s *DBMigrationSupervisor) triggerInstallationRestoration(dbMigration *mode
 		return dbMigration.State
 	}
 	defer lock.Unlock()
-
-	// TODO: This is not ideal, because the backup will start and in DB migration updated fails
-	// backup will not be able to start until the previous one finishes.
 
 	backup, err := s.store.GetInstallationBackup(dbMigration.BackupID)
 	if err != nil {
@@ -385,11 +373,7 @@ func (s *DBMigrationSupervisor) waitForInstallationRestoration(dbMigration *mode
 	}
 }
 
-// TODO: test it
 func (s *DBMigrationSupervisor) updateInstallationConfig(dbMigration *model.DBMigrationOperation, instanceID string, logger log.FieldLogger) model.DBMigrationOperationState {
-
-	// TODO: Update Installation config - mattermost config set SqlSettings.DataSource "NEW_CONNECTION_STR"
-
 	installation, err := s.store.GetInstallation(dbMigration.InstallationID, false, false)
 	if err != nil {
 		logger.WithError(err).Error("Failed to get installation")
@@ -419,8 +403,7 @@ func (s *DBMigrationSupervisor) updateInstallationConfig(dbMigration *model.DBMi
 
 	command := []string{"/bin/sh", "-c", "mattermost config set SqlSettings.DataSource $MM_CONFIG"}
 
-	// TODO: one step or separate wait?
-	err = s.dbMigrationProvisioner.ExecClusterInstallationCLIIsolated(cluster, clusterInstallation, command...)
+	err = s.dbMigrationCIProvisioner.ExecClusterInstallationJob(cluster, clusterInstallation, command...)
 	if err != nil {
 		logger.WithError(err).Error("Failed to execute command on cluster installation")
 		return dbMigration.State
