@@ -5,9 +5,10 @@
 package api
 
 import (
-	"github.com/mattermost/mattermost-cloud/internal/components"
 	"net/http"
 	"time"
+
+	"github.com/mattermost/mattermost-cloud/internal/components"
 
 	"github.com/mattermost/mattermost-cloud/internal/webhook"
 

@@ -22,8 +22,8 @@ import (
 )
 
 type mockDBMigrationStore struct {
-	DBMigrationOperation *model.DBMigrationOperation
-	MigrationPending     []*model.DBMigrationOperation
+	DBMigrationOperation *model.InstallationDBMigrationOperation
+	MigrationPending     []*model.InstallationDBMigrationOperation
 	Installation         *model.Installation
 	UnlockChan           chan interface{}
 
@@ -32,29 +32,29 @@ type mockDBMigrationStore struct {
 	mockMultitenantDBStore
 }
 
-func (m *mockDBMigrationStore) GetUnlockedInstallationDBMigrationOperationsPendingWork() ([]*model.DBMigrationOperation, error) {
+func (m *mockDBMigrationStore) GetUnlockedInstallationDBMigrationOperationsPendingWork() ([]*model.InstallationDBMigrationOperation, error) {
 	return m.MigrationPending, nil
 }
 
-func (m *mockDBMigrationStore) GetInstallationDBMigrationOperation(id string) (*model.DBMigrationOperation, error) {
+func (m *mockDBMigrationStore) GetInstallationDBMigrationOperation(id string) (*model.InstallationDBMigrationOperation, error) {
 	return m.DBMigrationOperation, nil
 }
 
-func (m *mockDBMigrationStore) UpdateInstallationDBMigrationOperationState(dbMigration *model.DBMigrationOperation) error {
+func (m *mockDBMigrationStore) UpdateInstallationDBMigrationOperationState(dbMigration *model.InstallationDBMigrationOperation) error {
 	m.UpdateMigrationOperationCalls++
 	return nil
 }
 
-func (m *mockDBMigrationStore) UpdateInstallationDBMigrationOperation(dbMigration *model.DBMigrationOperation) error {
+func (m *mockDBMigrationStore) UpdateInstallationDBMigrationOperation(dbMigration *model.InstallationDBMigrationOperation) error {
 	m.UpdateMigrationOperationCalls++
 	return nil
 }
 
-func (m *mockDBMigrationStore) LockDBMigrationOperations(id []string, lockerID string) (bool, error) {
+func (m *mockDBMigrationStore) LockInstallationDBMigrationOperations(id []string, lockerID string) (bool, error) {
 	return true, nil
 }
 
-func (m *mockDBMigrationStore) UnlockDBMigrationOperations(id []string, lockerID string, force bool) (bool, error) {
+func (m *mockDBMigrationStore) UnlockInstallationDBMigrationOperations(id []string, lockerID string, force bool) (bool, error) {
 	if m.UnlockChan != nil {
 		close(m.UnlockChan)
 	}
@@ -163,11 +163,11 @@ func (m *mockDatabase) RefreshResourceMetadata(store model.InstallationDatabaseS
 	panic("implement me")
 }
 
-func (m *mockDatabase) MigrateOut(store model.InstallationDatabaseStoreInterface, dbMigration *model.DBMigrationOperation, logger log.FieldLogger) error {
+func (m *mockDatabase) MigrateOut(store model.InstallationDatabaseStoreInterface, dbMigration *model.InstallationDBMigrationOperation, logger log.FieldLogger) error {
 	return nil
 }
 
-func (m *mockDatabase) MigrateTo(store model.InstallationDatabaseStoreInterface, dbMigration *model.DBMigrationOperation, logger log.FieldLogger) error {
+func (m *mockDatabase) MigrateTo(store model.InstallationDatabaseStoreInterface, dbMigration *model.InstallationDBMigrationOperation, logger log.FieldLogger) error {
 	return nil
 }
 
@@ -212,10 +212,10 @@ func TestDBMigrationSupervisor_Do(t *testing.T) {
 		}
 		mockStore := &mockDBMigrationStore{
 			Installation: installation,
-			MigrationPending: []*model.DBMigrationOperation{
-				{ID: model.NewID(), InstallationID: installation.ID, State: model.DBMigrationStateRequested},
+			MigrationPending: []*model.InstallationDBMigrationOperation{
+				{ID: model.NewID(), InstallationID: installation.ID, State: model.InstallationDBMigrationStateRequested},
 			},
-			DBMigrationOperation: &model.DBMigrationOperation{ID: model.NewID(), InstallationID: installation.ID, State: model.DBMigrationStateRequested},
+			DBMigrationOperation: &model.InstallationDBMigrationOperation{ID: model.NewID(), InstallationID: installation.ID, State: model.InstallationDBMigrationStateRequested},
 			UnlockChan:           make(chan interface{}),
 		}
 
@@ -237,9 +237,9 @@ func TestDBMigrationSupervisor_Supervise(t *testing.T) {
 
 		installation, _ := setupMigrationRequiredResources(t, sqlStore)
 
-		migrationOp := &model.DBMigrationOperation{
+		migrationOp := &model.InstallationDBMigrationOperation{
 			InstallationID: installation.ID,
-			State:          model.DBMigrationStateRequested,
+			State:          model.InstallationDBMigrationStateRequested,
 		}
 
 		err := sqlStore.CreateInstallationDBMigrationOperation(migrationOp)
@@ -251,7 +251,7 @@ func TestDBMigrationSupervisor_Supervise(t *testing.T) {
 		// Assert
 		migrationOp, err = sqlStore.GetInstallationDBMigrationOperation(migrationOp.ID)
 		require.NoError(t, err)
-		assert.Equal(t, model.DBMigrationStateInstallationBackupInProgress, migrationOp.State)
+		assert.Equal(t, model.InstallationDBMigrationStateBackupInProgress, migrationOp.State)
 		assert.NotEmpty(t, migrationOp.BackupID)
 
 		backup, err := sqlStore.GetInstallationBackup(migrationOp.BackupID)
@@ -265,27 +265,27 @@ func TestDBMigrationSupervisor_Supervise(t *testing.T) {
 		for _, testCase := range []struct {
 			description   string
 			backupState   model.InstallationBackupState
-			expectedState model.DBMigrationOperationState
+			expectedState model.InstallationDBMigrationOperationState
 		}{
 			{
 				description:   "when backup requested",
 				backupState:   model.InstallationBackupStateBackupRequested,
-				expectedState: model.DBMigrationStateInstallationBackupInProgress,
+				expectedState: model.InstallationDBMigrationStateBackupInProgress,
 			},
 			{
 				description:   "when backup in progress",
 				backupState:   model.InstallationBackupStateBackupInProgress,
-				expectedState: model.DBMigrationStateInstallationBackupInProgress,
+				expectedState: model.InstallationDBMigrationStateBackupInProgress,
 			},
 			{
 				description:   "when backup succeeded",
 				backupState:   model.InstallationBackupStateBackupSucceeded,
-				expectedState: model.DBMigrationStateDatabaseSwitch,
+				expectedState: model.InstallationDBMigrationStateDatabaseSwitch,
 			},
 			{
 				description:   "when backup failed",
 				backupState:   model.InstallationBackupStateBackupFailed,
-				expectedState: model.DBMigrationStateFailing,
+				expectedState: model.InstallationDBMigrationStateFailing,
 			},
 		} {
 			t.Run(testCase.description, func(t *testing.T) {
@@ -302,9 +302,9 @@ func TestDBMigrationSupervisor_Supervise(t *testing.T) {
 				err := sqlStore.CreateInstallationBackup(backup)
 				require.NoError(t, err)
 
-				migrationOp := &model.DBMigrationOperation{
+				migrationOp := &model.InstallationDBMigrationOperation{
 					InstallationID: installation.ID,
-					State:          model.DBMigrationStateInstallationBackupInProgress,
+					State:          model.InstallationDBMigrationStateBackupInProgress,
 					BackupID:       backup.ID,
 				}
 
@@ -329,9 +329,9 @@ func TestDBMigrationSupervisor_Supervise(t *testing.T) {
 
 		installation, _ := setupMigrationRequiredResources(t, sqlStore)
 
-		migrationOp := &model.DBMigrationOperation{
+		migrationOp := &model.InstallationDBMigrationOperation{
 			InstallationID:         installation.ID,
-			State:                  model.DBMigrationStateDatabaseSwitch,
+			State:                  model.InstallationDBMigrationStateDatabaseSwitch,
 			SourceDatabase:         model.InstallationDatabaseMultiTenantRDSPostgres,
 			DestinationDatabase:    model.InstallationDatabaseSingleTenantRDSPostgres,
 			SourceMultiTenant:      &model.MultiTenantDBMigrationData{DatabaseID: "source-id"},
@@ -347,7 +347,7 @@ func TestDBMigrationSupervisor_Supervise(t *testing.T) {
 		// Assert
 		migrationOp, err = sqlStore.GetInstallationDBMigrationOperation(migrationOp.ID)
 		require.NoError(t, err)
-		assert.Equal(t, model.DBMigrationStateRefreshSecrets, migrationOp.State)
+		assert.Equal(t, model.InstallationDBMigrationStateRefreshSecrets, migrationOp.State)
 
 		installation, err = sqlStore.GetInstallation(installation.ID, false, false)
 		require.NoError(t, err)
@@ -361,9 +361,9 @@ func TestDBMigrationSupervisor_Supervise(t *testing.T) {
 
 		installation, _ := setupMigrationRequiredResources(t, sqlStore)
 
-		migrationOp := &model.DBMigrationOperation{
+		migrationOp := &model.InstallationDBMigrationOperation{
 			InstallationID: installation.ID,
-			State:          model.DBMigrationStateRefreshSecrets,
+			State:          model.InstallationDBMigrationStateRefreshSecrets,
 		}
 
 		err := sqlStore.CreateInstallationDBMigrationOperation(migrationOp)
@@ -375,7 +375,7 @@ func TestDBMigrationSupervisor_Supervise(t *testing.T) {
 		// Assert
 		migrationOp, err = sqlStore.GetInstallationDBMigrationOperation(migrationOp.ID)
 		require.NoError(t, err)
-		assert.Equal(t, model.DBMigrationStateTriggerRestoration, migrationOp.State)
+		assert.Equal(t, model.InstallationDBMigrationStateTriggerRestoration, migrationOp.State)
 	})
 
 	t.Run("trigger restoration", func(t *testing.T) {
@@ -392,9 +392,9 @@ func TestDBMigrationSupervisor_Supervise(t *testing.T) {
 		err := sqlStore.CreateInstallationBackup(backup)
 		require.NoError(t, err)
 
-		migrationOp := &model.DBMigrationOperation{
+		migrationOp := &model.InstallationDBMigrationOperation{
 			InstallationID: installation.ID,
-			State:          model.DBMigrationStateTriggerRestoration,
+			State:          model.InstallationDBMigrationStateTriggerRestoration,
 			BackupID:       backup.ID,
 		}
 
@@ -407,7 +407,7 @@ func TestDBMigrationSupervisor_Supervise(t *testing.T) {
 		// Assert
 		migrationOp, err = sqlStore.GetInstallationDBMigrationOperation(migrationOp.ID)
 		require.NoError(t, err)
-		assert.Equal(t, model.DBMigrationStateRestorationInProgress, migrationOp.State)
+		assert.Equal(t, model.InstallationDBMigrationStateRestorationInProgress, migrationOp.State)
 		assert.NotEmpty(t, migrationOp.InstallationDBRestorationOperationID)
 
 		restorationOp, err := sqlStore.GetInstallationDBRestorationOperation(migrationOp.InstallationDBRestorationOperationID)
@@ -424,9 +424,9 @@ func TestDBMigrationSupervisor_Supervise(t *testing.T) {
 
 		installation, _ := setupMigrationRequiredResources(t, sqlStore)
 
-		migrationOp := &model.DBMigrationOperation{
+		migrationOp := &model.InstallationDBMigrationOperation{
 			InstallationID: installation.ID,
-			State:          model.DBMigrationStateTriggerRestoration,
+			State:          model.InstallationDBMigrationStateTriggerRestoration,
 		}
 
 		err := sqlStore.CreateInstallationDBMigrationOperation(migrationOp)
@@ -438,44 +438,44 @@ func TestDBMigrationSupervisor_Supervise(t *testing.T) {
 		// Assert
 		migrationOp, err = sqlStore.GetInstallationDBMigrationOperation(migrationOp.ID)
 		require.NoError(t, err)
-		assert.Equal(t, model.DBMigrationStateFailing, migrationOp.State)
+		assert.Equal(t, model.InstallationDBMigrationStateFailing, migrationOp.State)
 	})
 
 	t.Run("wait for installation restoration", func(t *testing.T) {
 		for _, testCase := range []struct {
 			description        string
 			restorationOpState model.InstallationDBRestorationState
-			expectedState      model.DBMigrationOperationState
+			expectedState      model.InstallationDBMigrationOperationState
 		}{
 			{
 				description:        "when restoration requested",
 				restorationOpState: model.InstallationDBRestorationStateRequested,
-				expectedState:      model.DBMigrationStateRestorationInProgress,
+				expectedState:      model.InstallationDBMigrationStateRestorationInProgress,
 			},
 			{
 				description:        "when restoration in progress",
 				restorationOpState: model.InstallationDBRestorationStateInProgress,
-				expectedState:      model.DBMigrationStateRestorationInProgress,
+				expectedState:      model.InstallationDBMigrationStateRestorationInProgress,
 			},
 			{
 				description:        "when restoration finalizing",
 				restorationOpState: model.InstallationDBRestorationStateFinalizing,
-				expectedState:      model.DBMigrationStateRestorationInProgress,
+				expectedState:      model.InstallationDBMigrationStateRestorationInProgress,
 			},
 			{
 				description:        "when restoration succeeded",
 				restorationOpState: model.InstallationDBRestorationStateSucceeded,
-				expectedState:      model.DBMigrationStateUpdatingInstallationConfig,
+				expectedState:      model.InstallationDBMigrationStateUpdatingInstallationConfig,
 			},
 			{
 				description:        "when restoration failed",
 				restorationOpState: model.InstallationDBRestorationStateFailed,
-				expectedState:      model.DBMigrationStateFailing,
+				expectedState:      model.InstallationDBMigrationStateFailing,
 			},
 			{
 				description:        "when restoration invalid",
 				restorationOpState: model.InstallationDBRestorationStateInvalid,
-				expectedState:      model.DBMigrationStateFailing,
+				expectedState:      model.InstallationDBMigrationStateFailing,
 			},
 		} {
 			t.Run(testCase.description, func(t *testing.T) {
@@ -492,9 +492,9 @@ func TestDBMigrationSupervisor_Supervise(t *testing.T) {
 				err := sqlStore.CreateInstallationDBRestorationOperation(restorationOp)
 				require.NoError(t, err)
 
-				migrationOp := &model.DBMigrationOperation{
+				migrationOp := &model.InstallationDBMigrationOperation{
 					InstallationID:                       installation.ID,
-					State:                                model.DBMigrationStateRestorationInProgress,
+					State:                                model.InstallationDBMigrationStateRestorationInProgress,
 					InstallationDBRestorationOperationID: restorationOp.ID,
 				}
 
@@ -519,9 +519,9 @@ func TestDBMigrationSupervisor_Supervise(t *testing.T) {
 
 		installation, _ := setupMigrationRequiredResources(t, sqlStore)
 
-		migrationOp := &model.DBMigrationOperation{
+		migrationOp := &model.InstallationDBMigrationOperation{
 			InstallationID: installation.ID,
-			State:          model.DBMigrationStateUpdatingInstallationConfig,
+			State:          model.InstallationDBMigrationStateUpdatingInstallationConfig,
 		}
 
 		err := sqlStore.CreateInstallationDBMigrationOperation(migrationOp)
@@ -533,7 +533,7 @@ func TestDBMigrationSupervisor_Supervise(t *testing.T) {
 		// Assert
 		migrationOp, err = sqlStore.GetInstallationDBMigrationOperation(migrationOp.ID)
 		require.NoError(t, err)
-		assert.Equal(t, model.DBMigrationStateFinalizing, migrationOp.State)
+		assert.Equal(t, model.InstallationDBMigrationStateFinalizing, migrationOp.State)
 	})
 
 	t.Run("finalizing migration", func(t *testing.T) {
@@ -543,9 +543,9 @@ func TestDBMigrationSupervisor_Supervise(t *testing.T) {
 
 		installation, _ := setupMigrationRequiredResources(t, sqlStore)
 
-		migrationOp := &model.DBMigrationOperation{
+		migrationOp := &model.InstallationDBMigrationOperation{
 			InstallationID: installation.ID,
-			State:          model.DBMigrationStateFinalizing,
+			State:          model.InstallationDBMigrationStateFinalizing,
 		}
 
 		err := sqlStore.CreateInstallationDBMigrationOperation(migrationOp)
@@ -557,7 +557,7 @@ func TestDBMigrationSupervisor_Supervise(t *testing.T) {
 		// Assert
 		migrationOp, err = sqlStore.GetInstallationDBMigrationOperation(migrationOp.ID)
 		require.NoError(t, err)
-		assert.Equal(t, model.DBMigrationStateSucceeded, migrationOp.State)
+		assert.Equal(t, model.InstallationDBMigrationStateSucceeded, migrationOp.State)
 		assert.True(t, migrationOp.CompleteAt > 0)
 
 		installation, err = sqlStore.GetInstallation(installation.ID, false, false)
@@ -572,9 +572,9 @@ func TestDBMigrationSupervisor_Supervise(t *testing.T) {
 
 		installation, _ := setupMigrationRequiredResources(t, sqlStore)
 
-		migrationOp := &model.DBMigrationOperation{
+		migrationOp := &model.InstallationDBMigrationOperation{
 			InstallationID: installation.ID,
-			State:          model.DBMigrationStateFailing,
+			State:          model.InstallationDBMigrationStateFailing,
 		}
 
 		err := sqlStore.CreateInstallationDBMigrationOperation(migrationOp)
@@ -586,7 +586,7 @@ func TestDBMigrationSupervisor_Supervise(t *testing.T) {
 		// Assert
 		migrationOp, err = sqlStore.GetInstallationDBMigrationOperation(migrationOp.ID)
 		require.NoError(t, err)
-		assert.Equal(t, model.DBMigrationStateFailed, migrationOp.State)
+		assert.Equal(t, model.InstallationDBMigrationStateFailed, migrationOp.State)
 
 		installation, err = sqlStore.GetInstallation(installation.ID, false, false)
 		require.NoError(t, err)

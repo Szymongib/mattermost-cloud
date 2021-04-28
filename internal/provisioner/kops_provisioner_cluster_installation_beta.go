@@ -189,8 +189,6 @@ func (provisioner *kopsCIBeta) UpdateClusterInstallation(cluster *model.Cluster,
 		mattermost.Spec.Image = installation.Image
 	}
 
-	// TODO: here put logic if in migrating state - do not apply size, or apply 0 size
-
 	// A few notes on installation sizing changes:
 	//  - Resizing currently ignores the installation scheduling algorithm.
 	//    There is no good interface to determine if the new installation
@@ -216,7 +214,6 @@ func (provisioner *kopsCIBeta) UpdateClusterInstallation(cluster *model.Cluster,
 		}
 	}
 
-	// TODO: or move this to separate method
 	err = provisioner.ensureFilestoreAndDatabase(mattermost, installation, clusterInstallation, k8sClient, logger)
 	if err != nil {
 		return errors.Wrap(err, "failed to ensure database and filestore")

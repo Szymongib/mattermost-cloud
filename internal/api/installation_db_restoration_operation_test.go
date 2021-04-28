@@ -1,6 +1,10 @@
 package api_test
 
 import (
+	"net/http/httptest"
+	"testing"
+	"time"
+
 	"github.com/gorilla/mux"
 	"github.com/mattermost/mattermost-cloud/internal/api"
 	"github.com/mattermost/mattermost-cloud/internal/store"
@@ -9,9 +13,6 @@ import (
 	"github.com/mattermost/mattermost-cloud/model"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"net/http/httptest"
-	"testing"
-	"time"
 )
 
 func TestTriggerInstallationDBRestoration(t *testing.T) {

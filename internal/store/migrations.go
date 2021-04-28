@@ -1241,10 +1241,10 @@ var migrations = []migration{
 		return nil
 	}},
 	{semver.MustParse("0.26.0"), semver.MustParse("0.27.0"), func(e execer) error {
-		// 1. Add DBMigrationOperation table.
+		// 1. Add InstallationDBMigrationOperation table.
 		// 2. Add column MigratedInstallationsRaw to MultitenantDatabase table.
 		_, err := e.Exec(`
-			CREATE TABLE DBMigrationOperation (
+			CREATE TABLE InstallationDBMigrationOperation (
 				ID TEXT PRIMARY KEY,
 				InstallationID TEXT NOT NULL,
 				RequestAt BIGINT NOT NULL,

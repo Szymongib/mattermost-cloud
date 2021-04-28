@@ -1,10 +1,11 @@
 package api
 
 import (
+	"net/http"
+
 	"github.com/gorilla/mux"
 	"github.com/mattermost/mattermost-cloud/internal/components"
 	"github.com/mattermost/mattermost-cloud/model"
-	"net/http"
 )
 
 // initInstallationRestoration registers installation restoration operation endpoints on the given router.

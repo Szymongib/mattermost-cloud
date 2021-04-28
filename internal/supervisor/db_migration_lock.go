@@ -6,20 +6,20 @@ package supervisor
 
 import log "github.com/sirupsen/logrus"
 
-type dBMigrationOperationLockStore interface {
-	LockDBMigrationOperations(id []string, lockerID string) (bool, error)
-	UnlockDBMigrationOperations(id []string, lockerID string, force bool) (bool, error)
+type installationDBMigrationOperationLockStore interface {
+	LockInstallationDBMigrationOperations(id []string, lockerID string) (bool, error)
+	UnlockInstallationDBMigrationOperations(id []string, lockerID string, force bool) (bool, error)
 }
 
-type dBMigrationOperationLock struct {
+type installationDBMigrationOperationLock struct {
 	ids      []string
 	lockerID string
-	store    dBMigrationOperationLockStore
+	store    installationDBMigrationOperationLockStore
 	logger   log.FieldLogger
 }
 
-func newDBMigrationOperationLock(id, lockerID string, store dBMigrationOperationLockStore, logger log.FieldLogger) *dBMigrationOperationLock {
-	return &dBMigrationOperationLock{
+func newInstallationDBMigrationOperationLock(id, lockerID string, store installationDBMigrationOperationLockStore, logger log.FieldLogger) *installationDBMigrationOperationLock {
+	return &installationDBMigrationOperationLock{
 		ids:      []string{id},
 		lockerID: lockerID,
 		store:    store,
@@ -27,8 +27,8 @@ func newDBMigrationOperationLock(id, lockerID string, store dBMigrationOperation
 	}
 }
 
-func newDBMigrationOperationLocks(ids []string, lockerID string, store dBMigrationOperationLockStore, logger log.FieldLogger) *dBMigrationOperationLock {
-	return &dBMigrationOperationLock{
+func newInstallationDBMigrationOperationLocks(ids []string, lockerID string, store installationDBMigrationOperationLockStore, logger log.FieldLogger) *installationDBMigrationOperationLock {
+	return &installationDBMigrationOperationLock{
 		ids:      ids,
 		lockerID: lockerID,
 		store:    store,
@@ -36,21 +36,21 @@ func newDBMigrationOperationLocks(ids []string, lockerID string, store dBMigrati
 	}
 }
 
-func (l *dBMigrationOperationLock) TryLock() bool {
-	locked, err := l.store.LockDBMigrationOperations(l.ids, l.lockerID)
+func (l *installationDBMigrationOperationLock) TryLock() bool {
+	locked, err := l.store.LockInstallationDBMigrationOperations(l.ids, l.lockerID)
 	if err != nil {
-		l.logger.WithError(err).Error("failed to lock dBMigrationOperations")
+		l.logger.WithError(err).Error("failed to lock installationDBMigrationOperations")
 		return false
 	}
 
 	return locked
 }
 
-func (l *dBMigrationOperationLock) Unlock() {
-	unlocked, err := l.store.UnlockDBMigrationOperations(l.ids, l.lockerID, false)
+func (l *installationDBMigrationOperationLock) Unlock() {
+	unlocked, err := l.store.UnlockInstallationDBMigrationOperations(l.ids, l.lockerID, false)
 	if err != nil {
-		l.logger.WithError(err).Error("failed to unlock dBMigrationOperations")
+		l.logger.WithError(err).Error("failed to unlock installationDBMigrationOperations")
 	} else if unlocked != true {
-		l.logger.Error("failed to release lock for dBMigrationOperations")
+		l.logger.Error("failed to release lock for installationDBMigrationOperations")
 	}
 }

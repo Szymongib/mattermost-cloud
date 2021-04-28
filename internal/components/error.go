@@ -5,8 +5,9 @@
 package components
 
 import (
-	"github.com/pkg/errors"
 	"net/http"
+
+	"github.com/pkg/errors"
 )
 
 // ErrWithStatus represents error with status code.

@@ -9,11 +9,12 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
-	"github.com/mattermost/mattermost-cloud/internal/components"
 	"math"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/mattermost/mattermost-cloud/internal/components"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/arn"
@@ -352,7 +353,7 @@ func (d *RDSMultitenantDatabase) teardownMigrated(store model.InstallationDataba
 	return nil
 }
 
-func (d *RDSMultitenantDatabase) MigrateOut(store model.InstallationDatabaseStoreInterface, dbMigration *model.DBMigrationOperation, logger log.FieldLogger) error {
+func (d *RDSMultitenantDatabase) MigrateOut(store model.InstallationDatabaseStoreInterface, dbMigration *model.InstallationDBMigrationOperation, logger log.FieldLogger) error {
 	installationDatabaseName := MattermostRDSDatabaseName(d.installationID)
 
 	logger = logger.WithFields(log.Fields{
@@ -396,7 +397,7 @@ func (d *RDSMultitenantDatabase) MigrateOut(store model.InstallationDatabaseStor
 	return nil
 }
 
-func (d *RDSMultitenantDatabase) MigrateTo(store model.InstallationDatabaseStoreInterface, dbMigration *model.DBMigrationOperation, logger log.FieldLogger) error {
+func (d *RDSMultitenantDatabase) MigrateTo(store model.InstallationDatabaseStoreInterface, dbMigration *model.InstallationDBMigrationOperation, logger log.FieldLogger) error {
 	installationDatabaseName := MattermostRDSDatabaseName(d.installationID)
 
 	logger = logger.WithFields(log.Fields{
@@ -668,7 +669,6 @@ func (d *RDSMultitenantDatabase) getMultitenantDatabasesFromResourceTags(vpcID s
 
 	var multitenantDatabases []*model.MultitenantDatabase
 
-	// TODO: make command to discover dbs?
 	for _, resource := range resourceNames {
 		resourceARN, err := arn.Parse(*resource.ResourceARN)
 		if err != nil {

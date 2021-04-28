@@ -5,14 +5,15 @@
 package api
 
 import (
+	"net/http"
+	"time"
+
 	"github.com/gorilla/mux"
 	"github.com/mattermost/mattermost-cloud/internal/components"
 	"github.com/mattermost/mattermost-cloud/internal/tools/aws"
 	"github.com/mattermost/mattermost-cloud/internal/webhook"
 	"github.com/mattermost/mattermost-cloud/model"
 	"github.com/pkg/errors"
-	"net/http"
-	"time"
 )
 
 // initInstallationMigration registers installation migration operation endpoints on the given router.
@@ -31,36 +32,10 @@ func initInstallationMigration(apiRouter *mux.Router, context *Context) {
 }
 
 // TODO: comments + tests
-// TODO: move to backups?
 func handleTriggerInstallationDatabaseMigration(c *Context, w http.ResponseWriter, r *http.Request) {
 	c.Logger = c.Logger.WithField("action", "migrate-installation-database")
 
-	////TODO: remove the backdoor lol
-	//db, err := c.Store.GetMultitenantDatabase("rds-cluster-multitenant-050365fcbb1170e4b-07061b50")
-	//if err != nil {
-	//	panic(err)
-	//}
-	////db2, err := c.Store.GetMultitenantDatabase("rds-cluster-multitenant-0dead5c7d41f280d2-fcf071c1")
-	////if err != nil {
-	////	panic(err)
-	////}
-	//
-	//db.Installations = db.Installations[:len(db.Installations)-1]
-	////db.Installations.Add("u85ky7xjgfgstyskh1ruxrzhka")
-	////db2.Installations.Remove("u85ky7xjgfgstyskh1ruxrzhka")
-	//
-	//err = c.Store.UpdateMultitenantDatabase(db)
-	//if err != nil {
-	//	panic(err)
-	//}
-	////err = c.Store.UpdateMultitenantDatabase(db2)
-	////if err != nil {
-	////	panic(err)
-	////}
-	//
-	//return
-
-	migrationRequest, err := model.NewDBMigrationRequestFromReader(r.Body)
+	migrationRequest, err := model.NewInstallationDBMigrationRequestFromReader(r.Body)
 	if err != nil {
 		c.Logger.WithError(err).Error("failed to decode request")
 		w.WriteHeader(http.StatusBadRequest)
@@ -91,7 +66,7 @@ func handleTriggerInstallationDatabaseMigration(c *Context, w http.ResponseWrite
 		return
 	}
 
-	dbMigrationOperation := &model.DBMigrationOperation{
+	dbMigrationOperation := &model.InstallationDBMigrationOperation{
 		InstallationID:         migrationRequest.InstallationID,
 		SourceDatabase:         installationDTO.Database,
 		DestinationDatabase:    migrationRequest.DestinationDatabase,
@@ -154,9 +129,9 @@ func handleGetInstallationDBMigrationOperations(c *Context, w http.ResponseWrite
 
 	installationID := r.URL.Query().Get("installation")
 	state := r.URL.Query().Get("state")
-	var states []model.DBMigrationOperationState
+	var states []model.InstallationDBMigrationOperationState
 	if state != "" {
-		states = append(states, model.DBMigrationOperationState(state))
+		states = append(states, model.InstallationDBMigrationOperationState(state))
 	}
 
 	dbMigrations, err := c.Store.GetInstallationDBMigrationOperations(&model.InstallationDBMigrationFilter{
@@ -174,7 +149,7 @@ func handleGetInstallationDBMigrationOperations(c *Context, w http.ResponseWrite
 	outputJSON(c, w, dbMigrations)
 }
 
-func validateDBMigration(c *Context, installation *model.Installation, migrationRequest *model.DBMigrationRequest, currentDB *model.MultitenantDatabase) error {
+func validateDBMigration(c *Context, installation *model.Installation, migrationRequest *model.InstallationDBMigrationRequest, currentDB *model.MultitenantDatabase) error {
 	if migrationRequest.DestinationDatabase != model.InstallationDatabaseMultiTenantRDSPostgres ||
 		installation.Database != model.InstallationDatabaseMultiTenantRDSPostgres {
 		return errors.Errorf("db migration is supported when both source and destination are %q database", model.InstallationDatabaseMultiTenantRDSPostgres)
@@ -190,6 +165,10 @@ func validateDBMigration(c *Context, installation *model.Installation, migration
 	}
 	if destinationDB == nil {
 		return errors.Errorf("destination database with id %q not found", migrationRequest.DestinationMultiTenant.DatabaseID)
+	}
+
+	if currentDB.ID == destinationDB.ID {
+		return errors.New("destination database is the same as current")
 	}
 
 	if currentDB.VpcID != destinationDB.VpcID {

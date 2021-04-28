@@ -7,17 +7,15 @@ package store
 import (
 	"database/sql"
 	"encoding/json"
+
 	sq "github.com/Masterminds/squirrel"
 	"github.com/mattermost/mattermost-cloud/model"
 	"github.com/pkg/errors"
 )
 
 const (
-	installationDBMigrationTable = "DBMigrationOperation"
+	installationDBMigrationTable = "InstallationDBMigrationOperation"
 )
-
-// TODO: implement it and test
-// TODO: align naming
 
 var installationDBMigrationSelect sq.SelectBuilder
 
@@ -42,14 +40,14 @@ func init() {
 }
 
 type rawDBMigrationOperation struct {
-	*model.DBMigrationOperation
+	*model.InstallationDBMigrationOperation
 	SourceMultiTenantRaw      []byte
 	DestinationMultiTenantRaw []byte
 }
 
 type rawDBMigrationOperations []*rawDBMigrationOperation
 
-func (r *rawDBMigrationOperation) toDBMigrationOperation() (*model.DBMigrationOperation, error) {
+func (r *rawDBMigrationOperation) toDBMigrationOperation() (*model.InstallationDBMigrationOperation, error) {
 	// We only need to set values that are converted from a raw database format.
 	var err error
 	if len(r.SourceMultiTenantRaw) > 0 {
@@ -58,7 +56,7 @@ func (r *rawDBMigrationOperation) toDBMigrationOperation() (*model.DBMigrationOp
 		if err != nil {
 			return nil, err
 		}
-		r.DBMigrationOperation.SourceMultiTenant = &data
+		r.InstallationDBMigrationOperation.SourceMultiTenant = &data
 	}
 	if len(r.DestinationMultiTenantRaw) > 0 {
 		data := model.MultiTenantDBMigrationData{}
@@ -66,17 +64,17 @@ func (r *rawDBMigrationOperation) toDBMigrationOperation() (*model.DBMigrationOp
 		if err != nil {
 			return nil, err
 		}
-		r.DBMigrationOperation.DestinationMultiTenant = &data
+		r.InstallationDBMigrationOperation.DestinationMultiTenant = &data
 	}
 
-	return r.DBMigrationOperation, nil
+	return r.InstallationDBMigrationOperation, nil
 }
 
-func (r *rawDBMigrationOperations) toDBMigrationOperations() ([]*model.DBMigrationOperation, error) {
+func (r *rawDBMigrationOperations) toDBMigrationOperations() ([]*model.InstallationDBMigrationOperation, error) {
 	if r == nil {
-		return []*model.DBMigrationOperation{}, nil
+		return []*model.InstallationDBMigrationOperation{}, nil
 	}
-	migrationOperations := make([]*model.DBMigrationOperation, 0, len(*r))
+	migrationOperations := make([]*model.InstallationDBMigrationOperation, 0, len(*r))
 
 	for _, raw := range *r {
 		operation, err := raw.toDBMigrationOperation()
@@ -91,11 +89,11 @@ func (r *rawDBMigrationOperations) toDBMigrationOperations() ([]*model.DBMigrati
 // TODO: we should probably create some intermediary layer to not keep this logic in store.
 // For now tho transactions are not accessible outside the store, therefore it is implemented this way.
 
-// TriggerInstallationDBMigration creates new DBMigrationOperation in Requested state
+// TriggerInstallationDBMigration creates new InstallationDBMigrationOperation in Requested state
 // and changes installation state to InstallationStateDBMigrationInProgress.
-func (sqlStore *SQLStore) TriggerInstallationDBMigration(dbMigrationOp *model.DBMigrationOperation, installation *model.Installation) (*model.DBMigrationOperation, error) {
+func (sqlStore *SQLStore) TriggerInstallationDBMigration(dbMigrationOp *model.InstallationDBMigrationOperation, installation *model.Installation) (*model.InstallationDBMigrationOperation, error) {
 	dbMigrationOp.InstallationID = installation.ID
-	dbMigrationOp.State = model.DBMigrationStateRequested
+	dbMigrationOp.State = model.InstallationDBMigrationStateRequested
 	dbMigrationOp.InstallationDBRestorationOperationID = ""
 
 	tx, err := sqlStore.beginTransaction(sqlStore.db)
@@ -124,12 +122,12 @@ func (sqlStore *SQLStore) TriggerInstallationDBMigration(dbMigrationOp *model.DB
 }
 
 // CreateInstallationDBMigrationOperation records installation db migration to the database, assigning it a unique ID.
-func (sqlStore *SQLStore) CreateInstallationDBMigrationOperation(dbMigration *model.DBMigrationOperation) error {
+func (sqlStore *SQLStore) CreateInstallationDBMigrationOperation(dbMigration *model.InstallationDBMigrationOperation) error {
 	return sqlStore.createInstallationDBMigration(sqlStore.db, dbMigration)
 }
 
 // createInstallationDBMigration records installation db migration to the database, assigning it a unique ID.
-func (sqlStore *SQLStore) createInstallationDBMigration(db execer, dbMigration *model.DBMigrationOperation) error {
+func (sqlStore *SQLStore) createInstallationDBMigration(db execer, dbMigration *model.InstallationDBMigrationOperation) error {
 	dbMigration.ID = model.NewID()
 	dbMigration.RequestAt = GetMillis()
 
@@ -174,8 +172,8 @@ func (sqlStore *SQLStore) createInstallationDBMigration(db execer, dbMigration *
 	return nil
 }
 
-// GetInstallationDBMigration fetches the given installation db migration.
-func (sqlStore *SQLStore) GetInstallationDBMigrationOperation(id string) (*model.DBMigrationOperation, error) {
+// GetInstallationDBMigrationOperation fetches the given installation db migration.
+func (sqlStore *SQLStore) GetInstallationDBMigrationOperation(id string) (*model.InstallationDBMigrationOperation, error) {
 	builder := installationDBMigrationSelect.
 		Where("ID = ?", id)
 
@@ -195,17 +193,17 @@ func (sqlStore *SQLStore) GetInstallationDBMigrationOperation(id string) (*model
 	return migrationOp, nil
 }
 
-// GetInstallationDBMigrations fetches the given page of created installation db migration. The first page is 0.
-func (sqlStore *SQLStore) GetInstallationDBMigrationOperations(filter *model.InstallationDBMigrationFilter) ([]*model.DBMigrationOperation, error) {
+// GetInstallationDBMigrationOperations fetches the given page of created installation db migration. The first page is 0.
+func (sqlStore *SQLStore) GetInstallationDBMigrationOperations(filter *model.InstallationDBMigrationFilter) ([]*model.InstallationDBMigrationOperation, error) {
 	builder := installationDBMigrationSelect.
 		OrderBy("RequestAt DESC")
 	builder = sqlStore.applyInstallationDBMigrationFilter(builder, filter)
 
-	return sqlStore.getDBMigrationOperations(builder)
+	return sqlStore.getInstallationDBMigrationOperations(builder)
 }
 
-// GetUnlockedInstallationDBMigrationsPendingWork returns unlocked installation db migrations in a pending state.
-func (sqlStore *SQLStore) GetUnlockedInstallationDBMigrationOperationsPendingWork() ([]*model.DBMigrationOperation, error) {
+// GetUnlockedInstallationDBMigrationOperationsPendingWork returns unlocked installation db migrations in a pending state.
+func (sqlStore *SQLStore) GetUnlockedInstallationDBMigrationOperationsPendingWork() ([]*model.InstallationDBMigrationOperation, error) {
 	builder := installationDBMigrationSelect.
 		Where(sq.Eq{
 			"State": model.AllInstallationDBMigrationOperationsStatesPendingWork,
@@ -213,10 +211,10 @@ func (sqlStore *SQLStore) GetUnlockedInstallationDBMigrationOperationsPendingWor
 		Where("LockAcquiredAt = 0").
 		OrderBy("RequestAt ASC")
 
-	return sqlStore.getDBMigrationOperations(builder)
+	return sqlStore.getInstallationDBMigrationOperations(builder)
 }
 
-func (sqlStore *SQLStore) getDBMigrationOperations(builder builder) ([]*model.DBMigrationOperation, error) {
+func (sqlStore *SQLStore) getInstallationDBMigrationOperations(builder builder) ([]*model.InstallationDBMigrationOperation, error) {
 	var rawMigrationOps rawDBMigrationOperations
 	err := sqlStore.selectBuilder(sqlStore.db, &rawMigrationOps, builder)
 	if err != nil {
@@ -231,8 +229,8 @@ func (sqlStore *SQLStore) getDBMigrationOperations(builder builder) ([]*model.DB
 	return migrationOps, nil
 }
 
-// UpdateInstallationDBMigrationState updates the given installation db migration state.
-func (sqlStore *SQLStore) UpdateInstallationDBMigrationOperationState(dbMigration *model.DBMigrationOperation) error {
+// UpdateInstallationDBMigrationOperationState updates the given installation db migration state.
+func (sqlStore *SQLStore) UpdateInstallationDBMigrationOperationState(dbMigration *model.InstallationDBMigrationOperation) error {
 	return sqlStore.updateInstallationDBMigrationFields(
 		sqlStore.db,
 		dbMigration.ID, map[string]interface{}{
@@ -240,12 +238,12 @@ func (sqlStore *SQLStore) UpdateInstallationDBMigrationOperationState(dbMigratio
 		})
 }
 
-// UpdateInstallationDBMigration updates the given installation db migration.
-func (sqlStore *SQLStore) UpdateInstallationDBMigrationOperation(dbMigration *model.DBMigrationOperation) error {
+// UpdateInstallationDBMigrationOperation updates the given installation db migration.
+func (sqlStore *SQLStore) UpdateInstallationDBMigrationOperation(dbMigration *model.InstallationDBMigrationOperation) error {
 	return sqlStore.updateInstallationDBMigration(sqlStore.db, dbMigration)
 }
 
-func (sqlStore *SQLStore) updateInstallationDBMigration(db execer, dbMigration *model.DBMigrationOperation) error {
+func (sqlStore *SQLStore) updateInstallationDBMigration(db execer, dbMigration *model.InstallationDBMigrationOperation) error {
 	return sqlStore.updateInstallationDBMigrationFields(
 		db,
 		dbMigration.ID, map[string]interface{}{
@@ -268,23 +266,23 @@ func (sqlStore *SQLStore) updateInstallationDBMigrationFields(db execer, id stri
 	return nil
 }
 
-// LockDBMigrationOperation marks the DBMigrationOperation as locked for exclusive use by the caller.
-func (sqlStore *SQLStore) LockDBMigrationOperation(id, lockerID string) (bool, error) {
+// LockInstallationDBMigrationOperation marks the InstallationDBMigrationOperation as locked for exclusive use by the caller.
+func (sqlStore *SQLStore) LockInstallationDBMigrationOperation(id, lockerID string) (bool, error) {
 	return sqlStore.lockRows(installationDBMigrationTable, []string{id}, lockerID)
 }
 
-// LockDBMigrationOperations marks DBMigrationOperations as locked for exclusive use by the caller.
-func (sqlStore *SQLStore) LockDBMigrationOperations(ids []string, lockerID string) (bool, error) {
+// LockInstallationDBMigrationOperations marks InstallationDBMigrationOperation as locked for exclusive use by the caller.
+func (sqlStore *SQLStore) LockInstallationDBMigrationOperations(ids []string, lockerID string) (bool, error) {
 	return sqlStore.lockRows(installationDBMigrationTable, ids, lockerID)
 }
 
-// UnlockDBMigrationOperation releases a lock previously acquired against a caller.
-func (sqlStore *SQLStore) UnlockDBMigrationOperation(id, lockerID string, force bool) (bool, error) {
+// UnlockInstallationDBMigrationOperation releases a lock previously acquired against a caller.
+func (sqlStore *SQLStore) UnlockInstallationDBMigrationOperation(id, lockerID string, force bool) (bool, error) {
 	return sqlStore.unlockRows(installationDBMigrationTable, []string{id}, lockerID, force)
 }
 
-// UnlockDBMigrationOperations releases a locks previously acquired against a caller.
-func (sqlStore *SQLStore) UnlockDBMigrationOperations(ids []string, lockerID string, force bool) (bool, error) {
+// UnlockInstallationDBMigrationOperations releases a locks previously acquired against a caller.
+func (sqlStore *SQLStore) UnlockInstallationDBMigrationOperations(ids []string, lockerID string, force bool) (bool, error) {
 	return sqlStore.unlockRows(installationDBMigrationTable, ids, lockerID, force)
 }
 

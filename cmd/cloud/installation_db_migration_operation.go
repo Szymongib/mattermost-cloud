@@ -5,12 +5,13 @@
 package main
 
 import (
+	"os"
+
 	"github.com/mattermost/mattermost-cloud/internal/tools/utils"
 	"github.com/mattermost/mattermost-cloud/model"
 	"github.com/olekukonko/tablewriter"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
-	"os"
 )
 
 func init() {
@@ -48,7 +49,7 @@ var installationDBMigrationRequestCmd = &cobra.Command{
 		destinationDB, _ := command.Flags().GetString("destination-db")
 		multiTenantDBID, _ := command.Flags().GetString("multi-tenant-db")
 
-		request := &model.DBMigrationRequest{
+		request := &model.InstallationDBMigrationRequest{
 			InstallationID:         installationID,
 			DestinationDatabase:    destinationDB,
 			DestinationMultiTenant: &model.MultiTenantDBMigrationData{DatabaseID: multiTenantDBID},
@@ -91,7 +92,7 @@ var installationDBMigrationsListCmd = &cobra.Command{
 		state, _ := command.Flags().GetString("state")
 		paging := parsePagingFlags(command)
 
-		request := &model.GetDBMigrationOperationsRequest{
+		request := &model.GetInstallationDBMigrationOperationsRequest{
 			Paging:         paging,
 			InstallationID: installationID,
 			State:          state,

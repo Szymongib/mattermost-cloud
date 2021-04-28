@@ -1,12 +1,17 @@
+// Copyright (c) 2015-present Mattermost, Inc. All Rights Reserved.
+// See LICENSE.txt for license information.
+//
+
 package store
 
 import (
+	"testing"
+	"time"
+
 	"github.com/mattermost/mattermost-cloud/internal/testlib"
 	"github.com/mattermost/mattermost-cloud/model"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"testing"
-	"time"
 )
 
 func TestTriggerInstallationDBMigration(t *testing.T) {
@@ -16,7 +21,7 @@ func TestTriggerInstallationDBMigration(t *testing.T) {
 
 	installation := setupHibernatingInstallation(t, sqlStore)
 
-	dbMigrationOp := &model.DBMigrationOperation{
+	dbMigrationOp := &model.InstallationDBMigrationOperation{
 		SourceDatabase:      "source",
 		DestinationDatabase: "destination",
 	}
@@ -24,7 +29,7 @@ func TestTriggerInstallationDBMigration(t *testing.T) {
 	migrationOp, err := sqlStore.TriggerInstallationDBMigration(dbMigrationOp, installation)
 	require.NoError(t, err)
 	assert.Equal(t, installation.ID, migrationOp.InstallationID)
-	assert.Equal(t, model.DBMigrationStateRequested, migrationOp.State)
+	assert.Equal(t, model.InstallationDBMigrationStateRequested, migrationOp.State)
 
 	fetchOp, err := sqlStore.GetInstallationDBMigrationOperation(migrationOp.ID)
 	require.NoError(t, err)
@@ -42,7 +47,7 @@ func TestInstallationDBMigrationOperation(t *testing.T) {
 
 	installation := setupHibernatingInstallation(t, sqlStore)
 
-	dbMigrationOp := &model.DBMigrationOperation{
+	dbMigrationOp := &model.InstallationDBMigrationOperation{
 		InstallationID:         installation.ID,
 		SourceMultiTenant:      &model.MultiTenantDBMigrationData{DatabaseID: "abcd"},
 		DestinationMultiTenant: &model.MultiTenantDBMigrationData{DatabaseID: "efgh"},
@@ -50,7 +55,7 @@ func TestInstallationDBMigrationOperation(t *testing.T) {
 		DestinationDatabase:    model.InstallationDatabaseMultiTenantRDSPostgres,
 		BackupID:               "",
 		RequestAt:              0,
-		State:                  model.DBMigrationStateRequested,
+		State:                  model.InstallationDBMigrationStateRequested,
 	}
 
 	err := sqlStore.CreateInstallationDBMigrationOperation(dbMigrationOp)
@@ -76,12 +81,12 @@ func TestGetInstallationDBMigrations(t *testing.T) {
 	installation1 := setupHibernatingInstallation(t, sqlStore)
 	installation2 := setupHibernatingInstallation(t, sqlStore)
 
-	dbMigrations := []*model.DBMigrationOperation{
-		{InstallationID: installation1.ID, State: model.DBMigrationStateRequested},
-		{InstallationID: installation1.ID, State: model.DBMigrationStateInstallationBackupInProgress},
-		{InstallationID: installation1.ID, State: model.DBMigrationStateFailed},
-		{InstallationID: installation2.ID, State: model.DBMigrationStateRequested},
-		{InstallationID: installation2.ID, State: model.DBMigrationStateInstallationBackupInProgress},
+	dbMigrations := []*model.InstallationDBMigrationOperation{
+		{InstallationID: installation1.ID, State: model.InstallationDBMigrationStateRequested},
+		{InstallationID: installation1.ID, State: model.InstallationDBMigrationStateBackupInProgress},
+		{InstallationID: installation1.ID, State: model.InstallationDBMigrationStateFailed},
+		{InstallationID: installation2.ID, State: model.InstallationDBMigrationStateRequested},
+		{InstallationID: installation2.ID, State: model.InstallationDBMigrationStateBackupInProgress},
 	}
 
 	for i := range dbMigrations {
@@ -107,7 +112,7 @@ func TestGetInstallationDBMigrations(t *testing.T) {
 		},
 		{
 			description: "fetch requested operations",
-			filter:      &model.InstallationDBMigrationFilter{States: []model.DBMigrationOperationState{model.DBMigrationStateRequested}, Paging: model.AllPagesNotDeleted()},
+			filter:      &model.InstallationDBMigrationFilter{States: []model.InstallationDBMigrationOperationState{model.InstallationDBMigrationStateRequested}, Paging: model.AllPagesNotDeleted()},
 			fetchedIds:  []string{dbMigrations[3].ID, dbMigrations[0].ID},
 		},
 		{
@@ -135,18 +140,18 @@ func TestGetUnlockedInstallationDBRMigrationsPendingWork(t *testing.T) {
 
 	installation := setupHibernatingInstallation(t, sqlStore)
 
-	dbMigration1 := &model.DBMigrationOperation{
+	dbMigration1 := &model.InstallationDBMigrationOperation{
 		InstallationID: installation.ID,
-		State:          model.DBMigrationStateRequested,
+		State:          model.InstallationDBMigrationStateRequested,
 	}
 
 	err := sqlStore.CreateInstallationDBMigrationOperation(dbMigration1)
 	require.NoError(t, err)
 	assert.NotEmpty(t, dbMigration1.ID)
 
-	dbMigration2 := &model.DBMigrationOperation{
+	dbMigration2 := &model.InstallationDBMigrationOperation{
 		InstallationID: installation.ID,
-		State:          model.DBMigrationStateSucceeded,
+		State:          model.InstallationDBMigrationStateSucceeded,
 	}
 
 	err = sqlStore.CreateInstallationDBMigrationOperation(dbMigration2)
@@ -158,7 +163,7 @@ func TestGetUnlockedInstallationDBRMigrationsPendingWork(t *testing.T) {
 	assert.Equal(t, 1, len(backupsMeta))
 	assert.Equal(t, dbMigration1.ID, backupsMeta[0].ID)
 
-	locaked, err := sqlStore.LockDBMigrationOperation(dbMigration1.ID, "abc")
+	locaked, err := sqlStore.LockInstallationDBMigrationOperation(dbMigration1.ID, "abc")
 	require.NoError(t, err)
 	assert.True(t, locaked)
 
@@ -174,9 +179,9 @@ func TestUpdateInstallationDBMigration(t *testing.T) {
 
 	installation := setupHibernatingInstallation(t, sqlStore)
 
-	dbMigration := &model.DBMigrationOperation{
+	dbMigration := &model.InstallationDBMigrationOperation{
 		InstallationID: installation.ID,
-		State:          model.DBMigrationStateRequested,
+		State:          model.InstallationDBMigrationStateRequested,
 	}
 
 	err := sqlStore.CreateInstallationDBMigrationOperation(dbMigration)
@@ -184,7 +189,7 @@ func TestUpdateInstallationDBMigration(t *testing.T) {
 	assert.NotEmpty(t, dbMigration.ID)
 
 	t.Run("update state only", func(t *testing.T) {
-		dbMigration.State = model.DBMigrationStateSucceeded
+		dbMigration.State = model.InstallationDBMigrationStateSucceeded
 		dbMigration.CompleteAt = -1
 		dbMigration.InstallationDBRestorationOperationID = "test"
 
@@ -193,7 +198,7 @@ func TestUpdateInstallationDBMigration(t *testing.T) {
 
 		fetched, err := sqlStore.GetInstallationDBMigrationOperation(dbMigration.ID)
 		require.NoError(t, err)
-		assert.Equal(t, model.DBMigrationStateSucceeded, fetched.State)
+		assert.Equal(t, model.InstallationDBMigrationStateSucceeded, fetched.State)
 		assert.Equal(t, int64(0), fetched.CompleteAt)                     // Assert complete time not updated
 		assert.Equal(t, "", fetched.InstallationDBRestorationOperationID) // Assert ID not updated
 	})
@@ -201,13 +206,13 @@ func TestUpdateInstallationDBMigration(t *testing.T) {
 	t.Run("full update", func(t *testing.T) {
 		dbMigration.InstallationDBRestorationOperationID = "test"
 		dbMigration.CompleteAt = 100
-		dbMigration.State = model.DBMigrationStateFailed
+		dbMigration.State = model.InstallationDBMigrationStateFailed
 		err = sqlStore.UpdateInstallationDBMigrationOperation(dbMigration)
 		require.NoError(t, err)
 
 		fetched, err := sqlStore.GetInstallationDBMigrationOperation(dbMigration.ID)
 		require.NoError(t, err)
-		assert.Equal(t, model.DBMigrationStateFailed, fetched.State)
+		assert.Equal(t, model.InstallationDBMigrationStateFailed, fetched.State)
 		assert.Equal(t, "test", fetched.InstallationDBRestorationOperationID)
 		assert.Equal(t, int64(100), fetched.CompleteAt)
 	})

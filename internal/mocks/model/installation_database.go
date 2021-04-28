@@ -110,7 +110,7 @@ func (mr *MockDatabaseMockRecorder) RefreshResourceMetadata(store, logger interf
 }
 
 // MigrateOut mocks base method
-func (m *MockDatabase) MigrateOut(store model.InstallationDatabaseStoreInterface, dbMigration *model.DBMigrationOperation, logger logrus.FieldLogger) error {
+func (m *MockDatabase) MigrateOut(store model.InstallationDatabaseStoreInterface, dbMigration *model.InstallationDBMigrationOperation, logger logrus.FieldLogger) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "MigrateOut", store, dbMigration, logger)
 	ret0, _ := ret[0].(error)
@@ -124,7 +124,7 @@ func (mr *MockDatabaseMockRecorder) MigrateOut(store, dbMigration, logger interf
 }
 
 // MigrateTo mocks base method
-func (m *MockDatabase) MigrateTo(store model.InstallationDatabaseStoreInterface, dbMigration *model.DBMigrationOperation, logger logrus.FieldLogger) error {
+func (m *MockDatabase) MigrateTo(store model.InstallationDatabaseStoreInterface, dbMigration *model.InstallationDBMigrationOperation, logger logrus.FieldLogger) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "MigrateTo", store, dbMigration, logger)
 	ret0, _ := ret[0].(error)

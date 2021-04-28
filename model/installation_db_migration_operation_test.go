@@ -1,3 +1,7 @@
+// Copyright (c) 2015-present Mattermost, Inc. All Rights Reserved.
+// See LICENSE.txt for license information.
+//
+
 package model
 
 import (
@@ -13,7 +17,7 @@ func TestNewDBMigrationOperationFromReader(t *testing.T) {
 			"",
 		)))
 		require.NoError(t, err)
-		require.Equal(t, &DBMigrationOperation{}, dBMigrationOperation)
+		require.Equal(t, &InstallationDBMigrationOperation{}, dBMigrationOperation)
 	})
 
 	t.Run("invalid", func(t *testing.T) {
@@ -29,11 +33,11 @@ func TestNewDBMigrationOperationFromReader(t *testing.T) {
 			`{"ID":"id", "InstallationID": "installation", "RequestAt": 10, "State": "db-migration-requested"}`,
 		)))
 		require.NoError(t, err)
-		require.Equal(t, &DBMigrationOperation{
+		require.Equal(t, &InstallationDBMigrationOperation{
 			ID:             "id",
 			InstallationID: "installation",
 			RequestAt:      10,
-			State:          DBMigrationStateRequested,
+			State:          InstallationDBMigrationStateRequested,
 		}, dBMigrationOperation)
 	})
 }
@@ -44,7 +48,7 @@ func TestNewDBMigrationOperationsFromReader(t *testing.T) {
 			"",
 		)))
 		require.NoError(t, err)
-		require.Equal(t, []*DBMigrationOperation{}, dBMigrationOperations)
+		require.Equal(t, []*InstallationDBMigrationOperation{}, dBMigrationOperations)
 	})
 
 	t.Run("invalid", func(t *testing.T) {
@@ -63,18 +67,18 @@ func TestNewDBMigrationOperationsFromReader(t *testing.T) {
 ]`,
 		)))
 		require.NoError(t, err)
-		require.Equal(t, []*DBMigrationOperation{
+		require.Equal(t, []*InstallationDBMigrationOperation{
 			{
 				ID:             "id",
 				InstallationID: "installation",
 				RequestAt:      10,
-				State:          DBMigrationStateRequested,
+				State:          InstallationDBMigrationStateRequested,
 			},
 			{
 				ID:             "id2",
 				InstallationID: "installation2",
 				RequestAt:      20,
-				State:          DBMigrationStateRequested,
+				State:          InstallationDBMigrationStateRequested,
 			},
 		}, dBMigrationOperations)
 	})

@@ -611,7 +611,7 @@ func (c *Client) GetInstallationDBRestoration(id string) (*InstallationDBRestora
 }
 
 // MigrateInstallationDatabase requests installation db migration from the configured provisioning server.
-func (c *Client) MigrateInstallationDatabase(request *DBMigrationRequest) (*DBMigrationOperation, error) {
+func (c *Client) MigrateInstallationDatabase(request *InstallationDBMigrationRequest) (*InstallationDBMigrationOperation, error) {
 	resp, err := c.doPost(c.buildURL("/api/installations/operations/database/migrations"), request)
 	if err != nil {
 		return nil, err
@@ -628,7 +628,7 @@ func (c *Client) MigrateInstallationDatabase(request *DBMigrationRequest) (*DBMi
 }
 
 // GetInstallationDBMigrationOperations fetches the list of installation db migration operations from the configured provisioning server.
-func (c *Client) GetInstallationDBMigrationOperations(request *GetDBMigrationOperationsRequest) ([]*DBMigrationOperation, error) {
+func (c *Client) GetInstallationDBMigrationOperations(request *GetInstallationDBMigrationOperationsRequest) ([]*InstallationDBMigrationOperation, error) {
 	u, err := url.Parse(c.buildURL("/api/installations/operations/database/migrations"))
 	if err != nil {
 		return nil, err

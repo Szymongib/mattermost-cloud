@@ -5,11 +5,12 @@
 package components
 
 import (
+	"net/http"
+	"time"
+
 	"github.com/mattermost/mattermost-cloud/internal/webhook"
 	"github.com/mattermost/mattermost-cloud/model"
 	log "github.com/sirupsen/logrus"
-	"net/http"
-	"time"
 )
 
 type installationRestorationStore interface {

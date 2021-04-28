@@ -65,10 +65,10 @@ type Store interface {
 	GetWebhooks(filter *model.WebhookFilter) ([]*model.Webhook, error)
 	DeleteWebhook(webhookID string) error
 
+	GetMultitenantDatabase(multitenantdatabaseID string) (*model.MultitenantDatabase, error)
 	GetMultitenantDatabases(filter *model.MultitenantDatabaseFilter) ([]*model.MultitenantDatabase, error)
-	GetMultitenantDatabase(id string) (*model.MultitenantDatabase, error)
-
-	model.InstallationDatabaseStoreInterface // TODO: remove - only needed methods?
+	GetMultitenantDatabaseForInstallationID(installationID string) (*model.MultitenantDatabase, error)
+	GetInstallationsTotalDatabaseWeight(installationIDs []string) (float64, error)
 
 	GetOrCreateAnnotations(annotations []*model.Annotation) ([]*model.Annotation, error)
 
@@ -94,8 +94,8 @@ type Store interface {
 	GetInstallationDBRestorationOperation(id string) (*model.InstallationDBRestorationOperation, error)
 	GetInstallationDBRestorationOperations(filter *model.InstallationDBRestorationFilter) ([]*model.InstallationDBRestorationOperation, error)
 
-	TriggerInstallationDBMigration(dbMigrationOp *model.DBMigrationOperation, installation *model.Installation) (*model.DBMigrationOperation, error)
-	GetInstallationDBMigrationOperations(filter *model.InstallationDBMigrationFilter) ([]*model.DBMigrationOperation, error)
+	TriggerInstallationDBMigration(dbMigrationOp *model.InstallationDBMigrationOperation, installation *model.Installation) (*model.InstallationDBMigrationOperation, error)
+	GetInstallationDBMigrationOperations(filter *model.InstallationDBMigrationFilter) ([]*model.InstallationDBMigrationOperation, error)
 }
 
 // Provisioner describes the interface required to communicate with the Kubernetes cluster.
