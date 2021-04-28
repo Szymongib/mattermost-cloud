@@ -48,17 +48,32 @@ func TestIsInstallationBackupBeingUsed(t *testing.T) {
 
 	installation := setupStableInstallation(t, sqlStore)
 
+	// Create restoration and migration operations not associated with backup.
+	notConnectedRestoration := &model.InstallationDBRestorationOperation{
+		InstallationID: installation.ID,
+		State:          model.InstallationStateDBRestorationInProgress,
+	}
+	err := sqlStore.CreateInstallationDBRestorationOperation(notConnectedRestoration)
+	require.NoError(t, err)
+	notConnectedMigration := &model.InstallationDBMigrationOperation{
+		InstallationID: installation.ID,
+		State:          model.InstallationStateDBRestorationInProgress,
+	}
+	err = sqlStore.CreateInstallationDBMigrationOperation(notConnectedMigration)
+	require.NoError(t, err)
+
 	backup := &model.InstallationBackup{
 		InstallationID: installation.ID,
 		State:          model.InstallationBackupStateBackupRequested,
 	}
-	err := sqlStore.CreateInstallationBackup(backup)
+	err = sqlStore.CreateInstallationBackup(backup)
 	require.NoError(t, err)
 
 	isUsed, err := sqlStore.IsInstallationBackupBeingUsed(backup.ID)
 	require.NoError(t, err)
 	require.False(t, isUsed)
 
+	// Restoration in progress.
 	restorationOp := &model.InstallationDBRestorationOperation{
 		InstallationID: installation.ID,
 		BackupID:       backup.ID,
@@ -75,6 +90,25 @@ func TestIsInstallationBackupBeingUsed(t *testing.T) {
 	err = sqlStore.UpdateInstallationDBRestorationOperation(restorationOp)
 	require.NoError(t, err)
 
+	isUsed, err = sqlStore.IsInstallationBackupBeingUsed(backup.ID)
+	require.NoError(t, err)
+	require.False(t, isUsed)
+
+	// Migration in progress.
+	migrationOp := &model.InstallationDBMigrationOperation{
+		InstallationID: installation.ID,
+		BackupID:       backup.ID,
+		State:          model.InstallationDBMigrationStateRefreshSecrets,
+	}
+	err = sqlStore.CreateInstallationDBMigrationOperation(migrationOp)
+	require.NoError(t, err)
+	isUsed, err = sqlStore.IsInstallationBackupBeingUsed(backup.ID)
+	require.NoError(t, err)
+	require.True(t, isUsed)
+
+	migrationOp.State = model.InstallationDBMigrationStateFailed
+	err = sqlStore.UpdateInstallationDBMigrationOperation(migrationOp)
+	require.NoError(t, err)
 	isUsed, err = sqlStore.IsInstallationBackupBeingUsed(backup.ID)
 	require.NoError(t, err)
 	require.False(t, isUsed)

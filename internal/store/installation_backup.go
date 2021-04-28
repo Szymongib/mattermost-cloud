@@ -97,29 +97,49 @@ func (sqlStore *SQLStore) IsInstallationBackupRunning(installationID string) (bo
 	return ongoingBackups > 0, nil
 }
 
-// TODO: add check for db migration operation - one query or two?
-// IsInstallationBackupBeingUsed checks if backup is being used by Restoration Operation or Migration Operation
+// IsInstallationBackupBeingUsed checks if backup is being used by any DB restoration Operation or DB migration Operation
 func (sqlStore *SQLStore) IsInstallationBackupBeingUsed(backupID string) (bool, error) {
-	var totalResult countResult
-	builder := sq.
+	backupsCountBuilder := sq.
 		Select("Count (*)").
 		From(fmt.Sprintf("%s as b", backupTable)).
 		Where("b.ID = ?", backupID).
-		Where("b.DeleteAt = 0").
+		Where("b.DeleteAt = 0")
+
+	builder := backupsCountBuilder.
 		Join(fmt.Sprintf("%s as r on r.BackupID = b.ID", installationDBRestorationTable)).
 		Where(sq.Eq{"r.State": model.AllInstallationDBRestorationStatesPendingWork}).
-		Where("r.DeleteAt == 0")
-	err := sqlStore.selectBuilder(sqlStore.db, &totalResult, builder)
+		Where("r.DeleteAt = 0")
+	usedBackups, err := sqlStore.getCount(builder)
 	if err != nil {
-		return false, errors.Wrap(err, "failed to count backup usage")
+		return false, errors.Wrap(err, "failed to count installation backups used by restoration operations")
+	}
+	if usedBackups > 0 {
+		return true, nil
 	}
 
-	ongoingBackups, err := totalResult.value()
+	builder = backupsCountBuilder.
+		Join(fmt.Sprintf("%s as m on m.BackupID = b.ID", installationDBMigrationTable)).
+		Where(sq.Eq{"m.State": model.AllInstallationDBMigrationOperationsStatesPendingWork}).
+		Where("m.DeleteAt = 0")
+	usedBackups, err = sqlStore.getCount(builder)
 	if err != nil {
-		return false, errors.Wrap(err, "failed to get count of ongoing backups")
+		return false, errors.Wrap(err, "failed to count installation backups used by migration operations")
 	}
 
-	return ongoingBackups > 0, nil
+	return usedBackups > 0, nil
+}
+
+func (sqlStore *SQLStore) getCount(builder sq.SelectBuilder) (int64, error) {
+	var total countResult
+	err := sqlStore.selectBuilder(sqlStore.db, &total, builder)
+	if err != nil {
+		return 0, errors.Wrap(err, "failed to query for count")
+	}
+	count, err := total.value()
+	if err != nil {
+		return 0, errors.Wrap(err, "failed to get count")
+	}
+	return count, nil
 }
 
 // CreateInstallationBackup records installation backup to the database, assigning it a unique ID.
