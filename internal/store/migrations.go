@@ -1248,19 +1248,14 @@ var migrations = []migration{
 				ID TEXT PRIMARY KEY,
 				InstallationID TEXT NOT NULL,
 				RequestAt BIGINT NOT NULL,
-
 				State TEXT NOT NULL,
 				SourceDatabase TEXT NOT NULL,
 				DestinationDatabase TEXT NOT NULL,
-				
 				SourceMultiTenantRaw BYTEA NULL,
 				DestinationMultiTenantRaw BYTEA NULL,
-
 				BackupID TEXT NOT NULL,
 				InstallationDBRestorationOperationID TEXT NOT NULL,
-
 				CompleteAt BIGINT NOT NULL,
-
 				DeleteAt BIGINT NOT NULL,
 				LockAcquiredBy TEXT NULL,
 				LockAcquiredAt BIGINT NOT NULL
