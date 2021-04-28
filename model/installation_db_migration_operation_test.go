@@ -30,7 +30,7 @@ func TestNewDBMigrationOperationFromReader(t *testing.T) {
 
 	t.Run("valid", func(t *testing.T) {
 		dBMigrationOperation, err := NewDBMigrationOperationFromReader(bytes.NewReader([]byte(
-			`{"ID":"id", "InstallationID": "installation", "RequestAt": 10, "State": "db-migration-requested"}`,
+			`{"ID":"id", "InstallationID": "installation", "RequestAt": 10, "State": "installation-db-migration-requested"}`,
 		)))
 		require.NoError(t, err)
 		require.Equal(t, &InstallationDBMigrationOperation{
@@ -62,8 +62,8 @@ func TestNewDBMigrationOperationsFromReader(t *testing.T) {
 	t.Run("valid", func(t *testing.T) {
 		dBMigrationOperations, err := NewDBMigrationOperationsFromReader(bytes.NewReader([]byte(
 			`[
-	{"ID":"id", "InstallationID": "installation", "RequestAt": 10, "State": "db-migration-requested"},
-	{"ID":"id2", "InstallationID": "installation2", "RequestAt": 20, "State": "db-migration-requested"}
+	{"ID":"id", "InstallationID": "installation", "RequestAt": 10, "State": "installation-db-migration-requested"},
+	{"ID":"id2", "InstallationID": "installation2", "RequestAt": 20, "State": "installation-db-migration-requested"}
 ]`,
 		)))
 		require.NoError(t, err)

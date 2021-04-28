@@ -42,27 +42,27 @@ type InstallationDBMigrationOperationState string
 
 const (
 	// InstallationDBMigrationStateRequested is requested DB migration operation.
-	InstallationDBMigrationStateRequested InstallationDBMigrationOperationState = "db-migration-requested"
+	InstallationDBMigrationStateRequested InstallationDBMigrationOperationState = "installation-db-migration-requested"
 	// InstallationDBMigrationStateBackupInProgress is DB migration operation waiting for backup to complete.
-	InstallationDBMigrationStateBackupInProgress InstallationDBMigrationOperationState = "db-migration-installation-backup-in-progress"
+	InstallationDBMigrationStateBackupInProgress InstallationDBMigrationOperationState = "installation-db-migration-installation-backup-in-progress"
 	// InstallationDBMigrationStateDatabaseSwitch is DB migration operation that is switching to new database.
-	InstallationDBMigrationStateDatabaseSwitch InstallationDBMigrationOperationState = "db-migration-database switch"
+	InstallationDBMigrationStateDatabaseSwitch InstallationDBMigrationOperationState = "installation-db-migration-database switch"
 	// InstallationDBMigrationStateRefreshSecrets is DB migration operation that is refreshing secrets.
-	InstallationDBMigrationStateRefreshSecrets InstallationDBMigrationOperationState = "db-migration-refresh-secrets"
+	InstallationDBMigrationStateRefreshSecrets InstallationDBMigrationOperationState = "installation-db-migration-refresh-secrets"
 	// InstallationDBMigrationStateTriggerRestoration is DB migration operation that is triggering database restoration.
-	InstallationDBMigrationStateTriggerRestoration InstallationDBMigrationOperationState = "db-migration-trigger-restoration"
+	InstallationDBMigrationStateTriggerRestoration InstallationDBMigrationOperationState = "installation-db-migration-trigger-restoration"
 	// InstallationDBMigrationStateRestorationInProgress is DB migration operation that is waiting for restoration to complete.
-	InstallationDBMigrationStateRestorationInProgress InstallationDBMigrationOperationState = "db-migration-restoration-in-progress"
+	InstallationDBMigrationStateRestorationInProgress InstallationDBMigrationOperationState = "installation-db-migration-restoration-in-progress"
 	// InstallationDBMigrationStateUpdatingInstallationConfig is DB migration operation that is updating Installation configuration.
-	InstallationDBMigrationStateUpdatingInstallationConfig InstallationDBMigrationOperationState = "db-migration-updating-installation-config"
+	InstallationDBMigrationStateUpdatingInstallationConfig InstallationDBMigrationOperationState = "installation-db-migration-updating-installation-config"
 	// InstallationDBMigrationStateFinalizing is DB migration operation that is finalizing the migration.
-	InstallationDBMigrationStateFinalizing InstallationDBMigrationOperationState = "db-migration-finalizing"
+	InstallationDBMigrationStateFinalizing InstallationDBMigrationOperationState = "installation-db-migration-finalizing"
 	// InstallationDBMigrationStateFailing is DB migration operation that is failing.
-	InstallationDBMigrationStateFailing InstallationDBMigrationOperationState = "db-migration-failing"
+	InstallationDBMigrationStateFailing InstallationDBMigrationOperationState = "installation-db-migration-failing"
 	// InstallationDBMigrationStateSucceeded is DB migration operation that finished with success.
-	InstallationDBMigrationStateSucceeded InstallationDBMigrationOperationState = "db-migration-succeeded"
+	InstallationDBMigrationStateSucceeded InstallationDBMigrationOperationState = "installation-db-migration-succeeded"
 	// InstallationDBMigrationStateFailed is DB migration operation that failed.
-	InstallationDBMigrationStateFailed InstallationDBMigrationOperationState = "db-migration-failed"
+	InstallationDBMigrationStateFailed InstallationDBMigrationOperationState = "installation-db-migration-failed"
 )
 
 // AllInstallationDBMigrationOperationsStatesPendingWork is a list of all db migration operations states
