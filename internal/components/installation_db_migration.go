@@ -13,6 +13,7 @@ type dbMigrationValidationStore interface {
 	GetInstallationsTotalDatabaseWeight(installationIDs []string) (float64, error)
 }
 
+// ValidateDBMigrationDestination validates if installation can be migrated to destinationDB.
 func ValidateDBMigrationDestination(store dbMigrationValidationStore, destinationDB *model.MultitenantDatabase, installationID string, maxWeight float64) error {
 	if Contains(destinationDB.MigratedInstallations, installationID) {
 		return errors.Errorf("installation %q still exists in migrated installations for %q database, clean it up before migration", installationID, destinationDB.ID)
