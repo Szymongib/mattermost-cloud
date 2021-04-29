@@ -650,6 +650,23 @@ func (c *Client) GetInstallationDBMigrationOperations(request *GetInstallationDB
 	}
 }
 
+// GetInstallationDBMigration fetches the specified installation db migration operation from the configured provisioning server.
+func (c *Client) GetInstallationDBMigration(id string) (*InstallationDBMigrationOperation, error) {
+	resp, err := c.doGet(c.buildURL("/api/installations/operations/database/migration/%s", id))
+	if err != nil {
+		return nil, err
+	}
+	defer closeBody(resp)
+
+	switch resp.StatusCode {
+	case http.StatusOK:
+		return NewDBMigrationOperationFromReader(resp.Body)
+
+	default:
+		return nil, errors.Errorf("failed with status code %d", resp.StatusCode)
+	}
+}
+
 // AddInstallationAnnotations adds annotations to the given installation.
 func (c *Client) AddInstallationAnnotations(installationID string, annotationsRequest *AddAnnotationsRequest) (*InstallationDTO, error) {
 	resp, err := c.doPost(c.buildURL("/api/installation/%s/annotations", installationID), annotationsRequest)

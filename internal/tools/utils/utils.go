@@ -118,6 +118,7 @@ func (r *ResourceUtil) GetDatabaseForInstallation(installation *model.Installati
 	return r.GetDatabase(installation.ID, installation.Database)
 }
 
+// GetDatabase returns the Database interface that matches the installationID and DB type.
 func (r *ResourceUtil) GetDatabase(installationID, dbType string) model.Database {
 	switch dbType {
 	case model.InstallationDatabaseMysqlOperator:

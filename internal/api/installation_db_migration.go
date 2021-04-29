@@ -22,16 +22,17 @@ func initInstallationMigration(apiRouter *mux.Router, context *Context) {
 		return newContextHandler(context, handler)
 	}
 
-	restorationsRouter := apiRouter.PathPrefix("/operations/database/migrations").Subrouter()
+	migrationsRouter := apiRouter.PathPrefix("/operations/database/migrations").Subrouter()
 
-	restorationsRouter.Handle("", addContext(handleTriggerInstallationDatabaseMigration)).Methods("POST")
-	restorationsRouter.Handle("", addContext(handleGetInstallationDBMigrationOperations)).Methods("GET")
+	migrationsRouter.Handle("", addContext(handleTriggerInstallationDatabaseMigration)).Methods("POST")
+	migrationsRouter.Handle("", addContext(handleGetInstallationDBMigrationOperations)).Methods("GET")
 
-	//restorationRouter := apiRouter.PathPrefix("/operations/database/restoration/{restoration:[A-Za-z0-9]{26}}").Subrouter()
-	//restorationRouter.Handle("", addContext(handleGetInstallationDBRestorationOperation)).Methods("GET")
+	migrationRouter := apiRouter.PathPrefix("/operations/database/migration/{migration:[A-Za-z0-9]{26}}").Subrouter()
+	migrationRouter.Handle("", addContext(handleGetInstallationDBMigrationOperation)).Methods("GET")
 }
 
-// TODO: comments + tests
+// handleTriggerInstallationDatabaseMigration responds to POST /api/installations/operations/database/migrations,
+// requests migration of Installation's data to different DB cluster.
 func handleTriggerInstallationDatabaseMigration(c *Context, w http.ResponseWriter, r *http.Request) {
 	c.Logger = c.Logger.WithField("action", "migrate-installation-database")
 
@@ -116,6 +117,8 @@ func handleTriggerInstallationDatabaseMigration(c *Context, w http.ResponseWrite
 	outputJSON(c, w, dbMigrationOperation)
 }
 
+// handleGetInstallationDBMigrationOperations responds to GET /api/installations/operations/database/migrations,
+// returns list of installation migration operation.
 func handleGetInstallationDBMigrationOperations(c *Context, w http.ResponseWriter, r *http.Request) {
 	c.Logger = c.Logger.
 		WithField("action", "list-installation-db-migrations")
@@ -149,6 +152,34 @@ func handleGetInstallationDBMigrationOperations(c *Context, w http.ResponseWrite
 	outputJSON(c, w, dbMigrations)
 }
 
+// TODO: get single method
+
+// handleGetInstallationDBMigrationOperation responds to GET /api/installations/operations/database/migration/{migration},
+// returns specified installation db migration operation.
+func handleGetInstallationDBMigrationOperation(c *Context, w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	migrationID := vars["migration"]
+
+	c.Logger = c.Logger.
+		WithField("action", "get-installation-db-migration").
+		WithField("migration-operation", migrationID)
+
+	dbRestorationOp, err := c.Store.GetInstallationDBMigrationOperation(migrationID)
+	if err != nil {
+		c.Logger.WithError(err).Error("Failed to get installation db migration")
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	if dbRestorationOp == nil {
+		w.WriteHeader(http.StatusNotFound)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	outputJSON(c, w, dbRestorationOp)
+}
+
 func validateDBMigration(c *Context, installation *model.Installation, migrationRequest *model.InstallationDBMigrationRequest, currentDB *model.MultitenantDatabase) error {
 	if migrationRequest.DestinationDatabase != model.InstallationDatabaseMultiTenantRDSPostgres ||
 		installation.Database != model.InstallationDatabaseMultiTenantRDSPostgres {
@@ -165,6 +196,9 @@ func validateDBMigration(c *Context, installation *model.Installation, migration
 	}
 	if destinationDB == nil {
 		return errors.Errorf("destination database with id %q not found", migrationRequest.DestinationMultiTenant.DatabaseID)
+	}
+	if destinationDB.DatabaseType != model.DatabaseEngineTypePostgres {
+		return errors.Errorf("destination database is not Postgres")
 	}
 
 	if currentDB.ID == destinationDB.ID {
