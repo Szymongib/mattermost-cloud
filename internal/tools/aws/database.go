@@ -206,6 +206,14 @@ func (d *RDSDatabase) GenerateDatabaseSecret(store model.InstallationDatabaseSto
 	return databaseSecret, nil
 }
 
+func (d *RDSDatabase) MigrateOut(store model.InstallationDatabaseStoreInterface, dbMigration *model.InstallationDBMigrationOperation, logger log.FieldLogger) error {
+	return errors.New("database migration is not supported for single tenant RDS")
+}
+
+func (d *RDSDatabase) MigrateTo(store model.InstallationDatabaseStoreInterface, dbMigration *model.InstallationDBMigrationOperation, logger log.FieldLogger) error {
+	return errors.New("database migration is not supported for single tenant RDS")
+}
+
 func (d *RDSDatabase) rdsDatabaseProvision(installationID string, logger log.FieldLogger) error {
 	awsID := CloudID(installationID)
 

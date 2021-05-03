@@ -37,6 +37,7 @@ type Store interface {
 	GetInstallationsCount(includeDeleted bool) (int64, error)
 	GetInstallationsStatus() (*model.InstallationsStatus, error)
 	UpdateInstallation(installation *model.Installation) error
+	UpdateInstallationState(installation *model.Installation) error
 	LockInstallation(installationID, lockerID string) (bool, error)
 	UnlockInstallation(installationID, lockerID string, force bool) (bool, error)
 	LockInstallationAPI(installationID string) error
@@ -64,7 +65,10 @@ type Store interface {
 	GetWebhooks(filter *model.WebhookFilter) ([]*model.Webhook, error)
 	DeleteWebhook(webhookID string) error
 
+	GetMultitenantDatabase(multitenantdatabaseID string) (*model.MultitenantDatabase, error)
 	GetMultitenantDatabases(filter *model.MultitenantDatabaseFilter) ([]*model.MultitenantDatabase, error)
+	GetMultitenantDatabaseForInstallationID(installationID string) (*model.MultitenantDatabase, error)
+	GetInstallationsTotalDatabaseWeight(installationIDs []string) (float64, error)
 
 	GetOrCreateAnnotations(annotations []*model.Annotation) ([]*model.Annotation, error)
 
@@ -79,10 +83,19 @@ type Store interface {
 	UpdateInstallationBackupState(backupMeta *model.InstallationBackup) error
 	GetInstallationBackup(id string) (*model.InstallationBackup, error)
 	GetInstallationBackups(filter *model.InstallationBackupFilter) ([]*model.InstallationBackup, error)
+	IsInstallationBackupBeingUsed(backupID string) (bool, error)
 	LockInstallationBackup(backupMetadataID, lockerID string) (bool, error)
 	UnlockInstallationBackup(backupMetadataID, lockerID string, force bool) (bool, error)
 	LockInstallationBackupAPI(backupID string) error
 	UnlockInstallationBackupAPI(backupID string) error
+
+	TriggerInstallationRestoration(installation *model.Installation, backup *model.InstallationBackup) (*model.InstallationDBRestorationOperation, error)
+	GetInstallationDBRestorationOperation(id string) (*model.InstallationDBRestorationOperation, error)
+	GetInstallationDBRestorationOperations(filter *model.InstallationDBRestorationFilter) ([]*model.InstallationDBRestorationOperation, error)
+
+	TriggerInstallationDBMigration(dbMigrationOp *model.InstallationDBMigrationOperation, installation *model.Installation) (*model.InstallationDBMigrationOperation, error)
+	GetInstallationDBMigrationOperations(filter *model.InstallationDBMigrationFilter) ([]*model.InstallationDBMigrationOperation, error)
+	GetInstallationDBMigrationOperation(id string) (*model.InstallationDBMigrationOperation, error)
 }
 
 // Provisioner describes the interface required to communicate with the Kubernetes cluster.
