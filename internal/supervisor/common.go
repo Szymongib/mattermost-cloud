@@ -22,11 +22,11 @@ func claimClusterInstallation(store clusterInstallationClaimStore, installation 
 	}
 	clusterInstallations, err := store.GetClusterInstallations(clusterInstallationFilter)
 	if err != nil {
-		return nil, nil, errors.Wrap(err, "Failed to get cluster installations")
+		return nil, nil, errors.Wrap(err, "failed to get cluster installations")
 	}
 
 	if len(clusterInstallations) == 0 {
-		return nil, nil, errors.Wrap(err, "Expected at least one cluster installation for the installation but found none")
+		return nil, nil, errors.Wrap(err, "expected at least one cluster installation for the installation but found none")
 	}
 
 	claimedCI := clusterInstallations[0]
@@ -67,12 +67,12 @@ type getClusterForClusterInstallationStore interface {
 func getClusterForClusterInstallation(store getClusterForClusterInstallationStore, clusterInstallationID string) (*model.Cluster, error) {
 	clusterInstallation, err := store.GetClusterInstallation(clusterInstallationID)
 	if err != nil {
-		return nil, errors.Wrap(err, "Failed to get cluster installations")
+		return nil, errors.Wrap(err, "failed to get cluster installations")
 	}
 
 	cluster, err := store.GetCluster(clusterInstallation.ClusterID)
 	if err != nil {
-		return nil, errors.Wrap(err, "Failed to get cluster")
+		return nil, errors.Wrap(err, "failed to get cluster")
 	}
 
 	if cluster == nil {
