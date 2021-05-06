@@ -5,6 +5,7 @@
 package supervisor
 
 import (
+	"github.com/pkg/errors"
 	"time"
 
 	"github.com/mattermost/mattermost-cloud/internal/tools/utils"
@@ -200,6 +201,13 @@ func (s *DBMigrationSupervisor) transitionMigration(dbMigration *model.Installat
 		return s.finalizeMigration(dbMigration, instanceID, logger)
 	case model.InstallationDBMigrationStateFailing:
 		return s.failMigration(dbMigration, instanceID, logger)
+
+	//case model.InstallationDBMigrationStateCommitRequested:
+	//	return s.confirmMigration(dbMigration, instanceID, logger)
+	case model.InstallationDBMigrationStateRollbackRequested:
+		return s.rollbackMigration(dbMigration, instanceID, logger)
+	//case model.InstallationDBMigrationStateRollbackRequested:
+	//	return s.rollbackMigration(dbMigration, instanceID, logger)
 	default:
 		logger.Warnf("Found migration pending work in unexpected state %s", dbMigration.State)
 		return dbMigration.State
@@ -210,7 +218,7 @@ func (s *DBMigrationSupervisor) transitionMigration(dbMigration *model.Installat
 func (s *DBMigrationSupervisor) triggerInstallationBackup(dbMigration *model.InstallationDBMigrationOperation, instanceID string, logger log.FieldLogger) model.InstallationDBMigrationOperationState {
 	installation, lock, err := getAndLockInstallation(s.store, dbMigration.InstallationID, instanceID, logger)
 	if err != nil {
-		logger.WithError(err).Error("failed to get and lock installation")
+		logger.WithError(err).Error("Failed to get and lock installation")
 		return dbMigration.State
 	}
 	defer lock.Unlock()
@@ -257,7 +265,7 @@ func (s *DBMigrationSupervisor) waitForInstallationBackup(dbMigration *model.Ins
 func (s *DBMigrationSupervisor) switchDatabase(dbMigration *model.InstallationDBMigrationOperation, instanceID string, logger log.FieldLogger) model.InstallationDBMigrationOperationState {
 	installation, lock, err := getAndLockInstallation(s.store, dbMigration.InstallationID, instanceID, logger)
 	if err != nil {
-		logger.WithError(err).Error("failed to get and lock installation")
+		logger.WithError(err).Error("Failed to get and lock installation")
 		return dbMigration.State
 	}
 	defer lock.Unlock()
@@ -290,30 +298,15 @@ func (s *DBMigrationSupervisor) switchDatabase(dbMigration *model.InstallationDB
 func (s *DBMigrationSupervisor) refreshCredentials(dbMigration *model.InstallationDBMigrationOperation, instanceID string, logger log.FieldLogger) model.InstallationDBMigrationOperationState {
 	installation, lock, err := getAndLockInstallation(s.store, dbMigration.InstallationID, instanceID, logger)
 	if err != nil {
-		logger.WithError(err).Error("failed to get and lock installation")
+		logger.WithError(err).Error("Failed to get and lock installation")
 		return dbMigration.State
 	}
 	defer lock.Unlock()
 
-	cis, err := s.store.GetClusterInstallations(&model.ClusterInstallationFilter{InstallationID: installation.ID, Paging: model.AllPagesNotDeleted()})
+	err = s.refreshSecrets(installation)
 	if err != nil {
-		logger.WithError(err).Errorf("Failed to get cluster installations")
+		logger.WithError(err).Error("Failed to refresh credentials for cluster installations")
 		return dbMigration.State
-	}
-
-	for _, ci := range cis {
-		cluster, err := s.store.GetCluster(ci.ClusterID)
-		if err != nil {
-			logger.WithError(err).Errorf("Failed to get cluster")
-			return dbMigration.State
-		}
-
-		err = s.dbMigrationCIProvisioner.ClusterInstallationProvisioner(installation.CRVersion).
-			RefreshSecrets(cluster, installation, cis[0])
-		if err != nil {
-			logger.WithError(err).Errorf("Failed to refresh credentials of cluster installation")
-			return dbMigration.State
-		}
 	}
 
 	return model.InstallationDBMigrationStateTriggerRestoration
@@ -322,7 +315,7 @@ func (s *DBMigrationSupervisor) refreshCredentials(dbMigration *model.Installati
 func (s *DBMigrationSupervisor) triggerInstallationRestoration(dbMigration *model.InstallationDBMigrationOperation, instanceID string, logger log.FieldLogger) model.InstallationDBMigrationOperationState {
 	installation, lock, err := getAndLockInstallation(s.store, dbMigration.InstallationID, instanceID, logger)
 	if err != nil {
-		logger.WithError(err).Error("failed to get and lock installation")
+		logger.WithError(err).Error("Failed to get and lock installation")
 		return dbMigration.State
 	}
 	defer lock.Unlock()
@@ -415,7 +408,7 @@ func (s *DBMigrationSupervisor) updateInstallationConfig(dbMigration *model.Inst
 func (s *DBMigrationSupervisor) finalizeMigration(dbMigration *model.InstallationDBMigrationOperation, instanceID string, logger log.FieldLogger) model.InstallationDBMigrationOperationState {
 	installation, lock, err := getAndLockInstallation(s.store, dbMigration.InstallationID, instanceID, logger)
 	if err != nil {
-		logger.WithError(err).Error("failed to get and lock installation")
+		logger.WithError(err).Error("Failed to get and lock installation")
 		return dbMigration.State
 	}
 	defer lock.Unlock()
@@ -456,7 +449,7 @@ func (s *DBMigrationSupervisor) finalizeMigration(dbMigration *model.Installatio
 func (s *DBMigrationSupervisor) failMigration(dbMigration *model.InstallationDBMigrationOperation, instanceID string, logger log.FieldLogger) model.InstallationDBMigrationOperationState {
 	installation, lock, err := getAndLockInstallation(s.store, dbMigration.InstallationID, instanceID, logger)
 	if err != nil {
-		logger.WithError(err).Error("failed to get and lock installation")
+		logger.WithError(err).Error("Failed to get and lock installation")
 		return dbMigration.State
 	}
 	defer lock.Unlock()
@@ -485,4 +478,116 @@ func (s *DBMigrationSupervisor) failMigration(dbMigration *model.InstallationDBM
 	}
 
 	return model.InstallationDBMigrationStateFailed
+}
+
+// TODO: cleaning up migrations on Installation delete?
+// - For all not committed migration run cleanup? Just teardown migrated?
+
+func (s *DBMigrationSupervisor) confirmMigration(dbMigration *model.InstallationDBMigrationOperation, instanceID string, logger log.FieldLogger) model.InstallationDBMigrationOperationState {
+	err := s.cleanupSourceDB(dbMigration, logger)
+	if err != nil {
+		logger.WithError(err).Errorf("Failed to cleanup source database")
+		return dbMigration.State
+	}
+
+	return model.InstallationDBMigrationStateCommitted
+}
+
+// TODO: do I need to change Installation state here? I think so
+func (s *DBMigrationSupervisor) rollbackMigration(dbMigration *model.InstallationDBMigrationOperation, instanceID string, logger log.FieldLogger) model.InstallationDBMigrationOperationState {
+	installation, lock, err := getAndLockInstallation(s.store, dbMigration.InstallationID, instanceID, logger)
+	if err != nil {
+		logger.WithError(err).Error("Failed to get and lock installation")
+		return dbMigration.State
+	}
+	defer lock.Unlock()
+
+	destinationDB := s.dbProvider.GetDatabase(installation.ID, dbMigration.DestinationDatabase)
+	err = destinationDB.RollbackMigration(s.store, dbMigration, logger)
+	if err != nil {
+		logger.WithError(err).Errorf("Failed to migrate installation to database")
+		return dbMigration.State
+	}
+
+	installation.Database = dbMigration.SourceDatabase
+	err = s.store.UpdateInstallation(installation)
+	if err != nil {
+		logger.WithError(err).Errorf("Failed to switch database for installation")
+		return dbMigration.State
+	}
+
+	err = s.refreshSecrets(installation)
+	if err != nil {
+		logger.WithError(err).Error("Failed to refresh secrets on cluster installations during rollback")
+		return dbMigration.State
+	}
+
+	installation.State = model.InstallationStateHibernating
+	err = s.store.UpdateInstallation(installation)
+	if err != nil {
+		logger.WithError(err).Errorf("Failed to set installation back to hibernating state")
+		return dbMigration.State
+	}
+	// Switch Installation back - RollbackMigrationOut  and  RollbackMigrationIn?
+	// Refresh secrets
+	// Done
+
+	// TODO
+
+	return model.InstallationDBMigrationStateRollbackFinished
+}
+
+//func (s *DBMigrationSupervisor) rollbackMigrationRefreshSecrets(dbMigration *model.InstallationDBMigrationOperation, instanceID string, logger log.FieldLogger) model.InstallationDBMigrationOperationState {
+//
+//	// TODO: refresh secrets
+//
+//	// Switch state of installation?
+//
+//	return model.InstallationDBMigrationStateRollbackFinished
+//}
+
+//func (s *DBMigrationSupervisor) cleanupMigration(dbMigration *model.InstallationDBMigrationOperation, instanceID string, logger log.FieldLogger) model.InstallationDBMigrationOperationState {
+//	err := s.cleanupSourceDB(dbMigration, logger)
+//	if err != nil {
+//		logger.WithError(err).Errorf("Failed to cleanup source database")
+//		return dbMigration.State
+//	}
+//
+//	// TODO: Mark operation as deleted?
+//
+//	return model.InstallationDBMigrationStateDeleted
+//}
+
+// TODO: cleanup / delete migration method - cleans up old db is succeeded, and what if failed? Cleans up the new one? not really cause there could be another one to the same target?
+
+func (s *DBMigrationSupervisor) refreshSecrets(installation *model.Installation) error {
+	cis, err := s.store.GetClusterInstallations(&model.ClusterInstallationFilter{InstallationID: installation.ID, Paging: model.AllPagesNotDeleted()})
+	if err != nil {
+		return errors.Wrap(err, "failed to get cluster installations")
+	}
+
+	for _, ci := range cis {
+		cluster, err := s.store.GetCluster(ci.ClusterID)
+		if err != nil {
+			return errors.Wrap(err, "failed to get cluster")
+		}
+
+		err = s.dbMigrationCIProvisioner.ClusterInstallationProvisioner(installation.CRVersion).
+			RefreshSecrets(cluster, installation, cis[0])
+		if err != nil {
+			return errors.Wrap(err, "failed to refresh credentials of cluster installation")
+		}
+	}
+	return nil
+}
+
+func (s *DBMigrationSupervisor) cleanupSourceDB(dbMigration *model.InstallationDBMigrationOperation, logger log.FieldLogger) error {
+	sourceDB := s.dbProvider.GetDatabase(dbMigration.InstallationID, dbMigration.SourceDatabase)
+
+	err := sourceDB.TeardownMigrated(s.store, dbMigration, logger)
+	if err != nil {
+		return errors.Wrap (err, "failed to tear down migrated database")
+	}
+
+	return nil
 }

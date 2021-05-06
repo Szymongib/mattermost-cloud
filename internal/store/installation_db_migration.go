@@ -121,6 +121,35 @@ func (sqlStore *SQLStore) TriggerInstallationDBMigration(dbMigrationOp *model.In
 	return dbMigrationOp, nil
 }
 
+// TriggerInstallationDBMigrationRollback triggers rollback of DB migration in single transaction.
+func (sqlStore *SQLStore) TriggerInstallationDBMigrationRollback(dbMigrationOp *model.InstallationDBMigrationOperation, installation *model.Installation) error {
+	dbMigrationOp.State = model.InstallationDBMigrationStateRollbackRequested
+	installation.State = model.InstallationStateDBMigrationRollbackInProgress
+
+	tx, err := sqlStore.beginTransaction(sqlStore.db)
+	if err != nil {
+		return errors.Wrap(err, "failed to start transaction")
+	}
+	defer tx.RollbackUnlessCommitted()
+
+	err = sqlStore.updateInstallationDBMigration(tx, dbMigrationOp)
+	if err != nil {
+		return errors.Wrap(err, "failed to update installation db migration")
+	}
+
+	err = sqlStore.updateInstallation(tx, installation)
+	if err != nil {
+		return errors.Wrap(err, "failed to update installation")
+	}
+
+	err = tx.Commit()
+	if err != nil {
+		return errors.Wrap(err, "failed to commit transaction")
+	}
+
+	return nil
+}
+
 // CreateInstallationDBMigrationOperation records installation db migration to the database, assigning it a unique ID.
 func (sqlStore *SQLStore) CreateInstallationDBMigrationOperation(dbMigration *model.InstallationDBMigrationOperation) error {
 	return sqlStore.createInstallationDBMigration(sqlStore.db, dbMigration)

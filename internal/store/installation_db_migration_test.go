@@ -40,6 +40,34 @@ func TestTriggerInstallationDBMigration(t *testing.T) {
 	assert.Equal(t, model.InstallationStateDBMigrationInProgress, installation.State)
 }
 
+func TestTriggerInstallationDBMigrationRollback(t *testing.T) {
+	logger := testlib.MakeLogger(t)
+	sqlStore := MakeTestSQLStore(t, logger)
+	defer CloseConnection(t, sqlStore)
+
+	installation := setupHibernatingInstallation(t, sqlStore)
+
+	dbMigrationOp := &model.InstallationDBMigrationOperation{
+		SourceDatabase:      "source",
+		DestinationDatabase: "destination",
+		InstallationID: installation.ID,
+	}
+	err := sqlStore.CreateInstallationDBMigrationOperation(dbMigrationOp)
+	require.NoError(t, err)
+
+	err = sqlStore.TriggerInstallationDBMigrationRollback(dbMigrationOp, installation)
+	require.NoError(t, err)
+	assert.Equal(t, model.InstallationDBMigrationStateRollbackRequested, dbMigrationOp.State)
+
+	fetchOp, err := sqlStore.GetInstallationDBMigrationOperation(dbMigrationOp.ID)
+	require.NoError(t, err)
+	assert.Equal(t, dbMigrationOp, fetchOp)
+
+	installation, err = sqlStore.GetInstallation(installation.ID, false, false)
+	require.NoError(t, err)
+	assert.Equal(t, model.InstallationStateDBMigrationRollbackInProgress, installation.State)
+}
+
 func TestInstallationDBMigrationOperation(t *testing.T) {
 	logger := testlib.MakeLogger(t)
 	sqlStore := MakeTestSQLStore(t, logger)

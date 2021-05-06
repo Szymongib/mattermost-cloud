@@ -214,6 +214,14 @@ func (d *RDSDatabase) MigrateTo(store model.InstallationDatabaseStoreInterface, 
 	return errors.New("database migration is not supported for single tenant RDS")
 }
 
+func (d *RDSDatabase) TeardownMigrated(store model.InstallationDatabaseStoreInterface, migrationOp *model.InstallationDBMigrationOperation, logger log.FieldLogger) error {
+	return errors.New("tearing down migrated installations is not supported for single tenant RDS")
+}
+
+func (d *RDSDatabase) RollbackMigration(store model.InstallationDatabaseStoreInterface, dbMigration *model.InstallationDBMigrationOperation, logger log.FieldLogger) error {
+	return errors.New("rolling back db migration is not supported for single tenant RDS")
+}
+
 func (d *RDSDatabase) rdsDatabaseProvision(installationID string, logger log.FieldLogger) error {
 	awsID := CloudID(installationID)
 

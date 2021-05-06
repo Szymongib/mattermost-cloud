@@ -29,6 +29,8 @@ func initInstallationMigration(apiRouter *mux.Router, context *Context) {
 
 	migrationRouter := apiRouter.PathPrefix("/operations/database/migration/{migration:[A-Za-z0-9]{26}}").Subrouter()
 	migrationRouter.Handle("", addContext(handleGetInstallationDBMigrationOperation)).Methods("GET")
+	migrationRouter.Handle("/commit", addContext(handleCommitInstallationDatabaseMigration)).Methods("POST")
+	migrationRouter.Handle("/rollback", addContext(handleRollbackInstallationDatabaseMigration)).Methods("POST")
 }
 
 // handleTriggerInstallationDatabaseMigration responds to POST /api/installations/operations/database/migrations,
@@ -59,6 +61,8 @@ func handleTriggerInstallationDatabaseMigration(c *Context, w http.ResponseWrite
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
+
+	// TODO: check if there is no other Succeeded but not Committed migration
 
 	err = validateDBMigration(c, installationDTO.Installation, migrationRequest, currentDB)
 	if err != nil {
@@ -152,8 +156,6 @@ func handleGetInstallationDBMigrationOperations(c *Context, w http.ResponseWrite
 	outputJSON(c, w, dbMigrations)
 }
 
-// TODO: get single method
-
 // handleGetInstallationDBMigrationOperation responds to GET /api/installations/operations/database/migration/{migration},
 // returns specified installation db migration operation.
 func handleGetInstallationDBMigrationOperation(c *Context, w http.ResponseWriter, r *http.Request) {
@@ -178,6 +180,102 @@ func handleGetInstallationDBMigrationOperation(c *Context, w http.ResponseWriter
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	outputJSON(c, w, dbRestorationOp)
+}
+
+// TODO: test commit and rollback
+
+// handleCommitInstallationDatabaseMigration responds to POST /api/installations/operations/database/migration/{migration}/commit,
+// commits database migration.
+func handleCommitInstallationDatabaseMigration(c *Context, w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	migrationID := vars["migration"]
+
+	c.Logger = c.Logger.WithField("action", "commit-installation-database-migration").
+		WithField("migration-operation", migrationID)
+
+	dbMigrationOperation, status, unlockOnce := lockInstallationDBMigrationOperation(c, migrationID)
+	if status != 0 {
+		w.WriteHeader(status)
+		return
+	}
+	defer unlockOnce()
+
+	if dbMigrationOperation.State != model.InstallationDBMigrationStateSucceeded {
+		c.Logger.Warn("Cannot commit not succeeded DB migration")
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	sourceDB := c.DBProvider.GetDatabase(dbMigrationOperation.InstallationID, dbMigrationOperation.SourceDatabase)
+
+	err := sourceDB.TeardownMigrated(c.Store, dbMigrationOperation, c.Logger)
+	if err != nil {
+		c.Logger.WithError(err).Error("Failed to tear down migrated database")
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	dbMigrationOperation.State = model.InstallationDBMigrationStateCommitted
+	err = c.Store.UpdateInstallationDBMigrationOperationState(dbMigrationOperation)
+	if err != nil {
+		c.Logger.WithError(err).Error("Failed to set operation status to committed")
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	outputJSON(c, w, dbMigrationOperation)
+}
+
+// handleRollbackInstallationDatabaseMigration responds to POST /api/installations/operations/database/migration/{migration}/rollback,
+// rollbacks database migration.
+func handleRollbackInstallationDatabaseMigration(c *Context, w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	migrationID := vars["migration"]
+
+	c.Logger = c.Logger.WithField("action", "rollback-installation-database-migration").
+		WithField("migration-operation", migrationID)
+
+	dbMigrationOperation, status, unlockOnce := lockInstallationDBMigrationOperation(c, migrationID)
+	if status != 0 {
+		w.WriteHeader(status)
+		return
+	}
+	defer unlockOnce()
+
+	newState := model.InstallationDBMigrationStateRollbackRequested
+
+	if !dbMigrationOperation.ValidTransitionState(newState) {
+		c.Logger.Warn("Cannot rollback migration, invalid state")
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	installationDTO, status, unlockInstOnce := lockInstallation(c, dbMigrationOperation.InstallationID)
+	if status != 0 {
+		w.WriteHeader(status)
+		return
+	}
+	defer unlockInstOnce()
+
+	if installationDTO.State != model.InstallationStateHibernating {
+		c.Logger.Error("Installation needs to be hibernated to be rolled back")
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	err := c.Store.TriggerInstallationDBMigrationRollback(dbMigrationOperation, installationDTO.Installation)
+	if err != nil {
+		c.Logger.WithError(err).Error("Failed to trigger db migration rollback")
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	unlockOnce()
+	c.Supervisor.Do()
+
+	w.WriteHeader(http.StatusAccepted)
+	outputJSON(c, w, dbMigrationOperation)
 }
 
 func validateDBMigration(c *Context, installation *model.Installation, migrationRequest *model.InstallationDBMigrationRequest, currentDB *model.MultitenantDatabase) error {

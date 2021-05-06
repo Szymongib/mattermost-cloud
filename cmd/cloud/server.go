@@ -297,6 +297,7 @@ var serverCmd = &cobra.Command{
 			Store:       sqlStore,
 			Supervisor:  supervisor,
 			Provisioner: kopsProvisioner,
+			DBProvider:  resourceUtil,
 			Environment: awsClient.GetCloudEnvironmentName(),
 			Logger:      logger,
 		})

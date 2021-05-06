@@ -43,6 +43,8 @@ type Database interface {
 	RefreshResourceMetadata(store InstallationDatabaseStoreInterface, logger log.FieldLogger) error
 	MigrateOut(store InstallationDatabaseStoreInterface, dbMigration *InstallationDBMigrationOperation, logger log.FieldLogger) error
 	MigrateTo(store InstallationDatabaseStoreInterface, dbMigration *InstallationDBMigrationOperation, logger log.FieldLogger) error
+	TeardownMigrated(store InstallationDatabaseStoreInterface, migrationOp *InstallationDBMigrationOperation, logger log.FieldLogger) error
+	RollbackMigration(store InstallationDatabaseStoreInterface, dbMigration *InstallationDBMigrationOperation, logger log.FieldLogger) error
 }
 
 // InstallationDatabaseStoreInterface is the interface necessary for SQLStore
@@ -102,6 +104,14 @@ func (d *MysqlOperatorDatabase) MigrateOut(store InstallationDatabaseStoreInterf
 
 func (d *MysqlOperatorDatabase) MigrateTo(store InstallationDatabaseStoreInterface, dbMigration *InstallationDBMigrationOperation, logger log.FieldLogger) error {
 	return errors.New("database migration is not supported for MySQL Operator")
+}
+
+func (d *MysqlOperatorDatabase) TeardownMigrated(store InstallationDatabaseStoreInterface, migrationOp *InstallationDBMigrationOperation, logger log.FieldLogger) error {
+	return errors.New("tearing down migrated installations is not supported for MySQL Operator")
+}
+
+func (d *MysqlOperatorDatabase) RollbackMigration(store InstallationDatabaseStoreInterface, dbMigration *InstallationDBMigrationOperation, logger log.FieldLogger) error {
+	return errors.New("rolling back db migration is not supported for MySQL Operator")
 }
 
 // GenerateDatabaseSecret creates the k8s database spec and secret for

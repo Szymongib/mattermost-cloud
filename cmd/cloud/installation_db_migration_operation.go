@@ -26,8 +26,20 @@ func init() {
 	registerPagingFlags(installationDBMigrationsListCmd)
 	installationDBMigrationsListCmd.Flags().Bool("table", false, "Whether to display output in a table or not.")
 
+	installationDBMigrationGetCmd.Flags().String("db-migration", "", "The id of the installation db migration operation.")
+	installationDBMigrationCommitCmd.MarkFlagRequired("db-migration")
+
+	installationDBMigrationCommitCmd.Flags().String("db-migration", "", "The id of the installation db migration operation.")
+	installationDBMigrationCommitCmd.MarkFlagRequired("db-migration")
+
+	installationDBMigrationRollbackCmd.Flags().String("db-migration", "", "The id of the installation db migration operation.")
+	installationDBMigrationRollbackCmd.MarkFlagRequired("db-migration")
+
 	installationDBMigrationOperationCmd.AddCommand(installationDBMigrationRequestCmd)
 	installationDBMigrationOperationCmd.AddCommand(installationDBMigrationsListCmd)
+	installationDBMigrationOperationCmd.AddCommand(installationDBMigrationGetCmd)
+	installationDBMigrationOperationCmd.AddCommand(installationDBMigrationCommitCmd)
+	installationDBMigrationOperationCmd.AddCommand(installationDBMigrationRollbackCmd)
 }
 
 var installationDBMigrationOperationCmd = &cobra.Command{
@@ -123,6 +135,81 @@ var installationDBMigrationsListCmd = &cobra.Command{
 		}
 
 		err = printJSON(dbMigrationOperations)
+		if err != nil {
+			return err
+		}
+
+		return nil
+	},
+}
+
+var installationDBMigrationGetCmd = &cobra.Command{
+	Use:   "get",
+	Short: "Fetches given installation database migration operation.",
+	RunE: func(command *cobra.Command, args []string) error {
+		command.SilenceUsage = true
+
+		serverAddress, _ := command.Flags().GetString("server")
+		client := model.NewClient(serverAddress)
+
+		dbMigrationID, _ := command.Flags().GetString("db-migration")
+
+		migrationOperation, err := client.GetInstallationDBMigrationOperation(dbMigrationID)
+		if err != nil {
+			return errors.Wrap(err, "failed to get installation database migration")
+		}
+
+		err = printJSON(migrationOperation)
+		if err != nil {
+			return err
+		}
+
+		return nil
+	},
+}
+
+var installationDBMigrationCommitCmd = &cobra.Command{
+	Use:   "commit",
+	Short: "Commits database migration",
+	RunE: func(command *cobra.Command, args []string) error {
+		command.SilenceUsage = true
+
+		serverAddress, _ := command.Flags().GetString("server")
+		client := model.NewClient(serverAddress)
+
+		dbMigrationID, _ := command.Flags().GetString("db-migration")
+
+		migrationOperation, err := client.CommitInstallationDBMigration(dbMigrationID)
+		if err != nil {
+			return errors.Wrap(err, "failed to commit installation database migration")
+		}
+
+		err = printJSON(migrationOperation)
+		if err != nil {
+			return err
+		}
+
+		return nil
+	},
+}
+
+var installationDBMigrationRollbackCmd = &cobra.Command{
+	Use:   "rollback",
+	Short: "Triggers rollback of database migration",
+	RunE: func(command *cobra.Command, args []string) error {
+		command.SilenceUsage = true
+
+		serverAddress, _ := command.Flags().GetString("server")
+		client := model.NewClient(serverAddress)
+
+		dbMigrationID, _ := command.Flags().GetString("db-migration")
+
+		migrationOperation, err := client.RollbackInstallationDBMigration(dbMigrationID)
+		if err != nil {
+			return errors.Wrap(err, "failed to trigger rollback of installation database migration")
+		}
+
+		err = printJSON(migrationOperation)
 		if err != nil {
 			return err
 		}

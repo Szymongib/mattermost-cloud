@@ -258,12 +258,12 @@ func TestGetInstallationDBMigrationOperation(t *testing.T) {
 	err := sqlStore.CreateInstallationDBMigrationOperation(migrationOp)
 	require.NoError(t, err)
 
-	fetchedOp, err := client.GetInstallationDBMigration(migrationOp.ID)
+	fetchedOp, err := client.GetInstallationDBMigrationOperation(migrationOp.ID)
 	require.NoError(t, err)
 	assert.Equal(t, migrationOp, fetchedOp)
 
 	t.Run("return 404 if operation not found", func(t *testing.T) {
-		_, err = client.GetInstallationDBMigration("not-real")
+		_, err = client.GetInstallationDBMigrationOperation("not-real")
 		require.EqualError(t, err, "failed with status code 404")
 	})
 }

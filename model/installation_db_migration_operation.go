@@ -63,6 +63,17 @@ const (
 	InstallationDBMigrationStateSucceeded InstallationDBMigrationOperationState = "installation-db-migration-succeeded"
 	// InstallationDBMigrationStateFailed is DB migration operation that failed.
 	InstallationDBMigrationStateFailed InstallationDBMigrationOperationState = "installation-db-migration-failed"
+
+	// TODO: comments
+	InstallationDBMigrationStateCommitted            InstallationDBMigrationOperationState = "installation-db-migration-committed"
+
+	InstallationDBMigrationStateRollbackRequested InstallationDBMigrationOperationState = "installation-db-migration-rollback-requested"
+	InstallationDBMigrationStateRollbackRefreshSecrets InstallationDBMigrationOperationState = "installation-db-migration-commit-refresh-secrets"
+	InstallationDBMigrationStateRollbackFinished  InstallationDBMigrationOperationState = "installation-db-migration-rollback-finished"
+
+	// TODO: or just require commit?
+	InstallationDBMigrationStateCleanupRequested InstallationDBMigrationOperationState = "installation-db-migration-cleanup-requested"
+	InstallationDBMigrationStateDeleted InstallationDBMigrationOperationState = "installation-db-migration-deleted"
 )
 
 // AllInstallationDBMigrationOperationsStatesPendingWork is a list of all db migration operations states
@@ -77,6 +88,9 @@ var AllInstallationDBMigrationOperationsStatesPendingWork = []InstallationDBMigr
 	InstallationDBMigrationStateUpdatingInstallationConfig,
 	InstallationDBMigrationStateFinalizing,
 	InstallationDBMigrationStateFailing,
+	InstallationDBMigrationStateRollbackRefreshSecrets,
+	InstallationDBMigrationStateRollbackRequested,
+	InstallationDBMigrationStateCleanupRequested,
 }
 
 // InstallationDBMigrationFilter describes the parameters used to constrain a set of installation db migration operations.
@@ -109,4 +123,35 @@ func NewDBMigrationOperationsFromReader(reader io.Reader) ([]*InstallationDBMigr
 	}
 
 	return dBMigrationOperations, nil
+}
+
+// ValidTransitionState returns whether an installation backup can be transitioned into
+// the new state or not based on its current state.
+func (b InstallationDBMigrationOperation) ValidTransitionState(newState InstallationDBMigrationOperationState) bool {
+	validStates, found := validInstallationDBMigrationOperationTransitions[newState]
+	if !found {
+		return false
+	}
+
+	return dbMigrationOperationStateIn(b.State, validStates)
+}
+
+var (
+	validInstallationDBMigrationOperationTransitions = map[InstallationDBMigrationOperationState][]InstallationDBMigrationOperationState{
+		//InstallationDBMigrationStateCommitRequested: {
+		//	InstallationDBMigrationStateSucceeded,
+		//},
+		InstallationDBMigrationStateRollbackRequested: {
+			InstallationDBMigrationStateSucceeded,
+		},
+	}
+)
+
+func dbMigrationOperationStateIn(state InstallationDBMigrationOperationState, states []InstallationDBMigrationOperationState) bool {
+	for _, s := range states {
+		if s == state {
+			return true
+		}
+	}
+	return false
 }
