@@ -550,6 +550,15 @@ func (d *RDSMultitenantDatabase) RollbackMigration(store model.InstallationDatab
 		sourceDatabase.Installations.Add(d.installationID)
 	}
 
+	err = store.UpdateMultitenantDatabase(sourceDatabase)
+	if err != nil {
+		return errors.Wrap(err, "failed to update source multitenant database")
+	}
+	err = store.UpdateMultitenantDatabase(destinationDatabase)
+	if err != nil {
+		return errors.Wrap(err, "failed to update destination multitenant database")
+	}
+
 	rdsCluster, err := d.describeRDSCluster(destinationDatabase.ID)
 	if err != nil {
 		return errors.Wrapf(err, "failed to describe the multitenant RDS cluster ID %s", destinationDatabase.ID)
