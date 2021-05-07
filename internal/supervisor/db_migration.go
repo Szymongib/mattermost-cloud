@@ -202,20 +202,17 @@ func (s *DBMigrationSupervisor) transitionMigration(dbMigration *model.Installat
 		return s.finalizeMigration(dbMigration, instanceID, logger)
 	case model.InstallationDBMigrationStateFailing:
 		return s.failMigration(dbMigration, instanceID, logger)
-
-	//case model.InstallationDBMigrationStateCommitRequested:
-	//	return s.confirmMigration(dbMigration, instanceID, logger)
 	case model.InstallationDBMigrationStateRollbackRequested:
 		return s.rollbackMigration(dbMigration, instanceID, logger)
-	//case model.InstallationDBMigrationStateRollbackRequested:
-	//	return s.rollbackMigration(dbMigration, instanceID, logger)
+	case model.InstallationDBMigrationStateDeletionRequested:
+		return s.cleanupMigration(dbMigration, instanceID, logger)
 	default:
 		logger.Warnf("Found migration pending work in unexpected state %s", dbMigration.State)
 		return dbMigration.State
 	}
 }
 
-// TODO: Allow passing existing backupID to migrate from
+// TODO: Possibly allow passing existing backupID to migrate from.
 func (s *DBMigrationSupervisor) triggerInstallationBackup(dbMigration *model.InstallationDBMigrationOperation, instanceID string, logger log.FieldLogger) model.InstallationDBMigrationOperationState {
 	installation, lock, err := getAndLockInstallation(s.store, dbMigration.InstallationID, instanceID, logger)
 	if err != nil {
@@ -514,11 +511,26 @@ func (s *DBMigrationSupervisor) rollbackMigration(dbMigration *model.Installatio
 		return dbMigration.State
 	}
 
+	oldState := installation.State
 	installation.State = model.InstallationStateHibernating
 	err = s.store.UpdateInstallation(installation)
 	if err != nil {
 		logger.WithError(err).Errorf("Failed to set installation back to hibernating state")
 		return dbMigration.State
+	}
+
+	webhookPayload := &model.WebhookPayload{
+		Type:      model.TypeInstallation,
+		ID:        installation.ID,
+		NewState:  installation.State,
+		OldState:  oldState,
+		Timestamp: time.Now().UnixNano(),
+		ExtraData: map[string]string{"DNS": installation.DNS, "Environment": s.environment},
+	}
+
+	err = webhook.SendToAllWebhooks(s.store, webhookPayload, logger.WithField("webhookEvent", webhookPayload.NewState))
+	if err != nil {
+		logger.WithError(err).Error("Unable to process and send webhooks")
 	}
 
 	return model.InstallationDBMigrationStateRollbackFinished

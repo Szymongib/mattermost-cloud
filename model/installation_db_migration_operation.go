@@ -72,8 +72,8 @@ const (
 	InstallationDBMigrationStateRollbackFinished  InstallationDBMigrationOperationState = "installation-db-migration-rollback-finished"
 
 	// TODO: or just require commit?
-	InstallationDBMigrationStateCleanupRequested InstallationDBMigrationOperationState = "installation-db-migration-cleanup-requested"
-	InstallationDBMigrationStateDeleted InstallationDBMigrationOperationState = "installation-db-migration-deleted"
+	InstallationDBMigrationStateDeletionRequested InstallationDBMigrationOperationState = "installation-db-migration-deletion-requested"
+	InstallationDBMigrationStateDeleted           InstallationDBMigrationOperationState = "installation-db-migration-deleted"
 )
 
 // AllInstallationDBMigrationOperationsStatesPendingWork is a list of all db migration operations states
@@ -90,7 +90,7 @@ var AllInstallationDBMigrationOperationsStatesPendingWork = []InstallationDBMigr
 	InstallationDBMigrationStateFailing,
 	InstallationDBMigrationStateRollbackRefreshSecrets,
 	InstallationDBMigrationStateRollbackRequested,
-	InstallationDBMigrationStateCleanupRequested,
+	InstallationDBMigrationStateDeletionRequested,
 }
 
 // InstallationDBMigrationFilter describes the parameters used to constrain a set of installation db migration operations.
