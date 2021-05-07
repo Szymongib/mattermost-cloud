@@ -519,7 +519,7 @@ func (d *RDSMultitenantDatabase) RollbackMigration(store model.InstallationDatab
 	})
 
 	if dbMigration.SourceDatabase != model.InstallationDatabaseMultiTenantRDSPostgres ||
-		dbMigration.DestinationDatabase != model.InstallationStateDBMigrationInProgress {
+		dbMigration.DestinationDatabase != model.InstallationDatabaseMultiTenantRDSPostgres {
 		return errors.New("db migration rollback is supported only for multitenant postgres database")
 	}
 
