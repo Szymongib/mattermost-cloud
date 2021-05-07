@@ -20,6 +20,7 @@ type installationDBRestorationStore interface {
 	GetInstallationDBRestorationOperation(id string) (*model.InstallationDBRestorationOperation, error)
 	UpdateInstallationDBRestorationOperationState(dbRestoration *model.InstallationDBRestorationOperation) error
 	UpdateInstallationDBRestorationOperation(dbRestoration *model.InstallationDBRestorationOperation) error
+	DeleteInstallationDBRestorationOperation(id string) error
 	installationDBRestorationLockStore
 
 	GetInstallationBackup(id string) (*model.InstallationBackup, error)

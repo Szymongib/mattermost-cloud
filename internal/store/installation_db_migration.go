@@ -295,6 +295,22 @@ func (sqlStore *SQLStore) updateInstallationDBMigrationFields(db execer, id stri
 	return nil
 }
 
+// DeleteInstallationDBMigrationOperation marks the given migration operation as deleted,
+// but does not remove the record from the database.
+func (sqlStore *SQLStore) DeleteInstallationDBMigrationOperation(id string) error {
+	_, err := sqlStore.execBuilder(sqlStore.db, sq.
+		Update(installationDBMigrationTable).
+		Set("DeleteAt", GetMillis()).
+		Where("ID = ?", id).
+		Where("DeleteAt = ?", 0))
+	if err != nil {
+		return errors.Wrapf(err, "failed to to mark migration as deleted")
+	}
+
+	return nil
+}
+
+
 // LockInstallationDBMigrationOperation marks the InstallationDBMigrationOperation as locked for exclusive use by the caller.
 func (sqlStore *SQLStore) LockInstallationDBMigrationOperation(id, lockerID string) (bool, error) {
 	return sqlStore.lockRows(installationDBMigrationTable, []string{id}, lockerID)

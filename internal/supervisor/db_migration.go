@@ -24,6 +24,7 @@ type installationDBMigrationStore interface {
 	GetInstallationDBMigrationOperation(id string) (*model.InstallationDBMigrationOperation, error)
 	UpdateInstallationDBMigrationOperationState(dbMigration *model.InstallationDBMigrationOperation) error
 	UpdateInstallationDBMigrationOperation(dbMigration *model.InstallationDBMigrationOperation) error
+	DeleteInstallationDBMigrationOperation(id string) error
 	installationDBMigrationOperationLockStore
 
 	TriggerInstallationRestoration(installation *model.Installation, backup *model.InstallationBackup) (*model.InstallationDBRestorationOperation, error)
@@ -483,17 +484,6 @@ func (s *DBMigrationSupervisor) failMigration(dbMigration *model.InstallationDBM
 // TODO: cleaning up migrations on Installation delete?
 // - For all not committed migration run cleanup? Just teardown migrated?
 
-func (s *DBMigrationSupervisor) confirmMigration(dbMigration *model.InstallationDBMigrationOperation, instanceID string, logger log.FieldLogger) model.InstallationDBMigrationOperationState {
-	err := s.cleanupSourceDB(dbMigration, logger)
-	if err != nil {
-		logger.WithError(err).Errorf("Failed to cleanup source database")
-		return dbMigration.State
-	}
-
-	return model.InstallationDBMigrationStateCommitted
-}
-
-// TODO: do I need to change Installation state here? I think so
 func (s *DBMigrationSupervisor) rollbackMigration(dbMigration *model.InstallationDBMigrationOperation, instanceID string, logger log.FieldLogger) model.InstallationDBMigrationOperationState {
 	installation, lock, err := getAndLockInstallation(s.store, dbMigration.InstallationID, instanceID, logger)
 	if err != nil {
@@ -502,6 +492,8 @@ func (s *DBMigrationSupervisor) rollbackMigration(dbMigration *model.Installatio
 	}
 	defer lock.Unlock()
 
+	// TODO: this approach is slightly simplified and will need to be split to 2 methods
+	// when we want to support different database types.
 	destinationDB := s.dbProvider.GetDatabase(installation.ID, dbMigration.DestinationDatabase)
 	err = destinationDB.RollbackMigration(s.store, dbMigration, logger)
 	if err != nil {
@@ -528,35 +520,9 @@ func (s *DBMigrationSupervisor) rollbackMigration(dbMigration *model.Installatio
 		logger.WithError(err).Errorf("Failed to set installation back to hibernating state")
 		return dbMigration.State
 	}
-	// Switch Installation back - RollbackMigrationOut  and  RollbackMigrationIn?
-	// Refresh secrets
-	// Done
-
-	// TODO
 
 	return model.InstallationDBMigrationStateRollbackFinished
 }
-
-//func (s *DBMigrationSupervisor) rollbackMigrationRefreshSecrets(dbMigration *model.InstallationDBMigrationOperation, instanceID string, logger log.FieldLogger) model.InstallationDBMigrationOperationState {
-//
-//	// TODO: refresh secrets
-//
-//	// Switch state of installation?
-//
-//	return model.InstallationDBMigrationStateRollbackFinished
-//}
-
-//func (s *DBMigrationSupervisor) cleanupMigration(dbMigration *model.InstallationDBMigrationOperation, instanceID string, logger log.FieldLogger) model.InstallationDBMigrationOperationState {
-//	err := s.cleanupSourceDB(dbMigration, logger)
-//	if err != nil {
-//		logger.WithError(err).Errorf("Failed to cleanup source database")
-//		return dbMigration.State
-//	}
-//
-//	// TODO: Mark operation as deleted?
-//
-//	return model.InstallationDBMigrationStateDeleted
-//}
 
 // TODO: cleanup / delete migration method - cleans up old db is succeeded, and what if failed? Cleans up the new one? not really cause there could be another one to the same target?
 
@@ -581,7 +547,23 @@ func (s *DBMigrationSupervisor) refreshSecrets(installation *model.Installation)
 	return nil
 }
 
-func (s *DBMigrationSupervisor) cleanupSourceDB(dbMigration *model.InstallationDBMigrationOperation, logger log.FieldLogger) error {
+func (s *DBMigrationSupervisor) cleanupMigration(dbMigration *model.InstallationDBMigrationOperation, instanceID string, logger log.FieldLogger) model.InstallationDBMigrationOperationState {
+	err := s.cleanupMigratedDBs(dbMigration, logger)
+	if err != nil {
+		logger.WithError(err).Errorf("Failed to cleanup source database")
+		return dbMigration.State
+	}
+
+	err = s.store.DeleteInstallationDBMigrationOperation(dbMigration.ID)
+	if err != nil {
+		logger.WithError(err).Errorf("Failed to mark migration operation as deleted")
+		return dbMigration.State
+	}
+
+	return model.InstallationDBMigrationStateDeleted
+}
+
+func (s *DBMigrationSupervisor) cleanupMigratedDBs(dbMigration *model.InstallationDBMigrationOperation, logger log.FieldLogger) error {
 	sourceDB := s.dbProvider.GetDatabase(dbMigration.InstallationID, dbMigration.SourceDatabase)
 
 	err := sourceDB.TeardownMigrated(s.store, dbMigration, logger)
