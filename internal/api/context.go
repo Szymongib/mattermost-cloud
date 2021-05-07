@@ -117,7 +117,7 @@ type Context struct {
 	Store       Store
 	Supervisor  Supervisor
 	Provisioner Provisioner
-	DBProvider DBProvider
+	DBProvider  DBProvider
 	RequestID   string
 	Environment string
 	Logger      logrus.FieldLogger

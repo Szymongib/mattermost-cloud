@@ -65,11 +65,11 @@ const (
 	InstallationDBMigrationStateFailed InstallationDBMigrationOperationState = "installation-db-migration-failed"
 
 	// TODO: comments
-	InstallationDBMigrationStateCommitted            InstallationDBMigrationOperationState = "installation-db-migration-committed"
+	InstallationDBMigrationStateCommitted InstallationDBMigrationOperationState = "installation-db-migration-committed"
 
-	InstallationDBMigrationStateRollbackRequested InstallationDBMigrationOperationState = "installation-db-migration-rollback-requested"
+	InstallationDBMigrationStateRollbackRequested      InstallationDBMigrationOperationState = "installation-db-migration-rollback-requested"
 	InstallationDBMigrationStateRollbackRefreshSecrets InstallationDBMigrationOperationState = "installation-db-migration-commit-refresh-secrets"
-	InstallationDBMigrationStateRollbackFinished  InstallationDBMigrationOperationState = "installation-db-migration-rollback-finished"
+	InstallationDBMigrationStateRollbackFinished       InstallationDBMigrationOperationState = "installation-db-migration-rollback-finished"
 
 	// TODO: or just require commit?
 	InstallationDBMigrationStateDeletionRequested InstallationDBMigrationOperationState = "installation-db-migration-deletion-requested"

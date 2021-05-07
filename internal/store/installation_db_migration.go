@@ -310,7 +310,6 @@ func (sqlStore *SQLStore) DeleteInstallationDBMigrationOperation(id string) erro
 	return nil
 }
 
-
 // LockInstallationDBMigrationOperation marks the InstallationDBMigrationOperation as locked for exclusive use by the caller.
 func (sqlStore *SQLStore) LockInstallationDBMigrationOperation(id, lockerID string) (bool, error) {
 	return sqlStore.lockRows(installationDBMigrationTable, []string{id}, lockerID)

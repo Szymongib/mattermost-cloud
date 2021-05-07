@@ -332,10 +332,10 @@ func TestInstallationDBRestorationSupervisor_Supervise(t *testing.T) {
 		installation, clusterInstallation, backup := setupRestoreRequiredResources(t, sqlStore)
 
 		restorationOp := &model.InstallationDBRestorationOperation{
-			InstallationID:          installation.ID,
-			BackupID:                backup.ID,
-			State:                   model.InstallationDBRestorationStateDeletionRequested,
-			ClusterInstallationID:   clusterInstallation.ID,
+			InstallationID:        installation.ID,
+			BackupID:              backup.ID,
+			State:                 model.InstallationDBRestorationStateDeletionRequested,
+			ClusterInstallationID: clusterInstallation.ID,
 		}
 		err := sqlStore.CreateInstallationDBRestorationOperation(restorationOp)
 		require.NoError(t, err)

@@ -580,7 +580,7 @@ func (s *DBMigrationSupervisor) cleanupMigratedDBs(dbMigration *model.Installati
 
 	err := sourceDB.TeardownMigrated(s.store, dbMigration, logger)
 	if err != nil {
-		return errors.Wrap (err, "failed to tear down migrated database")
+		return errors.Wrap(err, "failed to tear down migrated database")
 	}
 
 	return nil

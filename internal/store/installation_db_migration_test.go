@@ -50,7 +50,7 @@ func TestTriggerInstallationDBMigrationRollback(t *testing.T) {
 	dbMigrationOp := &model.InstallationDBMigrationOperation{
 		SourceDatabase:      "source",
 		DestinationDatabase: "destination",
-		InstallationID: installation.ID,
+		InstallationID:      installation.ID,
 	}
 	err := sqlStore.CreateInstallationDBMigrationOperation(dbMigrationOp)
 	require.NoError(t, err)
