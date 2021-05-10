@@ -321,36 +321,8 @@ func (d *RDSMultitenantDatabase) Teardown(store model.InstallationDatabaseStoreI
 		logger.Debug("No multitenant databases found for this installation; skipping...")
 	}
 
-	err = d.teardownAllMigratedDBs(store, logger)
-	if err != nil {
-		return errors.Wrap(err, "Failed to teardown migrated installation databases")
-	}
-
 	logger.Info("Multitenant RDS database teardown complete")
 
-	return nil
-}
-
-// TODO: refactor it when we support migrating across database types
-func (d *RDSMultitenantDatabase) teardownAllMigratedDBs(store model.InstallationDatabaseStoreInterface, logger log.FieldLogger) error {
-	logger.Info("Tearing down migrated multitenant databases")
-
-	databases, unlockFn, err := d.getAndLockMigratedMultitenantDatabases(store, logger)
-	if err != nil {
-		return errors.Wrap(err, "failed to get migrated multitenant database")
-	}
-	defer unlockFn()
-	if len(databases) == 0 {
-		logger.Debug("No migrated multitenant databases found for this installation; skipping...")
-		return nil
-	}
-
-	for _, db := range databases {
-		err = d.removeMigratedInstallationFromMultitenantDatabase(db, store, logger)
-		if err != nil {
-			return errors.Wrap(err, "failed to remove migrated installation database")
-		}
-	}
 	return nil
 }
 

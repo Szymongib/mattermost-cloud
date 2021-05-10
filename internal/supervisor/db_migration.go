@@ -5,8 +5,9 @@
 package supervisor
 
 import (
-	"github.com/pkg/errors"
 	"time"
+
+	"github.com/pkg/errors"
 
 	"github.com/mattermost/mattermost-cloud/internal/tools/utils"
 
