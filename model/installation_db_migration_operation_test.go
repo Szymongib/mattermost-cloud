@@ -6,6 +6,7 @@ package model
 
 import (
 	"bytes"
+	"github.com/stretchr/testify/assert"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -82,4 +83,41 @@ func TestNewDBMigrationOperationsFromReader(t *testing.T) {
 			},
 		}, dBMigrationOperations)
 	})
+}
+
+func TestInstallationDBMigrationOperation_ValidTransitionState(t *testing.T) {
+	// Couple of tests to verify mechanism is working - we can add more for specific cases
+	for _, testCase := range []struct {
+		oldState InstallationDBMigrationOperationState
+		newState InstallationDBMigrationOperationState
+		isValid  bool
+	}{
+		//{
+		//	oldState: InstallationDBMigrationStateSucceeded,
+		//	newState: InstallationDBMigrationStateCommitRequested,
+		//	isValid:  true,
+		//},
+		//{
+		//	oldState: InstallationDBMigrationStateFailed,
+		//	newState: InstallationDBMigrationStateCommitRequested,
+		//	isValid:  false,
+		//},
+		{
+			oldState: InstallationDBMigrationStateSucceeded,
+			newState: InstallationDBMigrationStateRollbackRequested,
+			isValid:  true,
+		},
+		{
+			oldState: InstallationDBMigrationStateRefreshSecrets,
+			newState: InstallationDBMigrationStateRollbackRequested,
+			isValid:  false,
+		},
+	} {
+		t.Run(string(testCase.oldState)+" to "+string(testCase.newState), func(t *testing.T) {
+			dbMigration := &InstallationDBMigrationOperation{State: testCase.oldState}
+
+			isValid := dbMigration.ValidTransitionState(testCase.newState)
+			assert.Equal(t, testCase.isValid, isValid)
+		})
+	}
 }
