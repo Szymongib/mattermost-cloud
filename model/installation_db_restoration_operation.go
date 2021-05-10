@@ -59,6 +59,7 @@ var AllInstallationDBRestorationStatesPendingWork = []InstallationDBRestorationS
 	InstallationDBRestorationStateInProgress,
 	InstallationDBRestorationStateFinalizing,
 	InstallationDBRestorationStateFailing,
+	InstallationDBRestorationStateDeletionRequested,
 }
 
 // InstallationDBRestorationFilter describes the parameters used to constrain a set of installation-db-restoration.

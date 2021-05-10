@@ -137,6 +137,34 @@ func (mr *MockDatabaseMockRecorder) MigrateTo(store, dbMigration, logger interfa
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MigrateTo", reflect.TypeOf((*MockDatabase)(nil).MigrateTo), store, dbMigration, logger)
 }
 
+// TeardownMigrated mocks base method
+func (m *MockDatabase) TeardownMigrated(store model.InstallationDatabaseStoreInterface, migrationOp *model.InstallationDBMigrationOperation, logger logrus.FieldLogger) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "TeardownMigrated", store, migrationOp, logger)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// TeardownMigrated indicates an expected call of TeardownMigrated
+func (mr *MockDatabaseMockRecorder) TeardownMigrated(store, migrationOp, logger interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "TeardownMigrated", reflect.TypeOf((*MockDatabase)(nil).TeardownMigrated), store, migrationOp, logger)
+}
+
+// RollbackMigration mocks base method
+func (m *MockDatabase) RollbackMigration(store model.InstallationDatabaseStoreInterface, dbMigration *model.InstallationDBMigrationOperation, logger logrus.FieldLogger) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "RollbackMigration", store, dbMigration, logger)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// RollbackMigration indicates an expected call of RollbackMigration
+func (mr *MockDatabaseMockRecorder) RollbackMigration(store, dbMigration, logger interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RollbackMigration", reflect.TypeOf((*MockDatabase)(nil).RollbackMigration), store, dbMigration, logger)
+}
+
 // MockInstallationDatabaseStoreInterface is a mock of InstallationDatabaseStoreInterface interface
 type MockInstallationDatabaseStoreInterface struct {
 	ctrl     *gomock.Controller
