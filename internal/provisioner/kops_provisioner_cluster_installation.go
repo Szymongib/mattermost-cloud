@@ -25,8 +25,9 @@ import (
 )
 
 const (
-	hibernationReplicaCount = -1
-	bifrostEndpoint         = "bifrost.bifrost:80"
+	hibernationReplicaCount   = -1
+	bifrostEndpoint           = "bifrost.bifrost:80"
+	ciExecJobTTLSeconds int32 = 180
 )
 
 // ClusterInstallationProvisioner is an interface for provisioning and managing ClusterInstallations.
@@ -620,6 +621,8 @@ func (provisioner *KopsProvisioner) ExecClusterInstallationJob(cluster *model.Cl
 	for i := range job.Spec.Template.Spec.Containers {
 		job.Spec.Template.Spec.Containers[i].Command = args
 	}
+	jobTTL := ciExecJobTTLSeconds
+	job.Spec.TTLSecondsAfterFinished = &jobTTL
 
 	jobsClient := k8sClient.Clientset.BatchV1().Jobs(clusterInstallation.Namespace)
 
@@ -637,13 +640,13 @@ func (provisioner *KopsProvisioner) ExecClusterInstallationJob(cluster *model.Cl
 			return false, errors.Wrapf(err, "failed to get %q job", jobName)
 		}
 		if job.Status.Succeeded > 0 {
-			logger.Infof("Job %q not yet finished, waiting up to 1 minute", jobName)
+			logger.Infof("job %q not yet finished, waiting up to 1 minute", jobName)
 			return false, nil
 		}
 		return true, nil
 	})
 	if err != nil {
-		return errors.Wrapf(err, "Job %q not yet finished", jobName)
+		return errors.Wrapf(err, "job %q not yet finished", jobName)
 	}
 
 	return nil
