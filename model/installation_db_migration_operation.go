@@ -63,17 +63,16 @@ const (
 	InstallationDBMigrationStateSucceeded InstallationDBMigrationOperationState = "installation-db-migration-succeeded"
 	// InstallationDBMigrationStateFailed is DB migration operation that failed.
 	InstallationDBMigrationStateFailed InstallationDBMigrationOperationState = "installation-db-migration-failed"
-
-	// TODO: comments
+	// InstallationDBMigrationStateCommitted is DB migration that has been committed and can no longer be rolled back.
 	InstallationDBMigrationStateCommitted InstallationDBMigrationOperationState = "installation-db-migration-committed"
-
-	InstallationDBMigrationStateRollbackRequested      InstallationDBMigrationOperationState = "installation-db-migration-rollback-requested"
-	InstallationDBMigrationStateRollbackRefreshSecrets InstallationDBMigrationOperationState = "installation-db-migration-commit-refresh-secrets"
-	InstallationDBMigrationStateRollbackFinished       InstallationDBMigrationOperationState = "installation-db-migration-rollback-finished"
-
-	// TODO: or just require commit?
+	// InstallationDBMigrationStateRollbackRequested is DB migration scheduled for rollback.
+	InstallationDBMigrationStateRollbackRequested InstallationDBMigrationOperationState = "installation-db-migration-rollback-requested"
+	// InstallationDBMigrationStateRollbackFinished is DB migration that was successfully rolled back.
+	InstallationDBMigrationStateRollbackFinished InstallationDBMigrationOperationState = "installation-db-migration-rollback-finished"
+	// InstallationDBMigrationStateDeletionRequested is DB migration scheduled for deletion.
 	InstallationDBMigrationStateDeletionRequested InstallationDBMigrationOperationState = "installation-db-migration-deletion-requested"
-	InstallationDBMigrationStateDeleted           InstallationDBMigrationOperationState = "installation-db-migration-deleted"
+	// InstallationDBMigrationStateDeleted is DB migration that has been deleted.
+	InstallationDBMigrationStateDeleted InstallationDBMigrationOperationState = "installation-db-migration-deleted"
 )
 
 // AllInstallationDBMigrationOperationsStatesPendingWork is a list of all db migration operations states
@@ -88,7 +87,6 @@ var AllInstallationDBMigrationOperationsStatesPendingWork = []InstallationDBMigr
 	InstallationDBMigrationStateUpdatingInstallationConfig,
 	InstallationDBMigrationStateFinalizing,
 	InstallationDBMigrationStateFailing,
-	InstallationDBMigrationStateRollbackRefreshSecrets,
 	InstallationDBMigrationStateRollbackRequested,
 	InstallationDBMigrationStateDeletionRequested,
 }
@@ -138,9 +136,6 @@ func (b InstallationDBMigrationOperation) ValidTransitionState(newState Installa
 
 var (
 	validInstallationDBMigrationOperationTransitions = map[InstallationDBMigrationOperationState][]InstallationDBMigrationOperationState{
-		//InstallationDBMigrationStateCommitRequested: {
-		//	InstallationDBMigrationStateSucceeded,
-		//},
 		InstallationDBMigrationStateRollbackRequested: {
 			InstallationDBMigrationStateSucceeded,
 		},

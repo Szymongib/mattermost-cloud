@@ -92,16 +92,6 @@ func TestInstallationDBMigrationOperation_ValidTransitionState(t *testing.T) {
 		newState InstallationDBMigrationOperationState
 		isValid  bool
 	}{
-		//{
-		//	oldState: InstallationDBMigrationStateSucceeded,
-		//	newState: InstallationDBMigrationStateCommitRequested,
-		//	isValid:  true,
-		//},
-		//{
-		//	oldState: InstallationDBMigrationStateFailed,
-		//	newState: InstallationDBMigrationStateCommitRequested,
-		//	isValid:  false,
-		//},
 		{
 			oldState: InstallationDBMigrationStateSucceeded,
 			newState: InstallationDBMigrationStateRollbackRequested,

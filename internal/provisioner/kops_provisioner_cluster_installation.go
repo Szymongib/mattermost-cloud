@@ -25,9 +25,9 @@ import (
 )
 
 const (
-	hibernationReplicaCount   = -1
-	bifrostEndpoint           = "bifrost.bifrost:80"
-	ciExecJobTTLSeconds int32 = 180
+	hibernationReplicaCount       = -1
+	bifrostEndpoint               = "bifrost.bifrost:80"
+	ciExecJobTTLSeconds     int32 = 180
 )
 
 // ClusterInstallationProvisioner is an interface for provisioning and managing ClusterInstallations.

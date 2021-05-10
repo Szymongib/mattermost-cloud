@@ -101,6 +101,7 @@ var AllInstallationStates = []string{
 	InstallationStateDeleted,
 	InstallationStateDBRestorationInProgress,
 	InstallationStateDBMigrationInProgress,
+	InstallationStateDBMigrationRollbackInProgress,
 	InstallationStateDBRestorationFailed,
 	InstallationStateDBMigrationFailed,
 }
