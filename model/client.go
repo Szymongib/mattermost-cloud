@@ -551,6 +551,156 @@ func (c *Client) DeleteInstallation(installationID string) error {
 	}
 }
 
+// RestoreInstallationDatabase requests installation db restoration from the configured provisioning server.
+func (c *Client) RestoreInstallationDatabase(installationID, backupID string) (*InstallationDBRestorationOperation, error) {
+	resp, err := c.doPost(c.buildURL("/api/installations/operations/database/restorations"),
+		InstallationDBRestorationRequest{BackupID: backupID, InstallationID: installationID},
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer closeBody(resp)
+
+	switch resp.StatusCode {
+	case http.StatusAccepted:
+		return NewInstallationDBRestorationOperationFromReader(resp.Body)
+
+	default:
+		return nil, errors.Errorf("failed with status code %d", resp.StatusCode)
+	}
+}
+
+// GetInstallationDBRestorationOperations  fetches the list of installation db restoration operations from the configured provisioning server.
+func (c *Client) GetInstallationDBRestorationOperations(request *GetInstallationDBRestorationOperationsRequest) ([]*InstallationDBRestorationOperation, error) {
+	u, err := url.Parse(c.buildURL("/api/installations/operations/database/restorations"))
+	if err != nil {
+		return nil, err
+	}
+	request.ApplyToURL(u)
+
+	resp, err := c.doGet(u.String())
+	if err != nil {
+		return nil, err
+	}
+	defer closeBody(resp)
+
+	switch resp.StatusCode {
+	case http.StatusOK:
+		return NewInstallationDBRestorationOperationsFromReader(resp.Body)
+
+	default:
+		return nil, errors.Errorf("failed with status code %d", resp.StatusCode)
+	}
+}
+
+// GetInstallationDBRestoration fetches the specified installation db restoration operation from the configured provisioning server.
+func (c *Client) GetInstallationDBRestoration(id string) (*InstallationDBRestorationOperation, error) {
+	resp, err := c.doGet(c.buildURL("/api/installations/operations/database/restoration/%s", id))
+	if err != nil {
+		return nil, err
+	}
+	defer closeBody(resp)
+
+	switch resp.StatusCode {
+	case http.StatusOK:
+		return NewInstallationDBRestorationOperationFromReader(resp.Body)
+
+	default:
+		return nil, errors.Errorf("failed with status code %d", resp.StatusCode)
+	}
+}
+
+// MigrateInstallationDatabase requests installation db migration from the configured provisioning server.
+func (c *Client) MigrateInstallationDatabase(request *InstallationDBMigrationRequest) (*InstallationDBMigrationOperation, error) {
+	resp, err := c.doPost(c.buildURL("/api/installations/operations/database/migrations"), request)
+	if err != nil {
+		return nil, err
+	}
+	defer closeBody(resp)
+
+	switch resp.StatusCode {
+	case http.StatusAccepted:
+		return NewDBMigrationOperationFromReader(resp.Body)
+
+	default:
+		return nil, errors.Errorf("failed with status code %d", resp.StatusCode)
+	}
+}
+
+// CommitInstallationDBMigration commits installation db migration from the configured provisioning server.
+func (c *Client) CommitInstallationDBMigration(id string) (*InstallationDBMigrationOperation, error) {
+	resp, err := c.doPost(c.buildURL("/api/installations/operations/database/migration/%s/commit", id), nil)
+	if err != nil {
+		return nil, err
+	}
+	defer closeBody(resp)
+
+	switch resp.StatusCode {
+	case http.StatusOK:
+		return NewDBMigrationOperationFromReader(resp.Body)
+
+	default:
+		return nil, errors.Errorf("failed with status code %d", resp.StatusCode)
+	}
+}
+
+// RollbackInstallationDBMigration triggers installation db migration rollback from the configured provisioning server.
+func (c *Client) RollbackInstallationDBMigration(id string) (*InstallationDBMigrationOperation, error) {
+	resp, err := c.doPost(c.buildURL("/api/installations/operations/database/migration/%s/rollback", id), nil)
+	if err != nil {
+		return nil, err
+	}
+	defer closeBody(resp)
+
+	switch resp.StatusCode {
+	case http.StatusAccepted:
+		return NewDBMigrationOperationFromReader(resp.Body)
+
+	default:
+		return nil, errors.Errorf("failed with status code %d", resp.StatusCode)
+	}
+}
+
+// GetInstallationDBMigrationOperations fetches the list of installation db migration operations from the configured provisioning server.
+func (c *Client) GetInstallationDBMigrationOperations(request *GetInstallationDBMigrationOperationsRequest) ([]*InstallationDBMigrationOperation, error) {
+	u, err := url.Parse(c.buildURL("/api/installations/operations/database/migrations"))
+	if err != nil {
+		return nil, err
+	}
+	request.ApplyToURL(u)
+
+	resp, err := c.doGet(u.String())
+	if err != nil {
+		return nil, err
+	}
+	defer closeBody(resp)
+
+	switch resp.StatusCode {
+	case http.StatusOK:
+		return NewDBMigrationOperationsFromReader(resp.Body)
+
+	default:
+		return nil, errors.Errorf("failed with status code %d", resp.StatusCode)
+	}
+}
+
+// GetInstallationDBMigrationOperation fetches the specified installation db migration operation from the configured provisioning server.
+func (c *Client) GetInstallationDBMigrationOperation(id string) (*InstallationDBMigrationOperation, error) {
+	resp, err := c.doGet(c.buildURL("/api/installations/operations/database/migration/%s", id))
+	if err != nil {
+		return nil, err
+	}
+	defer closeBody(resp)
+
+	switch resp.StatusCode {
+	case http.StatusOK:
+		return NewDBMigrationOperationFromReader(resp.Body)
+
+	default:
+		return nil, errors.Errorf("failed with status code %d", resp.StatusCode)
+	}
+}
+
 // AddInstallationAnnotations adds annotations to the given installation.
 func (c *Client) AddInstallationAnnotations(installationID string, annotationsRequest *AddAnnotationsRequest) (*InstallationDTO, error) {
 	resp, err := c.doPost(c.buildURL("/api/installation/%s/annotations", installationID), annotationsRequest)

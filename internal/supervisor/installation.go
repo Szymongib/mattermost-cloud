@@ -30,8 +30,7 @@ type installationStore interface {
 	GetClusters(clusterFilter *model.ClusterFilter) ([]*model.Cluster, error)
 	GetCluster(id string) (*model.Cluster, error)
 	UpdateCluster(cluster *model.Cluster) error
-	LockCluster(clusterID, lockerID string) (bool, error)
-	UnlockCluster(clusterID string, lockerID string, force bool) (bool, error)
+	clusterLockStore
 
 	GetInstallation(installationID string, includeGroupConfig, includeGroupConfigOverrides bool) (*model.Installation, error)
 	GetUnlockedInstallationsPendingWork() ([]*model.Installation, error)
@@ -39,9 +38,11 @@ type installationStore interface {
 	UpdateInstallationGroupSequence(installation *model.Installation) error
 	UpdateInstallationState(*model.Installation) error
 	UpdateInstallationCRVersion(installationID, crVersion string) error
-	LockInstallation(installationID, lockerID string) (bool, error)
-	UnlockInstallation(installationID, lockerID string, force bool) (bool, error)
 	DeleteInstallation(installationID string) error
+	installationLockStore
+
+	GetSingleTenantDatabaseConfigForInstallation(installationID string) (*model.SingleTenantDatabaseConfig, error)
+	GetAnnotationsForInstallation(installationID string) ([]*model.Annotation, error)
 
 	CreateClusterInstallation(clusterInstallation *model.ClusterInstallation) error
 	GetClusterInstallation(clusterInstallationID string) (*model.ClusterInstallation, error)
@@ -54,24 +55,21 @@ type installationStore interface {
 	LockGroup(groupID, lockerID string) (bool, error)
 	UnlockGroup(groupID, lockerID string, force bool) (bool, error)
 
-	GetMultitenantDatabase(multitenantdatabaseID string) (*model.MultitenantDatabase, error)
-	GetMultitenantDatabases(filter *model.MultitenantDatabaseFilter) ([]*model.MultitenantDatabase, error)
-	GetMultitenantDatabaseForInstallationID(installationID string) (*model.MultitenantDatabase, error)
-	GetInstallationsTotalDatabaseWeight(installationIDs []string) (float64, error)
-	CreateMultitenantDatabase(multitenantDatabase *model.MultitenantDatabase) error
-	UpdateMultitenantDatabase(multitenantDatabase *model.MultitenantDatabase) error
-	LockMultitenantDatabase(multitenantdatabaseID, lockerID string) (bool, error)
-	UnlockMultitenantDatabase(multitenantdatabaseID, lockerID string, force bool) (bool, error)
-	GetSingleTenantDatabaseConfigForInstallation(installationID string) (*model.SingleTenantDatabaseConfig, error)
-
-	GetAnnotationsForInstallation(installationID string) ([]*model.Annotation, error)
-
 	GetInstallationBackups(filter *model.InstallationBackupFilter) ([]*model.InstallationBackup, error)
 	UpdateInstallationBackupState(backup *model.InstallationBackup) error
-	LockInstallationBackups(backupIDs []string, lockerID string) (bool, error)
-	UnlockInstallationBackups(backupIDs []string, lockerID string, force bool) (bool, error)
+	installationBackupLockStore
+
+	GetInstallationDBMigrationOperations(filter *model.InstallationDBMigrationFilter) ([]*model.InstallationDBMigrationOperation, error)
+	UpdateInstallationDBMigrationOperationState(operation *model.InstallationDBMigrationOperation) error
+	installationDBMigrationOperationLockStore
+
+	GetInstallationDBRestorationOperations(filter *model.InstallationDBRestorationFilter) ([]*model.InstallationDBRestorationOperation, error)
+	UpdateInstallationDBRestorationOperationState(operation *model.InstallationDBRestorationOperation) error
+	installationDBRestorationLockStore
 
 	GetWebhooks(filter *model.WebhookFilter) ([]*model.Webhook, error)
+
+	model.InstallationDatabaseStoreInterface
 }
 
 // provisioner abstracts the provisioning operations required by the installation supervisor.
@@ -88,6 +86,7 @@ type installationProvisioner interface {
 type InstallationSupervisor struct {
 	store             installationStore
 	provisioner       installationProvisioner
+	restoreOperator   restoreOperator
 	aws               aws.AWS
 	instanceID        string
 	keepDatabaseData  bool
@@ -605,7 +604,7 @@ func (s *InstallationSupervisor) installationCanBeScheduledOnCluster(cluster *mo
 }
 
 func (s *InstallationSupervisor) preProvisionInstallation(installation *model.Installation, instanceID string, logger log.FieldLogger) string {
-	err := s.resourceUtil.GetDatabase(installation).Provision(s.store, logger)
+	err := s.resourceUtil.GetDatabaseForInstallation(installation).Provision(s.store, logger)
 	if err != nil {
 		logger.WithError(err).Error("Failed to provision installation database")
 		return model.InstallationStateCreationPreProvisioning
@@ -872,7 +871,7 @@ func (s *InstallationSupervisor) hibernateInstallation(installation *model.Insta
 		return installation.State
 	}
 
-	err = s.resourceUtil.GetDatabase(installation).RefreshResourceMetadata(s.store, logger)
+	err = s.resourceUtil.GetDatabaseForInstallation(installation).RefreshResourceMetadata(s.store, logger)
 	if err != nil {
 		logger.WithError(err).Warn("Failed to update database resource metadata")
 		return installation.State
@@ -964,7 +963,7 @@ func (s *InstallationSupervisor) waitForHibernationStable(installation *model.In
 }
 
 func (s *InstallationSupervisor) wakeUpInstallation(installation *model.Installation, instanceID string, logger log.FieldLogger) string {
-	err := s.resourceUtil.GetDatabase(installation).RefreshResourceMetadata(s.store, logger)
+	err := s.resourceUtil.GetDatabaseForInstallation(installation).RefreshResourceMetadata(s.store, logger)
 	if err != nil {
 		logger.WithError(err).Warn("Failed to update database resource metadata")
 		return installation.State
@@ -1093,7 +1092,22 @@ func (s *InstallationSupervisor) finalDeletionCleanup(installation *model.Instal
 		}
 	}
 
-	err = s.resourceUtil.GetDatabase(installation).Teardown(s.store, s.keepDatabaseData, logger)
+	migrationDeletionFinished, err := s.deleteMigrationOperations(installation, instanceID, logger)
+	if err != nil {
+		logger.WithError(err).Error("Failed to delete db migration operations")
+		return model.InstallationStateDeletionFinalCleanup
+	}
+	restorationDeletionFinished, err := s.deleteRestorationOperations(installation, instanceID, logger)
+	if err != nil {
+		logger.WithError(err).Error("Failed to delete db restoration operations")
+		return model.InstallationStateDeletionFinalCleanup
+	}
+	if !migrationDeletionFinished || !restorationDeletionFinished {
+		logger.Info("Installation db restoration and migration deletion in progress")
+		return model.InstallationStateDeletionFinalCleanup
+	}
+
+	err = s.resourceUtil.GetDatabaseForInstallation(installation).Teardown(s.store, s.keepDatabaseData, logger)
 	if err != nil {
 		logger.WithError(err).Error("Failed to delete database")
 		return model.InstallationStateDeletionFinalCleanup
@@ -1199,6 +1213,144 @@ func (s *InstallationSupervisor) deleteBackups(installation *model.Installation,
 	return true, nil
 }
 
+func (s *InstallationSupervisor) deleteRestorationOperations(installation *model.Installation, instanceID string, logger log.FieldLogger) (bool, error) {
+	logger.Info("Deleting installation db restoration operations")
+
+	restorationOperations, err := s.store.GetInstallationDBRestorationOperations(&model.InstallationDBRestorationFilter{
+		InstallationID: installation.ID,
+		Paging:         model.AllPagesNotDeleted(),
+	})
+	if err != nil {
+		return false, errors.Wrap(err, "failed to list db restoration operations")
+	}
+
+	if len(restorationOperations) == 0 {
+		logger.Info("No existing db restoration operations found for installation")
+		return true, nil
+	}
+
+	operationIDs := getInstallationDBRestorationOperationIDs(restorationOperations)
+	installationBackupsLocks := newInstallationDBRestorationLocks(operationIDs, instanceID, s.store, logger)
+
+	if !installationBackupsLocks.TryLock() {
+		return false, errors.Errorf("Failed to lock %d installation db restorations", len(restorationOperations))
+	}
+	defer installationBackupsLocks.Unlock()
+
+	// Fetch the same elements again, now that we have the locks.
+	restorationOperations, err = s.store.GetInstallationDBRestorationOperations(&model.InstallationDBRestorationFilter{
+		IDs:    operationIDs,
+		Paging: model.AllPagesNotDeleted(),
+	})
+	if err != nil {
+		return false, errors.Wrapf(err, "failed to fetch %d installation db restoration operations by ids", len(restorationOperations))
+	}
+
+	if len(restorationOperations) != len(operationIDs) {
+		logger.Warnf("Found only %d installation db restoration operations after locking, expected %d", len(restorationOperations), len(operationIDs))
+	}
+
+	deleted := 0
+	deleting := 0
+
+	for _, operation := range restorationOperations {
+		switch operation.State {
+		case model.InstallationDBRestorationStateDeleted:
+			deleted++
+			continue
+		case model.InstallationDBRestorationStateDeletionRequested:
+			deleting++
+			continue
+		}
+
+		logger.Debugf("Deleting installation db restoration operation %q in state %q", operation.ID, operation.State)
+		operation.State = model.InstallationDBRestorationStateDeletionRequested
+		err = s.store.UpdateInstallationDBRestorationOperationState(operation)
+		if err != nil {
+			return false, errors.Wrapf(err, "failed to mark istallation db restoration %s for deletion", operation.ID)
+		}
+		deleting++
+	}
+
+	logger.Debugf("Found %d installation db restorations, %d deleting, %d deleted", len(restorationOperations), deleting, deleted)
+
+	if deleting > 0 {
+		logger.Infof("Installation db restorations deletion in progress, deleting operations %d", deleting)
+		return false, nil
+	}
+
+	return true, nil
+}
+
+func (s *InstallationSupervisor) deleteMigrationOperations(installation *model.Installation, instanceID string, logger log.FieldLogger) (bool, error) {
+	logger.Info("Deleting installation db migration operations")
+
+	migrationOperations, err := s.store.GetInstallationDBMigrationOperations(&model.InstallationDBMigrationFilter{
+		InstallationID: installation.ID,
+		Paging:         model.AllPagesNotDeleted(),
+	})
+	if err != nil {
+		return false, errors.Wrap(err, "failed to list db migration operations")
+	}
+
+	if len(migrationOperations) == 0 {
+		logger.Info("No existing db migration operations found for installation")
+		return true, nil
+	}
+
+	operationIDs := getInstallationDBMigrationOperationIDs(migrationOperations)
+	installationBackupsLocks := newInstallationDBMigrationOperationLocks(operationIDs, instanceID, s.store, logger)
+
+	if !installationBackupsLocks.TryLock() {
+		return false, errors.Errorf("Failed to lock %d installation db migrations", len(migrationOperations))
+	}
+	defer installationBackupsLocks.Unlock()
+
+	// Fetch the same elements again, now that we have the locks.
+	migrationOperations, err = s.store.GetInstallationDBMigrationOperations(&model.InstallationDBMigrationFilter{
+		IDs:    operationIDs,
+		Paging: model.AllPagesNotDeleted(),
+	})
+	if err != nil {
+		return false, errors.Wrapf(err, "failed to fetch %d installation db migration operations by ids", len(migrationOperations))
+	}
+
+	if len(migrationOperations) != len(operationIDs) {
+		logger.Warnf("Found only %d installation db migration operations after locking, expected %d", len(migrationOperations), len(operationIDs))
+	}
+
+	deleted := 0
+	deleting := 0
+
+	for _, operation := range migrationOperations {
+		switch operation.State {
+		case model.InstallationDBMigrationStateDeleted:
+			deleted++
+			continue
+		case model.InstallationDBMigrationStateDeletionRequested:
+			deleting++
+			continue
+		}
+
+		logger.Debugf("Deleting installation db migration operation %q in state %q", operation.ID, operation.State)
+		operation.State = model.InstallationDBMigrationStateDeletionRequested
+		err = s.store.UpdateInstallationDBMigrationOperationState(operation)
+		if err != nil {
+			return false, errors.Wrapf(err, "failed to mark istallation db migration %s for deletion", operation.ID)
+		}
+		deleting++
+	}
+
+	logger.Debugf("Found %d installation db migrations, %d deleting, %d deleted", len(migrationOperations), deleting, deleted)
+
+	if deleting > 0 {
+		logger.Infof("Installation db migrations deletion in progress, deleting operations %d", deleting)
+		return false, nil
+	}
+
+	return true, nil
+}
+
 func (s *InstallationSupervisor) finalCreationTasks(installation *model.Installation, logger log.FieldLogger) string {
 	logger.Info("Finished final creation tasks")
 	s.metrics.InstallationCreationDurationHist.Observe(elapsedTimeInSeconds(installation.CreateAt))
@@ -1262,6 +1414,22 @@ func getInstallationBackupsIDs(backups []*model.InstallationBackup) []string {
 		backupIDs = append(backupIDs, backup.ID)
 	}
 	return backupIDs
+}
+
+func getInstallationDBRestorationOperationIDs(operations []*model.InstallationDBRestorationOperation) []string {
+	ids := make([]string, 0, len(operations))
+	for _, op := range operations {
+		ids = append(ids, op.ID)
+	}
+	return ids
+}
+
+func getInstallationDBMigrationOperationIDs(operations []*model.InstallationDBMigrationOperation) []string {
+	ids := make([]string, 0, len(operations))
+	for _, op := range operations {
+		ids = append(ids, op.ID)
+	}
+	return ids
 }
 
 func getAnnotationsIDs(annotations []*model.Annotation) []string {

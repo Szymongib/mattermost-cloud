@@ -19,9 +19,8 @@ type clusterStore interface {
 	GetUnlockedClustersPendingWork() ([]*model.Cluster, error)
 	GetClusters(clusterFilter *model.ClusterFilter) ([]*model.Cluster, error)
 	UpdateCluster(cluster *model.Cluster) error
-	LockCluster(clusterID, lockerID string) (bool, error)
-	UnlockCluster(clusterID string, lockerID string, force bool) (bool, error)
 	DeleteCluster(clusterID string) error
+	clusterLockStore
 
 	GetWebhooks(filter *model.WebhookFilter) ([]*model.Webhook, error)
 }

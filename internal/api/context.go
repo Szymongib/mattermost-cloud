@@ -37,6 +37,7 @@ type Store interface {
 	GetInstallationsCount(includeDeleted bool) (int64, error)
 	GetInstallationsStatus() (*model.InstallationsStatus, error)
 	UpdateInstallation(installation *model.Installation) error
+	UpdateInstallationState(installation *model.Installation) error
 	LockInstallation(installationID, lockerID string) (bool, error)
 	UnlockInstallation(installationID, lockerID string, force bool) (bool, error)
 	LockInstallationAPI(installationID string) error
@@ -64,7 +65,7 @@ type Store interface {
 	GetWebhooks(filter *model.WebhookFilter) ([]*model.Webhook, error)
 	DeleteWebhook(webhookID string) error
 
-	GetMultitenantDatabases(filter *model.MultitenantDatabaseFilter) ([]*model.MultitenantDatabase, error)
+	model.InstallationDatabaseStoreInterface
 
 	GetOrCreateAnnotations(annotations []*model.Annotation) ([]*model.Annotation, error)
 
@@ -80,10 +81,23 @@ type Store interface {
 	UpdateInstallationBackupState(backupMeta *model.InstallationBackup) error
 	GetInstallationBackup(id string) (*model.InstallationBackup, error)
 	GetInstallationBackups(filter *model.InstallationBackupFilter) ([]*model.InstallationBackup, error)
+	IsInstallationBackupBeingUsed(backupID string) (bool, error)
 	LockInstallationBackup(backupMetadataID, lockerID string) (bool, error)
 	UnlockInstallationBackup(backupMetadataID, lockerID string, force bool) (bool, error)
 	LockInstallationBackupAPI(backupID string) error
 	UnlockInstallationBackupAPI(backupID string) error
+
+	TriggerInstallationRestoration(installation *model.Installation, backup *model.InstallationBackup) (*model.InstallationDBRestorationOperation, error)
+	GetInstallationDBRestorationOperation(id string) (*model.InstallationDBRestorationOperation, error)
+	GetInstallationDBRestorationOperations(filter *model.InstallationDBRestorationFilter) ([]*model.InstallationDBRestorationOperation, error)
+
+	TriggerInstallationDBMigration(dbMigrationOp *model.InstallationDBMigrationOperation, installation *model.Installation) (*model.InstallationDBMigrationOperation, error)
+	TriggerInstallationDBMigrationRollback(dbMigrationOp *model.InstallationDBMigrationOperation, installation *model.Installation) error
+	GetInstallationDBMigrationOperations(filter *model.InstallationDBMigrationFilter) ([]*model.InstallationDBMigrationOperation, error)
+	GetInstallationDBMigrationOperation(id string) (*model.InstallationDBMigrationOperation, error)
+	UpdateInstallationDBMigrationOperationState(dbMigration *model.InstallationDBMigrationOperation) error
+	LockInstallationDBMigrationOperation(id, lockerID string) (bool, error)
+	UnlockInstallationDBMigrationOperation(id, lockerID string, force bool) (bool, error)
 }
 
 // Provisioner describes the interface required to communicate with the Kubernetes cluster.
@@ -93,6 +107,10 @@ type Provisioner interface {
 	GetClusterResources(*model.Cluster, bool) (*k8s.ClusterResources, error)
 }
 
+type DBProvider interface {
+	GetDatabase(installationID, dbType string) model.Database
+}
+
 // Context provides the API with all necessary data and interfaces for responding to requests.
 //
 // It is cloned before each request, allowing per-request changes such as logger annotations.
@@ -100,6 +118,7 @@ type Context struct {
 	Store       Store
 	Supervisor  Supervisor
 	Provisioner Provisioner
+	DBProvider  DBProvider
 	RequestID   string
 	Environment string
 	Logger      logrus.FieldLogger
@@ -111,6 +130,7 @@ func (c *Context) Clone() *Context {
 		Store:       c.Store,
 		Supervisor:  c.Supervisor,
 		Provisioner: c.Provisioner,
+		DBProvider:  c.DBProvider,
 		Logger:      c.Logger,
 	}
 }
