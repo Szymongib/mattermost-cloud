@@ -81,7 +81,6 @@ type Store interface {
 	UpdateInstallationBackupState(backupMeta *model.InstallationBackup) error
 	GetInstallationBackup(id string) (*model.InstallationBackup, error)
 	GetInstallationBackups(filter *model.InstallationBackupFilter) ([]*model.InstallationBackup, error)
-	IsInstallationBackupBeingUsed(backupID string) (bool, error)
 	LockInstallationBackup(backupMetadataID, lockerID string) (bool, error)
 	UnlockInstallationBackup(backupMetadataID, lockerID string, force bool) (bool, error)
 	LockInstallationBackupAPI(backupID string) error
@@ -107,6 +106,7 @@ type Provisioner interface {
 	GetClusterResources(*model.Cluster, bool) (*k8s.ClusterResources, error)
 }
 
+// DBProvider describes the interface required to get database for specific installation and specified type.
 type DBProvider interface {
 	GetDatabase(installationID, dbType string) model.Database
 }

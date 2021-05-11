@@ -14,7 +14,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/mattermost/mattermost-cloud/internal/components"
+	"github.com/mattermost/mattermost-cloud/internal/common"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/arn"
@@ -358,7 +358,7 @@ func (d *RDSMultitenantDatabase) TeardownMigrated(store model.InstallationDataba
 	return nil
 }
 
-// MigrateOut marks Installation as migrated from the database but does not remove the actuall data.
+// MigrateOut marks Installation as migrated from the database but does not remove the actual data.
 func (d *RDSMultitenantDatabase) MigrateOut(store model.InstallationDatabaseStoreInterface, dbMigration *model.InstallationDBMigrationOperation, logger log.FieldLogger) error {
 	installationDatabaseName := MattermostRDSDatabaseName(d.installationID)
 

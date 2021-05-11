@@ -619,6 +619,7 @@ func (provisioner *KopsProvisioner) ExecClusterInstallationJob(cluster *model.Cl
 
 	jobName := fmt.Sprintf("command-%s", uuid.New()[:6])
 	job := resources.PrepareMattermostJobTemplate(jobName, clusterInstallation.Namespace, &deploymentList.Items[0])
+	// TODO: refactor above method in Mattermost Operator to take command and handle this logic inside.
 	for i := range job.Spec.Template.Spec.Containers {
 		job.Spec.Template.Spec.Containers[i].Command = args
 	}
@@ -627,12 +628,16 @@ func (provisioner *KopsProvisioner) ExecClusterInstallationJob(cluster *model.Cl
 
 	jobsClient := k8sClient.Clientset.BatchV1().Jobs(clusterInstallation.Namespace)
 
+	defer func() {
+		err := jobsClient.Delete(ctx, jobName, metav1.DeleteOptions{})
+		if err != nil && !k8sErrors.IsNotFound(err) {
+			logger.Errorf("Failed to cleanup exec job: %q", jobName)
+		}
+	}()
+
 	job, err = jobsClient.Create(ctx, job, metav1.CreateOptions{})
 	if err != nil {
-		if !k8sErrors.IsAlreadyExists(err) {
-			return errors.Wrap(err, "failed to create CLI command job")
-		}
-		logger.Warnf("Job %q already exists", jobName)
+		return errors.Wrap(err, "failed to create CLI command job")
 	}
 
 	err = wait.Poll(time.Second, 1*time.Minute, func() (bool, error) {
@@ -647,7 +652,7 @@ func (provisioner *KopsProvisioner) ExecClusterInstallationJob(cluster *model.Cl
 		return true, nil
 	})
 	if err != nil {
-		return errors.Wrapf(err, "job %q not yet finished", jobName)
+		return errors.Wrapf(err, "job %q did not finish in expected time", jobName)
 	}
 
 	return nil

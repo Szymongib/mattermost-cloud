@@ -98,18 +98,22 @@ func (d *MysqlOperatorDatabase) Teardown(store InstallationDatabaseStoreInterfac
 	return nil
 }
 
+// MigrateOut migrating out of MySQL Operator managed database is not supported.
 func (d *MysqlOperatorDatabase) MigrateOut(store InstallationDatabaseStoreInterface, dbMigration *InstallationDBMigrationOperation, logger log.FieldLogger) error {
 	return errors.New("database migration is not supported for MySQL Operator")
 }
 
+// MigrateTo migration to MySQL Operator managed database is not supported.
 func (d *MysqlOperatorDatabase) MigrateTo(store InstallationDatabaseStoreInterface, dbMigration *InstallationDBMigrationOperation, logger log.FieldLogger) error {
 	return errors.New("database migration is not supported for MySQL Operator")
 }
 
+// TeardownMigrated tearing down migrated databases is not supported for MySQL Operator managed database.
 func (d *MysqlOperatorDatabase) TeardownMigrated(store InstallationDatabaseStoreInterface, migrationOp *InstallationDBMigrationOperation, logger log.FieldLogger) error {
 	return errors.New("tearing down migrated installations is not supported for MySQL Operator")
 }
 
+// RollbackMigration rolling back migration is not supported for MySQL Operator managed database.
 func (d *MysqlOperatorDatabase) RollbackMigration(store InstallationDatabaseStoreInterface, dbMigration *InstallationDBMigrationOperation, logger log.FieldLogger) error {
 	return errors.New("rolling back db migration is not supported for MySQL Operator")
 }
