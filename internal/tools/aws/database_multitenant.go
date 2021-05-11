@@ -599,58 +599,6 @@ func (d *RDSMultitenantDatabase) getAndLockAssignedMultitenantDatabase(store mod
 	return database, unlockFn, nil
 }
 
-// getAndLockMigratedMultitenantDatabases returns the multitenant databases
-// from which installation was migrated and they were not deleted.
-func (d *RDSMultitenantDatabase) getAndLockMigratedMultitenantDatabases(store model.InstallationDatabaseStoreInterface, logger log.FieldLogger) ([]*model.MultitenantDatabase, func(), error) {
-	multitenantDatabases, err := store.GetMultitenantDatabases(&model.MultitenantDatabaseFilter{
-		MigratedInstallationID: d.installationID,
-		MaxInstallationsLimit:  model.NoInstallationsLimit,
-		Paging:                 model.AllPagesNotDeleted(),
-	})
-	if err != nil {
-		return nil, nil, errors.Wrap(err, "failed to query for multitenant databases")
-	}
-	if len(multitenantDatabases) == 0 {
-		return nil, func() {}, nil
-	}
-
-	ids := make([]string, 0, len(multitenantDatabases))
-	for _, db := range multitenantDatabases {
-		ids = append(ids, db.ID)
-	}
-	locked, err := store.LockMultitenantDatabases(ids, d.instanceID)
-	if err != nil {
-		return nil, nil, errors.Wrap(err, "failed to lock multitenant databases")
-	}
-	if !locked {
-		return nil, nil, errors.New("could not lock multitenant databases")
-	}
-	unlockFn := func() {
-		unlocked, err := store.UnlockMultitenantDatabases(ids, d.instanceID, true)
-		if err != nil {
-			logger.Error("Failed to unlock multitenant databases")
-		}
-		if !unlocked {
-			logger.Error("Could not unlock multitenant databases")
-		}
-	}
-
-	// Take no chances that the stored multitenant database was updated between
-	// retrieving it and locking it. We know this installation is assigned to
-	// exactly one multitenant database at this point so we can use the store
-	// function to directly retrieve it.
-	for i, db := range multitenantDatabases {
-		refetched, err := store.GetMultitenantDatabase(db.ID)
-		if err != nil {
-			unlockFn()
-			return nil, nil, errors.Wrap(err, "failed to refresh multitenant database")
-		}
-		multitenantDatabases[i] = refetched
-	}
-
-	return multitenantDatabases, unlockFn, nil
-}
-
 // This helper method finds a multitenant RDS cluster that is ready for receiving a database installation. The lookup
 // for multitenant databases will happen in order:
 //	1. fetch a multitenant database by installation ID.

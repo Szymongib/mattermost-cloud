@@ -480,9 +480,6 @@ func (s *DBMigrationSupervisor) failMigration(dbMigration *model.InstallationDBM
 	return model.InstallationDBMigrationStateFailed
 }
 
-// TODO: cleaning up migrations on Installation delete?
-// - For all not committed migration run cleanup? Just teardown migrated?
-
 func (s *DBMigrationSupervisor) rollbackMigration(dbMigration *model.InstallationDBMigrationOperation, instanceID string, logger log.FieldLogger) model.InstallationDBMigrationOperationState {
 	installation, lock, err := getAndLockInstallation(s.store, dbMigration.InstallationID, instanceID, logger)
 	if err != nil {
@@ -537,8 +534,6 @@ func (s *DBMigrationSupervisor) rollbackMigration(dbMigration *model.Installatio
 
 	return model.InstallationDBMigrationStateRollbackFinished
 }
-
-// TODO: cleanup / delete migration method - cleans up old db is succeeded, and what if failed? Cleans up the new one? not really cause there could be another one to the same target?
 
 func (s *DBMigrationSupervisor) refreshSecrets(installation *model.Installation) error {
 	cis, err := s.store.GetClusterInstallations(&model.ClusterInstallationFilter{InstallationID: installation.ID, Paging: model.AllPagesNotDeleted()})
