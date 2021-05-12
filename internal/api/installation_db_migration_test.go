@@ -5,6 +5,8 @@
 package api_test
 
 import (
+	"github.com/golang/mock/gomock"
+	mocks "github.com/mattermost/mattermost-cloud/internal/mocks/model"
 	"net/http/httptest"
 	"testing"
 	"time"
@@ -87,6 +89,20 @@ func TestTriggerInstallationDBMigration(t *testing.T) {
 	installation1.State = model.InstallationStateHibernating
 	err = sqlStore.UpdateInstallation(installation1.Installation)
 	require.NoError(t, err)
+
+	t.Run("fail to trigger migration if other migration succeeded but not committed", func(t *testing.T) {
+		succeededMigration := &model.InstallationDBMigrationOperation{State: model.InstallationDBMigrationStateSucceeded, InstallationID: installation1.ID}
+		err = sqlStore.CreateInstallationDBMigrationOperation(succeededMigration)
+		require.NoError(t, err)
+		defer func() {
+			err := sqlStore.DeleteInstallationDBRestorationOperation(succeededMigration.ID)
+			assert.NoError(t, err)
+		}()
+
+		migrationOperation, err = client.MigrateInstallationDatabase(migrationRequest)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "400")
+	})
 
 	t.Run("fail to trigger migration if destination database not supported", func(t *testing.T) {
 		migrationRequest := &model.InstallationDBMigrationRequest{
@@ -265,5 +281,103 @@ func TestGetInstallationDBMigrationOperation(t *testing.T) {
 	t.Run("return 404 if operation not found", func(t *testing.T) {
 		_, err = client.GetInstallationDBMigrationOperation("not-real")
 		require.EqualError(t, err, "failed with status code 404")
+	})
+}
+
+type dbProviderMock struct {
+	mock *mocks.MockDatabase
+}
+
+func (dbp *dbProviderMock) GetDatabase(installationID, dbType string) model.Database {
+	return dbp.mock
+}
+
+func TestCommitInstallationDBMigrationOperation(t *testing.T) {
+	logger := testlib.MakeLogger(t)
+	sqlStore := store.MakeTestSQLStore(t, logger)
+	defer store.CloseConnection(t, sqlStore)
+	ctrl := gomock.NewController(t)
+
+	dbMock := mocks.NewMockDatabase(ctrl)
+	dbProviderMock := &dbProviderMock{mock: dbMock}
+
+	router := mux.NewRouter()
+	api.Register(router, &api.Context{
+		Store:      sqlStore,
+		Supervisor: &mockSupervisor{},
+		Logger:     logger,
+		DBProvider: dbProviderMock,
+	})
+
+	ts := httptest.NewServer(router)
+	client := model.NewClient(ts.URL)
+
+	migrationOp := &model.InstallationDBMigrationOperation{
+		InstallationID: "installation",
+		State:          model.InstallationDBMigrationStateSucceeded,
+	}
+	err := sqlStore.CreateInstallationDBMigrationOperation(migrationOp)
+	require.NoError(t, err)
+
+	gomock.InOrder(dbMock.EXPECT().
+		TeardownMigrated(sqlStore, migrationOp, gomock.Any()).
+		Return(nil))
+
+	committedOp, err := client.CommitInstallationDBMigration(migrationOp.ID)
+	require.NoError(t, err)
+	assert.Equal(t, model.InstallationDBMigrationStateCommitted, committedOp.State)
+
+	t.Run("fail if migration not succeeded", func(t *testing.T) {
+		_, err := client.CommitInstallationDBMigration(committedOp.ID)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "400")
+
+		committedOp.State = model.InstallationDBMigrationStateFailed
+		err = sqlStore.UpdateInstallationDBMigrationOperationState(committedOp)
+		require.NoError(t, err)
+
+		_, err = client.CommitInstallationDBMigration(committedOp.ID)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "400")
+	})
+}
+
+func TestRollbackInstallationDBMigrationOperation(t *testing.T) {
+	logger := testlib.MakeLogger(t)
+	sqlStore := store.MakeTestSQLStore(t, logger)
+	defer store.CloseConnection(t, sqlStore)
+
+	router := mux.NewRouter()
+	api.Register(router, &api.Context{
+		Store:      sqlStore,
+		Supervisor: &mockSupervisor{},
+		Logger:     logger,
+	})
+
+	ts := httptest.NewServer(router)
+	client := model.NewClient(ts.URL)
+
+	installation := &model.Installation{DNS: "dns.com", State: model.InstallationStateHibernating}
+	err := sqlStore.CreateInstallation(installation, nil)
+	require.NoError(t, err)
+
+	migrationOp := &model.InstallationDBMigrationOperation{
+		InstallationID: installation.ID,
+		State:          model.InstallationDBMigrationStateSucceeded,
+	}
+	err = sqlStore.CreateInstallationDBMigrationOperation(migrationOp)
+	require.NoError(t, err)
+
+	rollbackOP, err := client.RollbackInstallationDBMigration(migrationOp.ID)
+	require.NoError(t, err)
+	assert.Equal(t, model.InstallationDBMigrationStateRollbackRequested, rollbackOP.State)
+	installation, err = sqlStore.GetInstallation(installation.ID, false, false)
+	require.NoError(t, err)
+	assert.Equal(t, model.InstallationStateDBMigrationRollbackInProgress, installation.State)
+
+	t.Run("failed to trigger rollback when installation in non-hibernating state", func(t *testing.T) {
+		_, err = client.RollbackInstallationDBMigration(migrationOp.ID)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "400")
 	})
 }

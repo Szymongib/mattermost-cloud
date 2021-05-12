@@ -55,14 +55,28 @@ func handleTriggerInstallationDatabaseMigration(c *Context, w http.ResponseWrite
 	}
 	defer unlockOnce()
 
+	dbMigrations, err := c.Store.GetInstallationDBMigrationOperations(&model.InstallationDBMigrationFilter{
+		Paging:         model.AllPagesNotDeleted(),
+		InstallationID: installationDTO.ID,
+		States:         []model.InstallationDBMigrationOperationState{model.InstallationDBMigrationStateSucceeded},
+	})
+	if err != nil {
+		c.Logger.WithError(err).Error("Failed to query succeeded installation DB migrations")
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	if len(dbMigrations) > 0 {
+		c.Logger.Error("DB migration cannot be started if other successful migration is not committed")
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
 	currentDB, err := c.Store.GetMultitenantDatabaseForInstallationID(installationDTO.ID)
 	if err != nil {
 		c.Logger.WithError(err).Errorf("failed to get current multi-tenant database for installation")
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
-
-	// TODO: check if there is no other Succeeded but not Committed migration
 
 	err = validateDBMigration(c, installationDTO.Installation, migrationRequest, currentDB)
 	if err != nil {
@@ -181,8 +195,6 @@ func handleGetInstallationDBMigrationOperation(c *Context, w http.ResponseWriter
 	w.WriteHeader(http.StatusOK)
 	outputJSON(c, w, dbRestorationOp)
 }
-
-// TODO: test commit and rollback
 
 // handleCommitInstallationDatabaseMigration responds to POST /api/installations/operations/database/migration/{migration}/commit,
 // commits database migration.
