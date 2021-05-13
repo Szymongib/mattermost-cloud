@@ -7,11 +7,12 @@ package workflow
 import (
 	"context"
 	"fmt"
+	"strings"
+
 	"github.com/mattermost/mattermost-cloud/e2e/pkg"
 	"github.com/mattermost/mattermost-cloud/model"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
-	"strings"
 )
 
 func NewDBMigrationFlow(params DBMigrationFlowParams, client *model.Client, logger logrus.FieldLogger) *DBMigrationFlow {
@@ -19,10 +20,10 @@ func NewDBMigrationFlow(params DBMigrationFlowParams, client *model.Client, logg
 
 	return &DBMigrationFlow{
 		InstallationFlow: installationFlow,
-		client: client,
-		logger: logger.WithField("flow", "db-migration"),
-		Params: params,
-		Meta:  	DBMigrationFlowMeta{SourceDBID: "rds-cluster-multitenant-050365fcbb1170e4b-07061b50"}, // TODO: temporary hack
+		client:           client,
+		logger:           logger.WithField("flow", "db-migration"),
+		Params:           params,
+		Meta:             DBMigrationFlowMeta{SourceDBID: "rds-cluster-multitenant-050365fcbb1170e4b-07061b50"}, // TODO: temporary hack
 	}
 }
 
@@ -33,7 +34,7 @@ type DBMigrationFlow struct {
 	logger logrus.FieldLogger
 
 	Params DBMigrationFlowParams
-	Meta DBMigrationFlowMeta
+	Meta   DBMigrationFlowMeta
 }
 
 type DBMigrationFlowParams struct {
@@ -42,18 +43,16 @@ type DBMigrationFlowParams struct {
 }
 
 type DBMigrationFlowMeta struct {
-	SourceDBID      string // TODO: for now hardcode
-	MigrationOperationID  string
+	SourceDBID           string // TODO: for now hardcode
+	MigrationOperationID string
 
-	MigratedDBConnStr     string
-
+	MigratedDBConnStr string
 }
 
 func (w *DBMigrationFlow) GetMultiTenantDBID(ctx context.Context) error {
 	// TODO: query all DBs and find instsallation ID?
 	return nil
 }
-
 
 func (w *DBMigrationFlow) RunDBMigration(ctx context.Context) error {
 	if w.Meta.MigrationOperationID == "" {
@@ -75,7 +74,6 @@ func (w *DBMigrationFlow) RunDBMigration(ctx context.Context) error {
 
 	return nil
 }
-
 
 func (w *DBMigrationFlow) AssertMigrationSuccessful(ctx context.Context) error {
 	connStr, err := pkg.GetConnectionString(w.client, w.InstallationFlow.Meta.ClusterInstallationID)

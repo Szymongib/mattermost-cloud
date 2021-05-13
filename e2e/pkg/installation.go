@@ -6,10 +6,11 @@ package pkg
 
 import (
 	"fmt"
-	"github.com/mattermost/mattermost-cloud/model"
-	"github.com/pkg/errors"
 	"net/http"
 	"time"
+
+	"github.com/mattermost/mattermost-cloud/model"
+	"github.com/pkg/errors"
 )
 
 func CreateHAInstallation(client *model.Client, db, filestore string, group string) (*model.InstallationDTO, error) {

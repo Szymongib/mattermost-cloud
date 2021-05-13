@@ -7,6 +7,7 @@ package workflow
 import (
 	"context"
 	"fmt"
+
 	"github.com/mattermost/mattermost-cloud/e2e/pkg"
 	"github.com/mattermost/mattermost-cloud/model"
 	"github.com/pkg/errors"
@@ -27,19 +28,19 @@ type InstallationFlow struct {
 	logger logrus.FieldLogger
 
 	Params InstallationFlowParams
-	Meta InstallationFlowMeta
+	Meta   InstallationFlowMeta
 }
 
 type InstallationFlowParams struct {
-	DBType          string
-	FileStoreType   string
+	DBType        string
+	FileStoreType string
 }
 
 type InstallationFlowMeta struct {
 	InstallationID        string
 	InstallationDNS       string
 	ClusterInstallationID string
-	ConnectionString 	  string
+	ConnectionString      string
 }
 
 func (w *InstallationFlow) CreateInstallation(ctx context.Context) error {
@@ -92,7 +93,6 @@ func (w *InstallationFlow) GetConnectionStrAndExport(ctx context.Context) error 
 
 	return nil
 }
-
 
 func (w *InstallationFlow) PopulateSampleData(ctx context.Context) error {
 	out, err := w.client.RunMattermostCLICommandOnClusterInstallation(w.Meta.ClusterInstallationID, []string{"sampledata", "--teams", "4", "--channels-per-team", "15"})

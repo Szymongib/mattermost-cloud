@@ -6,8 +6,9 @@ package pkg
 
 import (
 	"fmt"
-	"github.com/mattermost/mattermost-cloud/model"
 	"time"
+
+	"github.com/mattermost/mattermost-cloud/model"
 )
 
 func WaitForDBMigrationToFinish(client *model.Client, opID string) error {

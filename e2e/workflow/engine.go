@@ -7,9 +7,10 @@ package workflow
 import (
 	"context"
 	"fmt"
+	"time"
+
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
-	"time"
 )
 
 type TestStep string
@@ -17,9 +18,9 @@ type TestStep string
 type StepFunc func(ctx context.Context) error
 
 type Step struct {
-	Name string
-	Func StepFunc
-	Done bool
+	Name      string
+	Func      StepFunc
+	Done      bool
 	DependsOn []string
 }
 
@@ -123,4 +124,3 @@ func (l *runner) addToQueue(step *Step) error {
 
 	return nil
 }
-

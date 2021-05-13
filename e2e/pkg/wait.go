@@ -6,8 +6,9 @@ package pkg
 
 import (
 	"fmt"
-	"github.com/pkg/errors"
 	"time"
+
+	"github.com/pkg/errors"
 )
 
 func WaitForFunc(timeout time.Duration, interval time.Duration, isReady func() (bool, error)) error {

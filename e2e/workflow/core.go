@@ -13,7 +13,5 @@ type ProvisionerFlow struct {
 }
 
 type ProvisionerParams struct {
-	ProvisionerURL  string
+	ProvisionerURL string
 }
-
-

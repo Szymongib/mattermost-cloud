@@ -6,7 +6,9 @@ package pkg
 
 import (
 	"encoding/json"
+
 	"github.com/mattermost/mattermost-cloud/model"
+
 	//mmv5 "github.com/mattermost/mattermost-server/v5/model"
 	"github.com/pkg/errors"
 )

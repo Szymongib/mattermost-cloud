@@ -5,15 +5,16 @@
 package db_migration
 
 import (
+	"os"
+
 	"github.com/mattermost/mattermost-cloud/e2e/workflow"
 	"github.com/mattermost/mattermost-cloud/model"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
-	"os"
 )
 
 type DBMigrationTest struct {
-	Flow *workflow.DBMigrationFlow
+	Flow     *workflow.DBMigrationFlow
 	Workflow *workflow.Workflow
 }
 
@@ -37,15 +38,14 @@ func SetupDBMigrationRollbackTest() (*DBMigrationTest, error) {
 	}, nil
 }
 
-func setupDBMigrationTestFlow() (*workflow.DBMigrationFlow) {
+func setupDBMigrationTestFlow() *workflow.DBMigrationFlow {
 	// TODO: read envs etc
 
 	provisionerURL := StrEnvOrDefault("PROVISIONER_URL", "http://localhost:8075")
-	dbType :=          model.InstallationDatabaseMultiTenantRDSPostgres
-	fileStoreType :=   model.InstallationFilestoreBifrost
+	dbType := model.InstallationDatabaseMultiTenantRDSPostgres
+	fileStoreType := model.InstallationFilestoreBifrost
 	//SourceDBID:      "rds-cluster-multitenant-050365fcbb1170e4b-07061b50",
 	destinationDBID := "rds-cluster-multitenant-050365fcbb1170e4b-migration"
-
 
 	client := model.NewClient(provisionerURL)
 
@@ -54,12 +54,11 @@ func setupDBMigrationTestFlow() (*workflow.DBMigrationFlow) {
 			DBType:        dbType,
 			FileStoreType: fileStoreType,
 		},
-		DestinationDBID:        destinationDBID,
+		DestinationDBID: destinationDBID,
 	}
 
 	return workflow.NewDBMigrationFlow(params, client, logrus.New())
 }
-
 
 func (w *DBMigrationTest) Run() error {
 	err := workflow.RunWorkflow(w.Workflow, logrus.New())
@@ -69,7 +68,6 @@ func (w *DBMigrationTest) Run() error {
 	return nil
 }
 
-
 func StrEnvOrDefault(env, def string) string {
 	val := os.Getenv(env)
 	if val == "" {
@@ -77,4 +75,3 @@ func StrEnvOrDefault(env, def string) string {
 	}
 	return val
 }
-
