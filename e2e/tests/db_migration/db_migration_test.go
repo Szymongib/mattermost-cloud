@@ -50,7 +50,7 @@ func TestDBMigration_Rollback(t *testing.T) {
 	rand.Seed(time.Now().UnixNano())
 	t.Parallel()
 
-	test, err := SetupDBMigrationCommitTest()
+	test, err := SetupDBMigrationRollbackTest()
 	require.NoError(t, err)
 
 	err = test.Run()

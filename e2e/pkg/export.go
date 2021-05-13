@@ -12,7 +12,8 @@ import (
 )
 
 // TODO: remove all but data source?
-// Copied from Mattermost Server
+
+// SqlSettings is struct copied from Mattermost Server
 type SqlSettings struct {
 	DriverName                  *string  `restricted:"true"`
 	DataSource                  *string  `restricted:"true"`
