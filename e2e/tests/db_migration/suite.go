@@ -1,10 +1,11 @@
-// Copyright (c) YEAR-present Mattermost, Inc. All Rights Reserved.
+// Copyright (c) 2015-present Mattermost, Inc. All Rights Reserved.
 // See LICENSE.txt for license information.
 //
 
 package db_migration
 
 import (
+	"github.com/vrischmann/envconfig"
 	"os"
 
 	"github.com/mattermost/mattermost-cloud/e2e/workflow"
@@ -13,13 +14,23 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
+type TestConfig struct {
+	CloudURL string `envconfig:"default=http://localhost:8075"`
+	DestinationDB string `envconfig:"default=rds-cluster-multitenant-050365fcbb1170e4b-migration"`
+	InstallationDBType string `envconfig:"default=aws-multitenant-rds-postgres"`
+	InstallationFileStoreType string `envconfig:"default=bifrost"`
+}
+
 type DBMigrationTest struct {
 	Flow     *workflow.DBMigrationFlow
 	Workflow *workflow.Workflow
 }
 
 func SetupDBMigrationCommitTest() (*DBMigrationTest, error) {
-	flow := setupDBMigrationTestFlow()
+	flow, err := setupDBMigrationTestFlow()
+	if err != nil {
+		return nil, err
+	}
 	work := commitDBMigrationWorkflow(flow)
 
 	return &DBMigrationTest{
@@ -29,7 +40,10 @@ func SetupDBMigrationCommitTest() (*DBMigrationTest, error) {
 }
 
 func SetupDBMigrationRollbackTest() (*DBMigrationTest, error) {
-	flow := setupDBMigrationTestFlow()
+	flow, err := setupDBMigrationTestFlow()
+	if err != nil {
+		return nil, err
+	}
 	work := rollbackDBMigrationWorkflow(flow)
 
 	return &DBMigrationTest{
@@ -38,26 +52,24 @@ func SetupDBMigrationRollbackTest() (*DBMigrationTest, error) {
 	}, nil
 }
 
-func setupDBMigrationTestFlow() *workflow.DBMigrationFlow {
-	// TODO: read envs etc
+func setupDBMigrationTestFlow() (*workflow.DBMigrationFlow,error) {
+	var config TestConfig
+	err := envconfig.Init(&config)
+	if err != nil {
+		return nil, errors.Wrap(err, "Unable to read environment configuration")
+	}
 
-	provisionerURL := StrEnvOrDefault("PROVISIONER_URL", "http://localhost:8075")
-	dbType := model.InstallationDatabaseMultiTenantRDSPostgres
-	fileStoreType := model.InstallationFilestoreBifrost
-	//SourceDBID:      "rds-cluster-multitenant-050365fcbb1170e4b-07061b50",
-	destinationDBID := "rds-cluster-multitenant-050365fcbb1170e4b-migration"
-
-	client := model.NewClient(provisionerURL)
+	client := model.NewClient(config.CloudURL)
 
 	params := workflow.DBMigrationFlowParams{
 		InstallationFlowParams: workflow.InstallationFlowParams{
-			DBType:        dbType,
-			FileStoreType: fileStoreType,
+			DBType:        config.InstallationDBType,
+			FileStoreType: config.InstallationFileStoreType,
 		},
-		DestinationDBID: destinationDBID,
+		DestinationDBID: config.DestinationDB,
 	}
 
-	return workflow.NewDBMigrationFlow(params, client, logrus.New())
+	return workflow.NewDBMigrationFlow(params, client, logrus.New()), nil
 }
 
 func (w *DBMigrationTest) Run() error {
