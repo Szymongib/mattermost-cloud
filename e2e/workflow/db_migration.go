@@ -15,6 +15,8 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
+// TODO: remove fmt.Print - replace with some logger?
+
 func NewDBMigrationFlow(params DBMigrationFlowParams, client *model.Client, logger logrus.FieldLogger) *DBMigrationFlow {
 	installationFlow := NewInstallationFlow(params.InstallationFlowParams, client, logger)
 
@@ -23,7 +25,7 @@ func NewDBMigrationFlow(params DBMigrationFlowParams, client *model.Client, logg
 		client:           client,
 		logger:           logger.WithField("flow", "db-migration"),
 		Params:           params,
-		Meta:             DBMigrationFlowMeta{SourceDBID: "rds-cluster-multitenant-050365fcbb1170e4b-07061b50"}, // TODO: temporary hack
+		Meta:             DBMigrationFlowMeta{},
 	}
 }
 
@@ -43,14 +45,28 @@ type DBMigrationFlowParams struct {
 }
 
 type DBMigrationFlowMeta struct {
-	SourceDBID           string // TODO: for now hardcode
+	SourceDBID           string
 	MigrationOperationID string
 
 	MigratedDBConnStr string
 }
 
 func (w *DBMigrationFlow) GetMultiTenantDBID(ctx context.Context) error {
-	// TODO: query all DBs and find instsallation ID?
+	dbs, err := w.client.GetMultitenantDatabases(&model.GetDatabasesRequest{
+		Paging:       model.AllPagesNotDeleted(),
+	})
+	if err != nil {
+		return errors.Wrap(err, "while getting multi tenant dbs")
+	}
+
+	installationDB, found := findInstallationDB(dbs, w.InstallationFlow.Meta.InstallationID)
+	if !found {
+		return errors.New("failed to find multi tenant database for installation")
+	}
+	fmt.Println("Found installation multi tenant db with ID: ", installationDB.ID)
+
+	w.Meta.SourceDBID = installationDB.ID
+
 	return nil
 }
 
@@ -164,4 +180,13 @@ func (w *DBMigrationFlow) AssertRollbackSuccessful(ctx context.Context) error {
 	//fmt.Println("Original CSV export: ", dataExport)
 
 	return nil
+}
+
+func findInstallationDB(dbs []*model.MultitenantDatabase, installationID string) (model.MultitenantDatabase, bool) {
+	for _, db := range dbs {
+		if db.Installations.Contains(installationID) {
+			return *db, true
+		}
+	}
+	return model.MultitenantDatabase{}, false
 }
