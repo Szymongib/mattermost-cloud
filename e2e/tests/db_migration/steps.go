@@ -11,14 +11,14 @@ import (
 func baseMigrationSteps(dbMigFlow *workflow.DBMigrationFlow) []*workflow.Step {
 	return []*workflow.Step{
 		{
-			Name:      "GetMultiTenantDBID",
-			Func:      dbMigFlow.GetMultiTenantDBID,
+			Name:      "CreateInstallation",
+			Func:      dbMigFlow.CreateInstallation,
 			DependsOn: []string{},
 		},
 		{
-			Name:      "CreateInstallation",
-			Func:      dbMigFlow.CreateInstallation,
-			DependsOn: []string{"GetMultiTenantDBID"},
+			Name:      "GetMultiTenantDBID",
+			Func:      dbMigFlow.GetMultiTenantDBID,
+			DependsOn: []string{"CreateInstallation"},
 		},
 		{
 			Name:      "GetCI",
