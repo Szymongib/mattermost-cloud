@@ -6,7 +6,7 @@ package workflow
 
 import (
 	"context"
-	"fmt"
+	"k8s.io/client-go/kubernetes"
 	"strings"
 
 	"github.com/mattermost/mattermost-cloud/e2e/pkg"
@@ -15,14 +15,13 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-// TODO: remove fmt.Print - replace with some logger?
-
-func NewDBMigrationFlow(params DBMigrationFlowParams, client *model.Client, logger logrus.FieldLogger) *DBMigrationFlow {
-	installationFlow := NewInstallationFlow(params.InstallationFlowParams, client, logger)
+func NewDBMigrationFlow(params DBMigrationFlowParams, client *model.Client, kubeClient kubernetes.Interface, logger logrus.FieldLogger) *DBMigrationFlow {
+	installationFlow := NewInstallationFlow(params.InstallationFlowParams, client, kubeClient, logger)
 
 	return &DBMigrationFlow{
 		InstallationFlow: installationFlow,
 		client:           client,
+		kubeClient:       kubeClient,
 		logger:           logger.WithField("flow", "db-migration"),
 		Params:           params,
 		Meta:             DBMigrationFlowMeta{},
@@ -32,8 +31,9 @@ func NewDBMigrationFlow(params DBMigrationFlowParams, client *model.Client, logg
 type DBMigrationFlow struct {
 	*InstallationFlow
 
-	client *model.Client
-	logger logrus.FieldLogger
+	client     *model.Client
+	kubeClient kubernetes.Interface
+	logger     logrus.FieldLogger
 
 	Params DBMigrationFlowParams
 	Meta   DBMigrationFlowMeta
@@ -53,7 +53,7 @@ type DBMigrationFlowMeta struct {
 
 func (w *DBMigrationFlow) GetMultiTenantDBID(ctx context.Context) error {
 	dbs, err := w.client.GetMultitenantDatabases(&model.GetDatabasesRequest{
-		Paging:       model.AllPagesNotDeleted(),
+		Paging: model.AllPagesNotDeleted(),
 	})
 	if err != nil {
 		return errors.Wrap(err, "while getting multi tenant dbs")
@@ -63,7 +63,7 @@ func (w *DBMigrationFlow) GetMultiTenantDBID(ctx context.Context) error {
 	if !found {
 		return errors.New("failed to find multi tenant database for installation")
 	}
-	fmt.Println("Found installation multi tenant db with ID: ", installationDB.ID)
+	w.logger.Infof("Found installation multi tenant db with ID: %s", installationDB.ID)
 
 	w.Meta.SourceDBID = installationDB.ID
 
@@ -83,7 +83,7 @@ func (w *DBMigrationFlow) RunDBMigration(ctx context.Context) error {
 		w.Meta.MigrationOperationID = migrationOP.ID
 	}
 
-	err := pkg.WaitForDBMigrationToFinish(w.client, w.Meta.MigrationOperationID)
+	err := pkg.WaitForDBMigrationToFinish(w.client, w.Meta.MigrationOperationID, w.logger)
 	if err != nil {
 		return errors.Wrap(err, "while waiting for migration")
 	}
@@ -97,7 +97,6 @@ func (w *DBMigrationFlow) AssertMigrationSuccessful(ctx context.Context) error {
 		return errors.Wrap(err, "while getting connection str")
 	}
 	w.Meta.MigratedDBConnStr = connStr
-	fmt.Println("Migrated connection string: ", connStr)
 
 	if w.InstallationFlow.Meta.ConnectionString == w.Meta.MigratedDBConnStr {
 		return errors.New("error: connection strings are equal")
@@ -107,12 +106,15 @@ func (w *DBMigrationFlow) AssertMigrationSuccessful(ctx context.Context) error {
 		return errors.New("error: migrated connection string does not contain destination db id")
 	}
 
-	//dataExport, err := pkg.ExportCSV(w.client, w.Meta.CI)
-	//if err != nil {
-	//	return errors.Wrap(err, "while getting CSV export")
-	//}
-	//w.Meta.MigratedCSVExport = dataExport
-	//fmt.Println("Migrated CSV export: ", dataExport)
+	export, err := pkg.GetBulkExportStats(w.client, w.kubeClient, w.InstallationFlow.Meta.ClusterInstallationID, w.InstallationFlow.Meta.InstallationID, w.logger)
+	if err != nil {
+		return errors.Wrap(err, "while getting CSV export")
+	}
+	w.logger.Infof("Bulk export stats after migration: %v", export)
+	if export != w.InstallationFlow.Meta.BulkExportStats {
+		return errors.Errorf("error: export after migration differs from original export, original: %v, new: %v", w.InstallationFlow.Meta.BulkExportStats, export)
+		//w.logger.Errorf( "error: export after migration differs from original export, original: %v, new: %v", w.InstallationFlow.Meta.BulkExportStats, export)
+	}
 
 	return nil
 }
@@ -135,7 +137,7 @@ func (w *DBMigrationFlow) RollbackMigration(ctx context.Context) error {
 		return errors.Wrap(err, "while getting migration operation to roll back")
 	}
 	if migrationOP.State == model.InstallationDBMigrationStateRollbackFinished {
-		fmt.Println("db migration already rolled back")
+		w.logger.Info("db migration already rolled back")
 		return nil
 	}
 
@@ -150,7 +152,7 @@ func (w *DBMigrationFlow) RollbackMigration(ctx context.Context) error {
 		return errors.Errorf("db migration operation is in unexpected state: %s", migrationOP.State)
 	}
 
-	err = pkg.WaitForDBMigrationRollbackToFinish(w.client, migrationOP.ID)
+	err = pkg.WaitForDBMigrationRollbackToFinish(w.client, migrationOP.ID, w.logger)
 	if err != nil {
 		return errors.Wrap(err, "while waiting for rollback to finish")
 	}
@@ -172,12 +174,15 @@ func (w *DBMigrationFlow) AssertRollbackSuccessful(ctx context.Context) error {
 		return errors.New("error: connection string does not contain source db id")
 	}
 
-	//dataExport, err := pkg.ExportCSV(w.client, w.Meta.CI)
-	//if err != nil {
-	//	return errors.Wrap(err, "while getting CSV export")
-	//}
-	//w.Meta.OriginalCSVExport = dataExport
-	//fmt.Println("Original CSV export: ", dataExport)
+	export, err := pkg.GetBulkExportStats(w.client, w.kubeClient, w.InstallationFlow.Meta.ClusterInstallationID, w.InstallationFlow.Meta.InstallationID, w.logger)
+	if err != nil {
+		return errors.Wrap(err, "while getting CSV export")
+	}
+	w.logger.Infof("Bulk export stats after rollback: %v", export)
+	if export != w.InstallationFlow.Meta.BulkExportStats {
+		return errors.Errorf("error: export after rollback differs from original export, original: %v, new: %v", w.InstallationFlow.Meta.BulkExportStats, export)
+		//w.logger.Errorf( "error: export after rollback differs from original export, original: %v, new: %v", w.InstallationFlow.Meta.BulkExportStats, export)
+	}
 
 	return nil
 }

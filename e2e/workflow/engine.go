@@ -66,7 +66,7 @@ func RunWorkflow(workflow *Workflow, logger logrus.FieldLogger) error {
 		logrus.Infof("Running step: %s", step.Name)
 		err := step.Func(ctx)
 		for i := 1; i < runner.retries && err != nil; i++ {
-			logger.Warn("Step %s failed %d times, waiting 3 seconds before retry", step.Name, i)
+			logger.WithError(err).Errorf("Step %s failed %d times, waiting 3 seconds before retry", step.Name, i)
 			time.Sleep(3 * time.Second)
 			err = step.Func(ctx)
 		}

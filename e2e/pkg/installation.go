@@ -6,6 +6,7 @@ package pkg
 
 import (
 	"fmt"
+	"github.com/sirupsen/logrus"
 	"net/http"
 	"time"
 
@@ -36,11 +37,11 @@ func CreateHAInstallation(client *model.Client, db, filestore string, group stri
 	return installation, nil
 }
 
-func WaitForInstallation(client *model.Client, dns string) error {
+func WaitForInstallation(client *model.Client, dns string, log logrus.FieldLogger) error {
 	err := WaitForFunc(20*time.Minute, 10*time.Second, func() (bool, error) {
 		resp, err := http.Get(PingURL(dns))
 		if err != nil {
-			fmt.Println("Error while pining installation: ", err.Error())
+			log.WithError(err).Error("Error while pining installation")
 			return false, nil
 		}
 		return resp.StatusCode == http.StatusOK, nil
@@ -48,7 +49,7 @@ func WaitForInstallation(client *model.Client, dns string) error {
 	return err
 }
 
-func WaitForHibernation(client *model.Client, installationID string) error {
+func WaitForHibernation(client *model.Client, installationID string, log logrus.FieldLogger) error {
 	err := WaitForFunc(5*time.Minute, 10*time.Second, func() (bool, error) {
 		installation, err := client.GetInstallation(installationID, &model.GetInstallationRequest{})
 		if err != nil {
@@ -59,13 +60,13 @@ func WaitForHibernation(client *model.Client, installationID string) error {
 		if installation.State == model.InstallationStateHibernating {
 			return true, nil
 		}
-		fmt.Println("Installation not hibernated: ", installation.State, "  ", installation.ID)
+		log.Infof("Installation %s not hibernated: %s", installationID, installation.State)
 		return false, nil
 	})
 	return err
 }
 
-func WaitForStable(client *model.Client, installationID string) error {
+func WaitForStable(client *model.Client, installationID string, log logrus.FieldLogger) error {
 	err := WaitForFunc(5*time.Minute, 10*time.Second, func() (bool, error) {
 		installation, err := client.GetInstallation(installationID, &model.GetInstallationRequest{})
 		if err != nil {
@@ -76,7 +77,7 @@ func WaitForStable(client *model.Client, installationID string) error {
 		if installation.State == model.InstallationStateStable {
 			return true, nil
 		}
-		fmt.Println("Installation not stable: ", installation.State, "  ", installation.ID)
+		log.Infof("Installation %s not stable: %s", installationID, installation.State)
 		return false, nil
 	})
 	return err
