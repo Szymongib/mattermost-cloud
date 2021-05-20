@@ -166,6 +166,21 @@ Run the go tests to test:
 $ go test ./...
 ```
 
+### End-to-end tests
+
+There are some end-to-end tests located in `./e2e` directory.
+When adding new test around new functionality create new folder in `./e2e/tests`. 
+
+Tests can be run with `make e2e`.
+
+#### DB Migration e2e prerequisites
+
+E2e test for DB migration requires the following setup:
+- Local instance of Provisioner.
+- Workload cluster able to handle 2 installations of size `1000users`.
+- 2 Multi tenant Postgres databases provisioned in the same VPC as the workload cluster.
+- The destination database to which the migration can be performed should be exported as environment variable `DESTINATION_DB`.
+
 ### Deleting a cluster and installations
 Before deleting a cluster you will **have** to delete the installations first on it.
 
