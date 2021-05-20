@@ -6,23 +6,19 @@ package pkg
 
 import (
 	"fmt"
+	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	"time"
 
 	"github.com/mattermost/mattermost-cloud/model"
 )
 
+// WaitForDBMigrationToFinish waits for DB migration to reach state Succeeded.
 func WaitForDBMigrationToFinish(client *model.Client, opID string, log logrus.FieldLogger) error {
-	errCount := 0
 	err := WaitForFunc(16*time.Minute, 10*time.Second, func() (bool, error) {
 		operation, err := client.GetInstallationDBMigrationOperation(opID)
 		if err != nil {
-			log.WithError(err).Error("Error while waiting for db migration")
-			errCount++
-			if errCount > 3 {
-				return false, err
-			}
-			return false, nil
+			return false, errors.Wrap(err, "while waiting for db migration")
 		}
 
 		if operation.State == model.InstallationDBMigrationStateSucceeded {
@@ -31,27 +27,26 @@ func WaitForDBMigrationToFinish(client *model.Client, opID string, log logrus.Fi
 		if operation.State == model.InstallationDBMigrationStateFailed {
 			return false, fmt.Errorf("db migration operation %q failed", operation.ID)
 		}
+
+		log.Infof("DB migration %s not finished: %s", opID, operation.State)
 		return false, nil
 	})
 	return err
 }
 
+// WaitForDBMigrationRollbackToFinish waits for DB migration to reach state RollbackFinished.
 func WaitForDBMigrationRollbackToFinish(client *model.Client, opID string, log logrus.FieldLogger) error {
-	errCount := 0
 	err := WaitForFunc(16*time.Minute, 10*time.Second, func() (bool, error) {
 		operation, err := client.GetInstallationDBMigrationOperation(opID)
 		if err != nil {
-			log.WithError(err).Error("Error while waiting for db migration rollback")
-			errCount++
-			if errCount > 3 {
-				return false, err
-			}
-			return false, nil
+			return false, errors.Wrap(err, "while waiting for db migration rollback")
 		}
 
 		if operation.State == model.InstallationDBMigrationStateRollbackFinished {
 			return true, nil
 		}
+
+		log.Infof("DB migration rollback %s not finished: %s", opID, operation.State)
 		return false, nil
 	})
 	return err

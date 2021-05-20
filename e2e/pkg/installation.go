@@ -17,8 +17,9 @@ import (
 func CreateHAInstallation(client *model.Client, db, filestore string, group string) (*model.InstallationDTO, error) {
 	installationDNS := GetDNS()
 
+	// TODO: allow customization
 	installationReq := model.CreateInstallationRequest{
-		OwnerID:   "e2e-test", // TODO: allow customization
+		OwnerID:   "e2e-test",
 		GroupID:   group,
 		Version:   "stable",
 		Image:     "mattermost/mattermost-enterprise-edition",
@@ -37,7 +38,7 @@ func CreateHAInstallation(client *model.Client, db, filestore string, group stri
 	return installation, nil
 }
 
-func WaitForInstallation(client *model.Client, dns string, log logrus.FieldLogger) error {
+func WaitForInstallation(dns string, log logrus.FieldLogger) error {
 	err := WaitForFunc(20*time.Minute, 10*time.Second, func() (bool, error) {
 		resp, err := http.Get(PingURL(dns))
 		if err != nil {
@@ -53,7 +54,6 @@ func WaitForHibernation(client *model.Client, installationID string, log logrus.
 	err := WaitForFunc(5*time.Minute, 10*time.Second, func() (bool, error) {
 		installation, err := client.GetInstallation(installationID, &model.GetInstallationRequest{})
 		if err != nil {
-			// TODO: allow 3 fails
 			return false, errors.Wrap(err, "while waiting for hibernation")
 		}
 
@@ -70,7 +70,6 @@ func WaitForStable(client *model.Client, installationID string, log logrus.Field
 	err := WaitForFunc(5*time.Minute, 10*time.Second, func() (bool, error) {
 		installation, err := client.GetInstallation(installationID, &model.GetInstallationRequest{})
 		if err != nil {
-			// TODO: allow 3 fails
 			return false, errors.Wrap(err, "while waiting for stable")
 		}
 

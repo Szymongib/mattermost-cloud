@@ -11,6 +11,7 @@ import (
 	"github.com/pkg/errors"
 )
 
+// WaitForFunc waits until `isReady` returns `true`, error is returned or timeout reached.
 func WaitForFunc(timeout time.Duration, interval time.Duration, isReady func() (bool, error)) error {
 	done := time.After(timeout)
 

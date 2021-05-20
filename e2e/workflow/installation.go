@@ -61,7 +61,7 @@ func (w *InstallationFlow) CreateInstallation(ctx context.Context) error {
 		return errors.Wrap(err, "while waiting for installation creation")
 	}
 
-	err = pkg.WaitForInstallation(w.client, w.Meta.InstallationDNS, w.logger)
+	err = pkg.WaitForInstallation(w.Meta.InstallationDNS, w.logger)
 	if err != nil {
 		return errors.Wrap(err, "while waiting for installation DNS")
 	}
@@ -96,7 +96,6 @@ func (w *InstallationFlow) GetConnectionStrAndExport(ctx context.Context) error 
 	return nil
 }
 
-// TODO: move to pkg
 func (w *InstallationFlow) PopulateSampleData(ctx context.Context) error {
 	// Do not generate guest user as by default guest accounts are disabled,
 	// which results in guest users being deactivated when Mattermost restarts.

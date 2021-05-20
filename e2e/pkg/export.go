@@ -20,8 +20,6 @@ import (
 	"github.com/pkg/errors"
 )
 
-// TODO: remove all but data source?
-
 // SqlSettings is struct copied from Mattermost Server
 type SqlSettings struct {
 	DriverName                  *string  `restricted:"true"`
@@ -36,8 +34,8 @@ type SqlSettings struct {
 	QueryTimeout                *int     `restricted:"true"`
 }
 
+// GetConnectionString fetches the connection string from cluster installation's config.
 func GetConnectionString(client *model.Client, clusterInstallationID string) (string, error) {
-	// TODO: replce it with get config?
 	out, err := client.RunMattermostCLICommandOnClusterInstallation(clusterInstallationID, []string{"config", "show", "--json"})
 	if err != nil {
 		return "", errors.Wrap(err, "while execing config show")
@@ -55,10 +53,12 @@ func GetConnectionString(client *model.Client, clusterInstallationID string) (st
 	return *settings.SqlSettings.DataSource, nil
 }
 
+// BulkLine represents bulk export line.
 type BulkLine struct {
 	Type string `json:"type"`
 }
 
+// ExportStats are statistics of bulk export.
 type ExportStats struct {
 	Teams          int
 	Channels       int
@@ -68,6 +68,7 @@ type ExportStats struct {
 	DirectPosts    int
 }
 
+// GetBulkExportStats runs mattermost bulk export on the cluster installation and counts teams, channels, users and posts.
 func GetBulkExportStats(client *model.Client, kubeClient kubernetes.Interface, clusterInstallationID, installationID string, logger logrus.FieldLogger) (ExportStats, error) {
 	fileName := fmt.Sprintf("export-ci-%s.json", clusterInstallationID)
 
@@ -93,9 +94,10 @@ func GetBulkExportStats(client *model.Client, kubeClient kubernetes.Interface, c
 		}
 	}()
 
-	// File will be on only one pod
-	// if file does not exist kubectl cp exits with 0 code
-	// but does not change local file.
+	// The solution with `kubectl cp` is pretty hacky, but should be fine for the purpose of tests.
+
+	// File will exist on only one pod.
+	// If file does not exist kubectl cp exits with 0 code but does not change local file.
 	for _, pod := range pods.Items {
 		copyFrom := fmt.Sprintf("%s/%s:/mattermost/%s", pod.Namespace, pod.Name, fileName)
 		cmd := exec.Command("kubectl", "cp", copyFrom, destination)

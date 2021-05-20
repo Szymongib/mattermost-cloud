@@ -8,6 +8,7 @@ import (
 	"k8s.io/client-go/util/homedir"
 )
 
+// GetK8sConfig gets K8s config either from inside the cluster or local directory.
 func GetK8sConfig() (*restclient.Config, error) {
 	k8sConfig, err := restclient.InClusterConfig()
 	if err != nil {

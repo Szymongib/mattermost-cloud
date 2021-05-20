@@ -15,6 +15,7 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
+// NewDBMigrationFlow creates new DBMigrationFlow.
 func NewDBMigrationFlow(params DBMigrationFlowParams, client *model.Client, kubeClient kubernetes.Interface, logger logrus.FieldLogger) *DBMigrationFlow {
 	installationFlow := NewInstallationFlow(params.InstallationFlowParams, client, kubeClient, logger)
 
@@ -28,6 +29,7 @@ func NewDBMigrationFlow(params DBMigrationFlowParams, client *model.Client, kube
 	}
 }
 
+// DBMigrationFlow stores parameters and metadata used when running tests.
 type DBMigrationFlow struct {
 	*InstallationFlow
 
@@ -39,11 +41,13 @@ type DBMigrationFlow struct {
 	Meta   DBMigrationFlowMeta
 }
 
+// DBMigrationFlowParams are parameters passed to test.
 type DBMigrationFlowParams struct {
 	InstallationFlowParams
 	DestinationDBID string
 }
 
+// DBMigrationFlowMeta is a metadata generated when running various methods of the flow.
 type DBMigrationFlowMeta struct {
 	SourceDBID           string
 	MigrationOperationID string
@@ -51,6 +55,7 @@ type DBMigrationFlowMeta struct {
 	MigratedDBConnStr string
 }
 
+// GetMultiTenantDBID fetches multi tenant database id for installation.
 func (w *DBMigrationFlow) GetMultiTenantDBID(ctx context.Context) error {
 	dbs, err := w.client.GetMultitenantDatabases(&model.GetDatabasesRequest{
 		Paging: model.AllPagesNotDeleted(),
@@ -70,6 +75,7 @@ func (w *DBMigrationFlow) GetMultiTenantDBID(ctx context.Context) error {
 	return nil
 }
 
+// RunDBMigration runs DB migration of flow's installation.
 func (w *DBMigrationFlow) RunDBMigration(ctx context.Context) error {
 	if w.Meta.MigrationOperationID == "" {
 		migrationOP, err := w.client.MigrateInstallationDatabase(&model.InstallationDBMigrationRequest{
@@ -91,6 +97,7 @@ func (w *DBMigrationFlow) RunDBMigration(ctx context.Context) error {
 	return nil
 }
 
+// AssertMigrationSuccessful asserts that DB migration correctly adjusted connection string and no data was lost.
 func (w *DBMigrationFlow) AssertMigrationSuccessful(ctx context.Context) error {
 	connStr, err := pkg.GetConnectionString(w.client, w.InstallationFlow.Meta.ClusterInstallationID)
 	if err != nil {
@@ -113,12 +120,12 @@ func (w *DBMigrationFlow) AssertMigrationSuccessful(ctx context.Context) error {
 	w.logger.Infof("Bulk export stats after migration: %v", export)
 	if export != w.InstallationFlow.Meta.BulkExportStats {
 		return errors.Errorf("error: export after migration differs from original export, original: %v, new: %v", w.InstallationFlow.Meta.BulkExportStats, export)
-		//w.logger.Errorf( "error: export after migration differs from original export, original: %v, new: %v", w.InstallationFlow.Meta.BulkExportStats, export)
 	}
 
 	return nil
 }
 
+// CommitMigration commits DB migration.
 func (w *DBMigrationFlow) CommitMigration(ctx context.Context) error {
 	migrationOP, err := w.client.CommitInstallationDBMigration(w.Meta.MigrationOperationID)
 	if err != nil {
@@ -131,6 +138,7 @@ func (w *DBMigrationFlow) CommitMigration(ctx context.Context) error {
 	return nil
 }
 
+// RollbackMigration rolls back DB migration.
 func (w *DBMigrationFlow) RollbackMigration(ctx context.Context) error {
 	migrationOP, err := w.client.GetInstallationDBMigrationOperation(w.Meta.MigrationOperationID)
 	if err != nil {
@@ -160,6 +168,7 @@ func (w *DBMigrationFlow) RollbackMigration(ctx context.Context) error {
 	return nil
 }
 
+// AssertRollbackSuccessful that DB migration rollback was performed successfully.
 func (w *DBMigrationFlow) AssertRollbackSuccessful(ctx context.Context) error {
 	connStr, err := pkg.GetConnectionString(w.client, w.InstallationFlow.Meta.ClusterInstallationID)
 	if err != nil {
@@ -181,7 +190,6 @@ func (w *DBMigrationFlow) AssertRollbackSuccessful(ctx context.Context) error {
 	w.logger.Infof("Bulk export stats after rollback: %v", export)
 	if export != w.InstallationFlow.Meta.BulkExportStats {
 		return errors.Errorf("error: export after rollback differs from original export, original: %v, new: %v", w.InstallationFlow.Meta.BulkExportStats, export)
-		//w.logger.Errorf( "error: export after rollback differs from original export, original: %v, new: %v", w.InstallationFlow.Meta.BulkExportStats, export)
 	}
 
 	return nil
