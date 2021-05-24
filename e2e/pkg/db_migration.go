@@ -6,9 +6,10 @@ package pkg
 
 import (
 	"fmt"
+	"time"
+
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
-	"time"
 
 	"github.com/mattermost/mattermost-cloud/model"
 )

@@ -1,8 +1,9 @@
 package pkg
 
 import (
-	restclient "k8s.io/client-go/rest"
 	"path/filepath"
+
+	restclient "k8s.io/client-go/rest"
 
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/util/homedir"

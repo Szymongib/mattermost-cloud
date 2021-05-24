@@ -6,6 +6,7 @@ package workflow
 
 import (
 	"context"
+
 	"github.com/mattermost/mattermost-cloud/e2e/pkg"
 	"github.com/mattermost/mattermost-cloud/model"
 	"github.com/pkg/errors"

@@ -9,14 +9,14 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
+	"os/exec"
+
 	"github.com/mattermost/mattermost-cloud/model"
 	"github.com/sirupsen/logrus"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
-	"os"
-	"os/exec"
 
-	//mmv5 "github.com/mattermost/mattermost-server/v5/model"
 	"github.com/pkg/errors"
 )
 

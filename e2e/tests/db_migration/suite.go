@@ -6,6 +6,7 @@ package db_migration
 
 import (
 	"encoding/json"
+
 	"github.com/mattermost/mattermost-cloud/e2e/pkg"
 	"github.com/mattermost/mattermost-cloud/e2e/workflow"
 	"github.com/mattermost/mattermost-cloud/model"

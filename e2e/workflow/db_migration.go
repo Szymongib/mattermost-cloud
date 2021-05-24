@@ -6,8 +6,9 @@ package workflow
 
 import (
 	"context"
-	"k8s.io/client-go/kubernetes"
 	"strings"
+
+	"k8s.io/client-go/kubernetes"
 
 	"github.com/mattermost/mattermost-cloud/e2e/pkg"
 	"github.com/mattermost/mattermost-cloud/model"
