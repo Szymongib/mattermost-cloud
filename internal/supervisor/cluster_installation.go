@@ -24,10 +24,9 @@ type clusterInstallationStore interface {
 
 	GetClusterInstallation(clusterInstallationID string) (*model.ClusterInstallation, error)
 	GetUnlockedClusterInstallationsPendingWork() ([]*model.ClusterInstallation, error)
-	LockClusterInstallations(clusterInstallationID []string, lockerID string) (bool, error)
-	UnlockClusterInstallations(clusterInstallationID []string, lockerID string, force bool) (bool, error)
 	UpdateClusterInstallation(clusterInstallation *model.ClusterInstallation) error
 	DeleteClusterInstallation(clusterInstallationID string) error
+	clusterInstallationLockStore
 
 	GetInstallationBackups(filter *model.InstallationBackupFilter) ([]*model.InstallationBackup, error)
 
