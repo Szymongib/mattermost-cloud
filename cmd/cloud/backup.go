@@ -8,6 +8,7 @@ import (
 	"os"
 
 	"github.com/mattermost/mattermost-cloud/internal/tools/utils"
+
 	"github.com/mattermost/mattermost-cloud/model"
 	"github.com/olekukonko/tablewriter"
 	"github.com/pkg/errors"
